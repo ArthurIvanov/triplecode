@@ -110,9 +110,9 @@
 | GitLens | `eamodio.gitlens` | 19.6.1 | ^1.101.0 | ✅ OK | Активировано, работает; сам установил CLI. Для полной проверки нужен git-репозиторий (тест-папка не под git) |
 | JS (ES6) snippets | `xabikos.JavaScriptSnippets` | 1.8.0 | **0.10.x** | ⚠️ INCOMPATIBLE → ✅ REPLACED | `engines.vscode: 0.10.x` несовместим с 1.143 — удалено. Заменено на `sankeyangshu.vscode-javascript-typescript-snippets` 0.3.3 (engine ^1.97, MIT) — сниппеты JS+TS. Активировано (`onStartupFinished`) |
 | npm Intellisense | `christian-kohler.npm-intellisense` | 1.4.5 | ^1.0.0 | ✅ OK | Gallery-поиск CLI не нашёл расширение — установлено вручную из .vsix. Активировано на `onLanguage:typescript` |
-| SonarLint | `sonarsource.sonarlint-vscode` | 6.4.0 | ^1.100.0 | ⚠️ DEGRADED | Активировано, но LSP-лог показывает `ResponseErrorException: sonarlint/hasJoinedIdeLabs defines 1 params but received none` — вероятно, несовместимость сборки Open VSX с сервером. Требует ручной проверки аналитики |
+| SonarLint | `sonarsource.sonarlint-vscode` | 6.4.0 | ^1.100.0 | ✅ OK | Повторный прогон: LSP-ошибка `hasJoinedIdeLabs` была транзиентной (первый запуск). Во втором запуске анализ отработал: «1 source file analyzed, 0 issues» |
 
-**Итог:** 9/10 позиций закрыты (8 оригинальных + 2 замены вместо заблокированных/несовместимых), 1 требует ручной проверки (SonarLint). Заменены: Node.js Modules Intellisense → Path Intellisense, JS Snippets → JS/TS Snippets (sankeyangshu).
+**Итог:** 10/10 позиций закрыты (8 оригинальных + 2 замены). Заменены: Node.js Modules Intellisense → Path Intellisense, JS Snippets → JS/TS Snippets (sankeyangshu). Все расширения активируются без ошибок в exthost.log.
 
 ## Следующие шаги
 
