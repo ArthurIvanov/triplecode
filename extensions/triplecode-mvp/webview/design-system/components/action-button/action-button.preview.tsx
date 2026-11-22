@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { ActionButton, type ActionButtonSize, type ActionButtonState, type ActionButtonVariant } from './action-button';
 
 const actionButtonSizes = ['large', 'base', 'small'] as const;
@@ -19,12 +19,28 @@ const actionButtonSampleIcons: Record<ActionButtonVariant, Record<ActionButtonSi
   }
 };
 
+const iconSizes: Record<ActionButtonSize, number> = { large: 16, base: 14, small: 12 };
+
+function SampleIcon({ href, size }: { href: string; size: ActionButtonSize }) {
+  const maskId = useId();
+  const dimension = iconSizes[size];
+
+  return (
+    <svg width={dimension} height={dimension} viewBox={`0 0 ${dimension} ${dimension}`} aria-hidden="true">
+      <mask id={maskId} mask-type="alpha">
+        <image href={href} width={dimension} height={dimension} />
+      </mask>
+      <rect width={dimension} height={dimension} fill="currentColor" mask={`url(#${maskId})`} />
+    </svg>
+  );
+}
+
 export function ActionButtonPreview({ media = '' }: { media?: string }) {
   const [pressed, setPressed] = useState(false);
 
   return <section className="action-button-preview">
-    <h3><a href="https://www.figma.com/design/H0WMYGGclEWe3lbjUabY3h/Triplecode-app?node-id=181-1367">ActionButton</a></h3>
-    <ActionButton rounding="full" start={false} text="Toggle action" aria-pressed={pressed} onClick={() => setPressed(!pressed)} />
+    <h3><a href="https://www.figma.com/design/H0WMYGGclEWe3lbjUabY3h/Triplecode-app?node-id=138-6194">ActionButton</a></h3>
+    <ActionButton rounding="full" text="Toggle action" aria-pressed={pressed} onClick={() => setPressed(!pressed)} />
     {[false, true].map(iconOnly => (
       <div className="action-button-matrix-scroll" key={String(iconOnly)}>
         <table className="action-button-matrix">
@@ -43,12 +59,12 @@ export function ActionButtonPreview({ media = '' }: { media?: string }) {
               {(['default', 'full'] as const).flatMap(rounding =>
                 actionButtonVariants.flatMap(variant => actionButtonSizes.map(size => {
                   const reference = actionButtonSampleIcons[variant][size][state];
-                  const icon = <img src={`${media}/figma-assets/action-button/x${reference ? `-${reference}` : ''}.svg`} alt="" />;
-                  const props = { icon, rounding, size, state, variant, tabIndex: -1 };
+                  const start = <SampleIcon href={`${media}/figma-assets/action-button/x${reference ? `-${reference}` : ''}.svg`} size={size} />;
+                  const props = { start, rounding, size, state, variant, tabIndex: -1 };
                   const label = `${variant}, ${rounding}, ${size}, ${state}`;
                   return <td key={`${rounding}-${variant}-${size}`}>
                     {iconOnly
-                      ? <ActionButton {...props} iconOnly aria-label={label} />
+                      ? <ActionButton {...props} text={null} aria-label={label} />
                       : <ActionButton {...props} aria-label={`Action, ${label}`} />}
                   </td>;
                 }))

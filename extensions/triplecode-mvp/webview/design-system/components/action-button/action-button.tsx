@@ -6,33 +6,31 @@ export type ActionButtonVariant = 'ghost' | 'filled';
 export type ActionButtonRounding = 'default' | 'full';
 
 type ActionButtonContent =
-  | { iconOnly: true; icon: ReactNode; 'aria-label': string }
-  | { iconOnly?: false; icon?: ReactNode; 'aria-label'?: string };
+  | { text: null; start: ReactNode; 'aria-label': string }
+  | { text?: string; start?: ReactNode; 'aria-label'?: string };
 
 export type ActionButtonProps = Omit<ComponentPropsWithoutRef<'button'>, 'children' | 'aria-label'> &
   ActionButtonContent & {
     rounding?: ActionButtonRounding;
     size?: ActionButtonSize;
-    start?: boolean;
     state?: ActionButtonState;
-    text?: string;
     variant?: ActionButtonVariant;
   };
 
 export function ActionButton({
   className,
   disabled,
-  icon,
-  iconOnly = false,
   rounding = 'default',
   size = 'large',
-  start = true,
+  start,
   state,
   text = 'Action',
   type = 'button',
   variant = 'ghost',
   ...buttonProps
 }: ActionButtonProps) {
+  const iconOnly = text === null;
+  const hasStart = start != null && typeof start !== 'boolean' && start !== '';
   const isDisabled = disabled || state === 'disabled';
 
   return (
@@ -47,7 +45,7 @@ export function ActionButton({
       data-icon-only={iconOnly}
       data-state={isDisabled ? 'disabled' : state}
     >
-      {start && icon != null && <span className="tc-action-button__icon" aria-hidden="true">{icon}</span>}
+      {hasStart && <span className="tc-action-button__icon" aria-hidden="true">{start}</span>}
       {!iconOnly && <span>{text}</span>}
     </button>
   );

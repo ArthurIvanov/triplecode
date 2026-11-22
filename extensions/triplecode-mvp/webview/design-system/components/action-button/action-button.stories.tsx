@@ -7,7 +7,7 @@ import './action-button.preview.css';
 const meta = {
   title: 'Design System/ActionButton',
   component: ActionButton,
-  args: { start: false, text: 'Action' },
+  args: { text: 'Action' },
   parameters: { layout: 'padded' }
 } satisfies Meta<typeof ActionButton>;
 
