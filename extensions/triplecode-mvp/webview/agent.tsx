@@ -103,6 +103,8 @@ function update(state: State, action: Action): State {
         ...state, submitting: true, status: '',
         progress: { chat: state.selected, text: 'Working…', startedAt: Date.now() }
       };
+    default:
+      return state;
   }
 }
 
