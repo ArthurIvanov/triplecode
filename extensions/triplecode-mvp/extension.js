@@ -236,7 +236,7 @@ function getImportPreviewHtml(data, webview) {
 </html>`;
 }
 
-async function showDesignSystem() {
+async function showDesignSystem(context) {
   const panel = vscode.window.createWebviewPanel(
     'triplecodeDesignSystem',
     'TripleCode Design System',
@@ -244,10 +244,10 @@ async function showDesignSystem() {
     { enableScripts: true, retainContextWhenHidden: true }
   );
 
-  panel.webview.html = getDesignSystemHtml(panel.webview);
+  panel.webview.html = getDesignSystemHtml(panel.webview, context);
 }
 
-function getDesignSystemHtml(webview) {
+function getDesignSystemHtml(webview, context) {
   const uri = name => webview.asWebviewUri(vscode.Uri.joinPath(context.extensionUri, 'media', name));
   return `<!DOCTYPE html>
 <html lang="en">
@@ -761,7 +761,7 @@ function activate(context) {
     vscode.commands.registerCommand('triplecode.newChat', newChat),
     vscode.commands.registerCommand('triplecode.importFromVSCode', showImportPreview),
     vscode.commands.registerCommand('triplecode.rollbackImport', () => rollbackImport(context)),
-    vscode.commands.registerCommand('triplecode.designSystem', showDesignSystem),
+    vscode.commands.registerCommand('triplecode.designSystem', () => showDesignSystem(context)),
     vscode.window.registerWebviewViewProvider('triplecode.agentView', { resolveWebviewView: resolveAgent }, {
       webviewOptions: { retainContextWhenHidden: true }
     })
