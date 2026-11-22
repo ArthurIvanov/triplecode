@@ -5,7 +5,8 @@ const { randomUUID } = require('node:crypto');
 const { readFile, access, readdir } = require('node:fs/promises');
 const { join } = require('node:path');
 const { homedir } = require('node:os');
-const { proposePatch } = require('./patch');
+const { exec } = require('node:child_process');
+const { commentEdit, supportsComments } = require('./patch');
 
 // VS Code paths on macOS
 const VS_CODE_PATHS = [
@@ -396,19 +397,25 @@ function getDesignSystemHtml(webview, context) {
           </section>
           <form class="composer">
             <div class="composer-header">
-              <button type="button" class="files-toggle" aria-expanded="true">
-                <img src="${uri('figma-assets/imgChevronRight.svg')}" alt="">
-                <span>1 file</span>
-              </button>
-              <div class="review-actions">
-                <button type="button" class="pill-action">Undo all</button>
-                <button type="button" class="pill-action">Keep all</button>
-                <button type="button" class="review-btn">Review</button>
+              <div class="review-row">
+                <button type="button" class="files-toggle" aria-expanded="true">
+                  <img src="${uri('figma-assets/imgChevronRight.svg')}" alt="">
+                  <span>1 file</span>
+                </button>
+                <div class="review-actions">
+                  <button type="button" class="pill-action">Run checks</button>
+                  <button type="button" class="pill-action">Undo all</button>
+                  <button type="button" class="pill-action">Keep all</button>
+                  <button type="button" class="review-btn">Review</button>
+                </div>
               </div>
             </div>
             <textarea placeholder="Press / for skills, @ for context" disabled style="min-height: 30px;"></textarea>
             <footer class="chat-actions">
-              <span class="pill">Agent</span><span class="pill">Model</span>
+              <button type="button" class="pill mode" aria-pressed="false">Ask</button>
+              <button type="button" class="pill mode" aria-pressed="false">Plan</button>
+              <button type="button" class="pill mode" aria-pressed="true">Agent</button>
+              <span class="pill">Model</span>
               <span id="target" class="muted">src/index.ts</span>
               <span class="context-icon"><img src="${uri('figma-assets/imgShape.svg')}" alt=""></span>
               <button type="button" class="icon-button attachment" disabled><img src="${uri('imgPaperclip.svg')}" alt=""></button>
@@ -670,12 +677,20 @@ function activate(context) {
   let agent;
   let agentView;
   let nextChatId = 1;
-  let chats = [{ id: nextChatId, draft: '' }];
+  let chats = [{ id: nextChatId, draft: '', mode: 'agent', replies: [] }];
   let currentChat = chats[0];
   let welcome;
 
-  const candidate = editor => editor?.document.uri.scheme === 'file' &&
-    vscode.workspace.getWorkspaceFolder(editor.document.uri);
+  function candidate(editor) {
+    return editor?.document.uri.scheme === 'file' &&
+      vscode.workspace.getWorkspaceFolder(editor.document.uri);
+  }
+
+  function candidateDocuments() {
+    return vscode.workspace.textDocuments.filter(document =>
+      document.uri.scheme === 'file' && !document.isClosed &&
+      vscode.workspace.getWorkspaceFolder(document.uri));
+  }
 
   function updateTarget(editor) {
     if (candidate(editor)) {
@@ -763,6 +778,11 @@ function activate(context) {
               currentChat.draft = message.value.slice(0, 500);
             }
             break;
+          case 'mode':
+            if (message.id === currentChat.id && ['ask', 'plan', 'agent'].includes(message.mode)) {
+              currentChat.mode = message.mode;
+            }
+            break;
           case 'new-chat':
             await newChat();
             break;
@@ -775,10 +795,13 @@ function activate(context) {
             break;
           case 'propose':
             if (message.id !== currentChat.id) throw new Error('The selected chat changed. Try again.');
-            await propose(message.request);
+            await propose(message.request, message.mode ?? currentChat.mode);
             break;
           case 'review':
             if (pending) await showDiff(pending);
+            break;
+          case 'check':
+            await runCheck();
             break;
           case 'apply':
             applying = true;
@@ -789,6 +812,7 @@ function activate(context) {
             }
             break;
           case 'discard':
+            if (pending) recordHistory('discard', `${pending.request} — ${pending.files.length} file${pending.files.length === 1 ? '' : 's'}`);
             await clearPatch('Changes discarded.');
             break;
         }
@@ -798,53 +822,153 @@ function activate(context) {
     });
   }
 
-  async function propose(request) {
-    if (pending) throw new Error('Apply or discard the current patch first.');
-    if (!activeDocument || activeDocument.isClosed) throw new Error('Open a source file first.');
-    if (typeof request !== 'string' || request.length > 500) throw new Error('Enter a request of up to 500 characters.');
+  function recordHistory(kind, summary, detail = '') {
+    const history = context.globalState.get('triplecode.history', []);
+    history.unshift({ ts: Date.now(), kind, summary, detail });
+    void context.globalState.update('triplecode.history', history.slice(0, 50));
+  }
 
-    const document = activeDocument;
-    const before = document.getText();
-    const edit = proposePatch(before, document.languageId, request, document.eol === vscode.EndOfLine.CRLF ? '\r\n' : '\n');
+  function pushReply(text) {
+    currentChat.replies.push(text);
+    agent?.postMessage({ type: 'chats', ...chatState() });
+  }
+
+  function answerAsk(document, request) {
+    if (!document || document.isClosed) return 'Open a source file to ask about it.';
+    const text = document.getText();
+    const lines = text.split(/\r?\n/);
+    if (/how many lines|line count/i.test(request)) {
+      return `${fileName(document)} has ${lines.length} lines.`;
+    }
+    if (/function|symbol|export|class/i.test(request)) {
+      const names = [...text.matchAll(/(?:function|class)\s+([A-Za-z_$][\w$]*)|(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=/g)]
+        .map(match => match[1] || match[2]).filter(Boolean).slice(0, 12);
+      return names.length
+        ? `Top-level names in ${fileName(document)}: ${names.join(', ')}.`
+        : `No top-level functions found in ${fileName(document)} (${lines.length} lines).`;
+    }
+    return `Ask mode answers questions about ${fileName(document)} (${document.languageId}, ${lines.length} lines). ` +
+      'Try “how many lines” or “functions”. Agent mode applies changes: “add a comment: text” or “comment all: text”.';
+  }
+
+  function planRequest(request) {
+    const all = /^comment all:/i.test(request.trim());
+    const documents = all ? candidateDocuments().filter(doc => supportsComments(doc.languageId)).slice(0, 12)
+      : activeDocument && supportsComments(activeDocument.languageId) ? [activeDocument] : [];
+    if (!documents.length) return 'Open a source file that supports // comments first.';
+    const steps = documents.map((document, index) =>
+      `${index + 1}. Insert a comment at the top of ${fileName(document)}.`);
+    return [`Plan for “${request}”:`, ...steps, 'Switch to Agent mode and resend the request to apply it.'].join('\n');
+  }
+
+  async function propose(request, mode = 'agent') {
+    if (pending) throw new Error('Apply or discard the current patch first.');
+    if (typeof request !== 'string' || !request.trim() || request.length > 500) {
+      throw new Error('Enter a request of up to 500 characters.');
+    }
+    const trimmed = request.trim();
+    if (mode === 'ask') {
+      pushReply(answerAsk(activeDocument, trimmed));
+      return;
+    }
+    if (mode === 'plan') {
+      pushReply(planRequest(trimmed));
+      return;
+    }
+
+    const all = /^comment all:\s*(.+)$/i.exec(trimmed);
+    const single = /^add a comment:\s*(.+)$/i.exec(trimmed);
+    let documents;
+    let body;
+    if (all) {
+      documents = candidateDocuments().filter(document => supportsComments(document.languageId)).slice(0, 12);
+      body = all[1];
+      if (!documents.length) throw new Error('No open source files support // comments.');
+    } else if (single) {
+      if (!activeDocument || activeDocument.isClosed) throw new Error('Open a source file first.');
+      if (!supportsComments(activeDocument.languageId)) throw new Error('Open a source file that supports // comments.');
+      documents = [activeDocument];
+      body = single[1];
+    } else {
+      throw new Error('Try “add a comment: text” for one file or “comment all: text” for every open source file.');
+    }
+
     const id = randomUUID();
-    const original = vscode.Uri.from({ scheme: 'triplecode-review', path: `/${id}/original/${document.uri.path.split('/').pop()}` });
-    const modified = original.with({ path: original.path.replace('/original/', '/proposed/') });
-    patches.set(original.toString(), before);
-    patches.set(modified.toString(), before.slice(0, edit.offset) + edit.insertion + before.slice(edit.offset));
+    const files = documents.map((document, index) => {
+      const before = document.getText();
+      const edit = commentEdit(before, document.languageId,
+        document.eol === vscode.EndOfLine.CRLF ? '\r\n' : '\n', body);
+      const base = vscode.Uri.from({ scheme: 'triplecode-review', path: `/${id}/${index}/${document.uri.path.split('/').pop()}` });
+      const original = base.with({ path: base.path.replace(`/${id}/`, `/${id}/original/`) });
+      const modified = original.with({ path: original.path.replace('/original/', '/proposed/') });
+      patches.set(original.toString(), before);
+      patches.set(modified.toString(), before.slice(0, edit.offset) + edit.insertion + before.slice(edit.offset));
+      return { document, before, edit, original, modified, column: vscode.window.activeTextEditor?.viewColumn };
+    });
     currentChat.draft = request;
-    pending = { document, before, edit, original, modified, request, column: vscode.window.activeTextEditor?.viewColumn };
+    pending = { request: trimmed, files, checks: [] };
+    recordHistory('propose', `${trimmed} — ${files.length} file${files.length === 1 ? '' : 's'}`);
     agent?.postMessage({ type: 'pending', patch: describePatch(pending) });
   }
 
   function describePatch(patch) {
     if (!patch) return null;
     return {
-      name: fileName(patch.document),
       request: patch.request,
-      lines: patch.edit.insertion.replace(/\r/g, '').trimEnd().split('\n'),
-      start: patch.document.positionAt(patch.edit.offset).line + 1
+      checks: patch.checks,
+      files: patch.files.map(file => ({
+        name: fileName(file.document),
+        lines: file.edit.insertion.replace(/\r/g, '').trimEnd().split('\n'),
+        start: file.document.positionAt(file.edit.offset).line + 1
+      }))
     };
   }
 
   async function showDiff(patch) {
-    await vscode.commands.executeCommand('vscode.diff', patch.original, patch.modified,
-      `Review changes · ${fileName(patch.document)}`, { preview: false, viewColumn: patch.column ?? vscode.ViewColumn.One });
+    for (const file of patch.files) {
+      await vscode.commands.executeCommand('vscode.diff', file.original, file.modified,
+        `Review changes · ${fileName(file.document)}`, { preview: false, viewColumn: file.column ?? vscode.ViewColumn.One });
+    }
   }
 
   async function apply() {
     const patch = pending;
     if (!patch) return;
-    const document = await vscode.workspace.openTextDocument(patch.document.uri);
-    if (pending !== patch) return;
-    if (document.getText() !== patch.before) {
-      throw new Error('The file changed after review. Discard this patch and try again.');
-    }
-    const position = document.positionAt(patch.edit.offset);
     const workspaceEdit = new vscode.WorkspaceEdit();
-    workspaceEdit.insert(document.uri, position, patch.edit.insertion);
+    for (const file of patch.files) {
+      const document = await vscode.workspace.openTextDocument(file.document.uri);
+      if (document.getText() !== file.before) {
+        throw new Error(`${fileName(file.document)} changed after review. Discard this patch and try again.`);
+      }
+      workspaceEdit.insert(file.document.uri, document.positionAt(file.edit.offset), file.edit.insertion);
+    }
+    if (pending !== patch) return;
     if (!await vscode.workspace.applyEdit(workspaceEdit)) throw new Error('The editor could not apply the patch.');
-    await clearPatch('Changes applied in the editor. Save the file when ready.');
-    await vscode.window.showTextDocument(document, { viewColumn: patch.column ?? vscode.ViewColumn.One });
+    recordHistory('apply', `${patch.request} — ${patch.files.length} file${patch.files.length === 1 ? '' : 's'}`);
+    await clearPatch('Changes applied in the editor. Save the files when ready.');
+    const first = patch.files[0];
+    const document = await vscode.workspace.openTextDocument(first.document.uri);
+    await vscode.window.showTextDocument(document, { viewColumn: first.column ?? vscode.ViewColumn.One });
+  }
+
+  async function runCheck() {
+    const patch = pending;
+    if (!patch) return;
+    const folder = vscode.workspace.workspaceFolders?.[0];
+    if (!folder) throw new Error('Open a project folder first.');
+    const command = vscode.workspace.getConfiguration('triplecode').get('checkCommand', 'npm test');
+    const { stdout, stderr, code } = await new Promise((resolve, reject) => {
+      exec(command, { cwd: folder.uri.fsPath, timeout: 60000, maxBuffer: 512 * 1024 }, (error, out, err) => {
+        if (error && typeof error.code !== 'number') return reject(error);
+        resolve({ stdout: out, stderr: err, code: error ? error.code : 0 });
+      });
+    });
+    const output = `${stdout}\n${stderr}`.trim();
+    const tail = output.split('\n').slice(-8).join('\n');
+    const entry = { command, code, output: tail };
+    patch.checks.push(entry);
+    recordHistory('check', `${command} — exit ${entry.code}`, tail.split('\n')[0] ?? '');
+    agent?.postMessage({ type: 'pending', patch: describePatch(patch) });
   }
 
   async function clearPatch(text) {
@@ -853,14 +977,16 @@ function activate(context) {
     currentChat.draft = '';
     agent?.postMessage({ type: 'complete', text });
     if (!patch) return;
+    const originals = new Set(patch.files.map(file => file.original.toString()));
     const tabs = vscode.window.tabGroups.all.flatMap(group => group.tabs).filter(tab =>
-      tab.input instanceof vscode.TabInputTextDiff &&
-      tab.input.original.toString() === patch.original.toString());
+      tab.input instanceof vscode.TabInputTextDiff && originals.has(tab.input.original.toString()));
     try {
       if (tabs.length) await vscode.window.tabGroups.close(tabs, true);
     } finally {
-      patches.delete(patch.original.toString());
-      patches.delete(patch.modified.toString());
+      for (const file of patch.files) {
+        patches.delete(file.original.toString());
+        patches.delete(file.modified.toString());
+      }
     }
   }
 
@@ -869,14 +995,37 @@ function activate(context) {
       await vscode.window.showInformationMessage('Apply or discard the current patch first.');
       return;
     }
-    currentChat = { id: ++nextChatId, draft: '' };
+    currentChat = { id: ++nextChatId, draft: '', mode: 'agent', replies: [] };
     chats = [currentChat, ...chats];
     await showAgent();
     agent?.postMessage({ type: 'chats', ...chatState(), focusPrompt: true });
   }
 
   function chatState() {
-    return { chats: chats.map(chat => chat.id), selected: currentChat.id, draft: currentChat.draft };
+    return {
+      chats: chats.map(chat => ({ id: chat.id, mode: chat.mode, replies: chat.replies })),
+      selected: currentChat.id,
+      draft: currentChat.draft
+    };
+  }
+
+  async function showCheckHistory() {
+    const history = context.globalState.get('triplecode.history', []);
+    if (!history.length) {
+      await vscode.window.showInformationMessage('No agent checks recorded yet.');
+      return;
+    }
+    const items = history.map((entry, index) => ({
+      label: `${entry.kind === 'check' ? '$(check)' : entry.kind === 'apply' ? '$(check)' : entry.kind === 'discard' ? '$(trash)' : '$(edit)'} ${entry.summary}`,
+      detail: new Date(entry.ts).toLocaleString(),
+      description: entry.detail || undefined,
+      index
+    }));
+    const picked = await vscode.window.showQuickPick(items, { placeHolder: 'Agent check history' });
+    if (picked) {
+      const entry = history[picked.index];
+      await vscode.window.showInformationMessage(`${entry.summary}\n${entry.detail || ''}\n${new Date(entry.ts).toLocaleString()}`);
+    }
   }
 
   function updateChats(id, close) {
@@ -885,7 +1034,7 @@ function activate(context) {
     if (!chat) return;
     if (close) {
       chats = chats.filter(item => item !== chat);
-      if (!chats.length) chats = [{ id: ++nextChatId, draft: '' }];
+      if (!chats.length) chats = [{ id: ++nextChatId, draft: '', mode: 'agent', replies: [] }];
       if (currentChat === chat) currentChat = chats[0];
     } else {
       currentChat = chat;
@@ -924,6 +1073,7 @@ function activate(context) {
       ? vscode.commands.executeCommand('workbench.action.closeAuxiliaryBar')
       : showAgent()),
     vscode.commands.registerCommand('triplecode.newChat', newChat),
+    vscode.commands.registerCommand('triplecode.checkHistory', showCheckHistory),
     vscode.commands.registerCommand('triplecode.importFromVSCode', showImportPreview),
     vscode.commands.registerCommand('triplecode.rollbackImport', () => rollbackImport(context)),
     vscode.commands.registerCommand('triplecode.designSystem', () => showDesignSystem(context)),
@@ -970,30 +1120,36 @@ function render(webview, base, screen, initial) {
       <button type="button" class="icon-button" data-action="new-chat" aria-label="New chat"><img src="${uri('imgPlus1.svg')}" alt=""></button>
       <button type="button" class="icon-button" data-action="chat-actions" aria-label="Agent actions"><img src="${uri('imgEllipsis.svg')}" alt=""></button>
     </header>
-    <section id="conversation" class="conversation" hidden aria-label="Proposed change">
-      <p id="task" class="agent-message"></p>
-      <div class="patch">
-        <div class="patch-file"><span id="change"></span><span id="additions"></span></div>
-        <pre id="patch-lines"></pre>
+    <section id="conversation" class="conversation" hidden aria-label="Agent output">
+      <div id="messages"></div>
+      <div id="patch" class="patch" hidden>
+        <div id="patch-files"></div>
       </div>
     </section>
     <p id="status" role="status" hidden></p>
     <form id="request" class="composer">
       <div id="review" class="composer-header" hidden>
-        <button type="button" class="files-toggle" data-action="toggle-files" aria-expanded="true">
-          <img src="${uri('figma-assets/imgChevronRight.svg')}" alt="">
-          <span id="file-count">1 file</span>
-        </button>
-        <div class="review-actions">
-          <button type="button" data-action="discard" class="pill-action">Undo all</button>
-          <button type="button" data-action="apply" class="pill-action">Keep all</button>
-          <button type="button" data-action="review" class="review-btn">Review</button>
+        <div class="review-row">
+          <button type="button" class="files-toggle" data-action="toggle-files" aria-expanded="true">
+            <img src="${uri('figma-assets/imgChevronRight.svg')}" alt="">
+            <span id="file-count">1 file</span>
+          </button>
+          <div class="review-actions">
+            <button type="button" data-action="check" class="pill-action">Run checks</button>
+            <button type="button" data-action="discard" class="pill-action">Undo all</button>
+            <button type="button" data-action="apply" class="pill-action">Keep all</button>
+            <button type="button" data-action="review" class="review-btn">Review</button>
+          </div>
         </div>
+        <div id="checks" class="checks"></div>
       </div>
       <label class="sr-only" for="prompt">Agent task</label>
       <textarea id="prompt" maxlength="500" aria-describedby="target" placeholder="Press / for skills, @ for context" required></textarea>
       <footer class="chat-actions">
-        <span class="pill">Agent</span><span class="pill">Model</span>
+        <button type="button" class="pill mode" data-mode="ask" aria-pressed="false">Ask</button>
+        <button type="button" class="pill mode" data-mode="plan" aria-pressed="false">Plan</button>
+        <button type="button" class="pill mode" data-mode="agent" aria-pressed="true">Agent</button>
+        <span class="pill">Model</span>
         <span id="target" class="muted"></span>
         <span class="context-icon"><img src="${uri('figma-assets/imgShape.svg')}" alt=""></span>
         <button type="button" class="icon-button attachment" disabled aria-label="Attach context" title="Context attachments are unavailable"><img src="${uri('imgPaperclip.svg')}" alt=""></button>

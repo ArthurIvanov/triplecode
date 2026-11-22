@@ -232,11 +232,16 @@ body[data-screen="agent"] { height: 100vh; overflow: hidden; }
 }
 .agent .composer-header {
   display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px;
+  border-bottom: 1px solid var(--triplecode-chat-request-border, var(--vscode-input-border));
+}
+.agent .review-row {
+  display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 8px;
-  border-bottom: 1px solid var(--triplecode-chat-request-border, var(--vscode-input-border));
 }
 .agent .files-toggle {
   display: inline-flex;
@@ -310,6 +315,13 @@ body[data-screen="agent"] { height: 100vh; overflow: hidden; }
   color: var(--vscode-button-secondaryForeground);
   white-space: nowrap;
 }
+.agent footer .pill.mode {
+  border: 0;
+  background: transparent;
+}
+.agent footer .pill.mode[aria-pressed="true"] {
+  background: var(--vscode-list-hoverBackground, rgba(255, 255, 255, .08));
+}
 .agent #target {
   flex: 0 1 auto;
   min-width: 0;
@@ -375,6 +387,8 @@ body[data-screen="agent"] { height: 100vh; overflow: hidden; }
   overflow: hidden;
   background: var(--triplecode-chat-request-background, var(--vscode-input-background));
 }
+#patch { display: grid; gap: 8px; background: transparent; border: 0; overflow: visible; }
+#patch .patch { background: var(--triplecode-chat-request-background, var(--vscode-input-background)); }
 .patch-file {
   display: flex;
   gap: 8px;
@@ -383,14 +397,21 @@ body[data-screen="agent"] { height: 100vh; overflow: hidden; }
   overflow-wrap: anywhere;
   font-size: 12px;
 }
-.patch-file #additions { color: var(--vscode-gitDecoration-addedResourceForeground); }
-#patch-lines {
+.patch-file span:last-child { margin-left: auto; color: var(--vscode-gitDecoration-addedResourceForeground); }
+.patch-lines {
   margin: 0;
   padding: 6px 8px;
   color: var(--vscode-editor-foreground);
   background: var(--vscode-diffEditor-insertedLineBackground);
   overflow: auto;
   font: var(--vscode-editor-font-size)/1.55 var(--vscode-editor-font-family);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
+.checks { display: grid; gap: 2px; padding: 0 8px 6px; }
+.check-row { display: flex; gap: 6px; align-items: baseline; font-size: 11px; color: var(--vscode-descriptionForeground); }
+.check-ok { color: var(--vscode-gitDecoration-addedResourceForeground); }
+.check-fail { color: var(--vscode-errorForeground, #f14c4c); }
+.agent-message { white-space: pre-wrap; }
 #status { margin: 4px 10px; color: var(--vscode-descriptionForeground); }
 .sr-only { position: absolute; clip-path: inset(50%); width: 1px; height: 1px; overflow: hidden; }

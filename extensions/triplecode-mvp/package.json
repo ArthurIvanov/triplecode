@@ -45,8 +45,22 @@
       {
         "command": "triplecode.designSystem",
         "title": "TripleCode: Design System"
+      },
+      {
+        "command": "triplecode.checkHistory",
+        "title": "TripleCode: Check History"
       }
     ],
+    "configuration": {
+      "title": "TripleCode",
+      "properties": {
+        "triplecode.checkCommand": {
+          "type": "string",
+          "default": "npm test",
+          "description": "Command run by the agent “Run checks” action in the workspace root."
+        }
+      }
+    },
     "menus": {
       "commandPalette": [
         {

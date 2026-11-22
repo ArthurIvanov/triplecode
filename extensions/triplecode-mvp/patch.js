@@ -5,16 +5,15 @@ const supportedLanguages = new Set([
   'java', 'c', 'cpp', 'csharp', 'go', 'rust', 'swift'
 ]);
 
-function proposePatch(text, language, request, lineEnd) {
-  const match = /^add a comment:\s*(.+)$/i.exec(request.trim());
-  if (!supportedLanguages.has(language)) {
+function supportsComments(language) {
+  return supportedLanguages.has(language);
+}
+
+function commentEdit(text, language, lineEnd, body) {
+  if (!supportsComments(language)) {
     throw new Error('Open a source file that supports // comments.');
   }
-  if (!match) {
-    throw new Error('For this preview, enter “Add a comment: your text”.');
-  }
-
-  const comment = `// ${match[1]}${lineEnd}`;
+  const comment = `// ${body}${lineEnd}`;
   const offset = text.startsWith('#!') ? text.indexOf('\n') + 1 : 0;
   if (text.startsWith('#!') && !offset) {
     return { offset: text.length, insertion: lineEnd + comment };
@@ -22,4 +21,12 @@ function proposePatch(text, language, request, lineEnd) {
   return { offset, insertion: comment };
 }
 
-module.exports = { proposePatch };
+function proposePatch(text, language, request, lineEnd) {
+  const match = /^add a comment:\s*(.+)$/i.exec(request.trim());
+  if (!match) {
+    throw new Error('For this preview, enter “Add a comment: your text”.');
+  }
+  return commentEdit(text, language, lineEnd, match[1]);
+}
+
+module.exports = { proposePatch, commentEdit, supportsComments };
