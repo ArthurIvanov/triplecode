@@ -37,6 +37,10 @@
       {
         "command": "triplecode.importFromVSCode",
         "title": "TripleCode: Import from VS Code"
+      },
+      {
+        "command": "triplecode.rollbackImport",
+        "title": "TripleCode: Rollback Last Import"
       }
     ],
     "menus": {

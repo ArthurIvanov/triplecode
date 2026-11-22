@@ -120,14 +120,18 @@ async function showImportPreview() {
     keybindings: keybindings ? keybindings.length : 0,
     snippets: snippets ? Object.keys(snippets).length : 0,
     extensions: extensions ? extensions.length : 0,
-    extensionIds: extensions ? extensions.map(e => e.id) : []
+    extensionIds: extensions ? extensions.map(e => e.id) : [],
+    hasBackup: context.globalState.get('triplecode.importBackup') !== undefined
   };
 
   previewPanel.webview.html = getImportPreviewHtml(previewData, previewPanel.webview);
 
   previewPanel.webview.onDidReceiveMessage(async message => {
     if (message.type === 'import') {
-      await performImport(message.selectedCategories, { settings, keybindings, snippets, extensions });
+      await performImport(message.selectedCategories, { settings, keybindings, snippets, extensions }, context);
+      previewPanel.dispose();
+    } else if (message.type === 'rollback') {
+      await rollbackImport(context);
       previewPanel.dispose();
     } else if (message.type === 'cancel') {
       previewPanel.dispose();
@@ -137,6 +141,7 @@ async function showImportPreview() {
 
 function getImportPreviewHtml(data, webview) {
   const extensionIdsJson = JSON.stringify(data.extensionIds);
+  const rollbackButton = data.hasBackup ? '<button class="secondary" id="rollback">Rollback Last Import</button>' : '';
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -155,6 +160,7 @@ function getImportPreviewHtml(data, webview) {
     button { padding: 8px 16px; cursor: pointer; border: none; border-radius: 4px; }
     .primary { background: var(--vscode-button-background); color: var(--vscode-button-foreground); }
     .secondary { background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); }
+    .warning { color: var(--vscode-errorForeground); font-size: 12px; margin-top: 10px; }
   </style>
 </head>
 <body>
@@ -198,6 +204,7 @@ function getImportPreviewHtml(data, webview) {
 
   <div class="actions">
     <button class="primary" id="import">Import</button>
+    ${rollbackButton}
     <button class="secondary" id="cancel">Cancel</button>
   </div>
 
@@ -218,35 +225,98 @@ function getImportPreviewHtml(data, webview) {
     document.getElementById('cancel').addEventListener('click', () => {
       vscode.postMessage({ type: 'cancel' });
     });
+
+    ${data.hasBackup ? `
+    document.getElementById('rollback').addEventListener('click', () => {
+      vscode.postMessage({ type: 'rollback' });
+    });
+    ` : ''}
   </script>
 </body>
 </html>`;
 }
 
-async function performImport(selectedCategories, data) {
+async function performImport(selectedCategories, data, context) {
   const { settings, keybindings, snippets, extensions } = data;
 
+  // Save current settings for rollback
+  const previousSettings = {};
   if (selectedCategories.settings && settings) {
     const config = vscode.workspace.getConfiguration();
     for (const [key, value] of Object.entries(settings)) {
       if (key.startsWith('workbench.') || key.startsWith('editor.')) {
+        previousSettings[key] = config.get(key);
+        await config.update(key, value, vscode.ConfigurationTarget.Global);
+      }
+    }
+    await context.globalState.update('triplecode.importBackup', previousSettings);
+    await context.globalState.update('triplecode.importTimestamp', Date.now());
+  }
+
+  // Track installed extensions for rollback
+  const installedExtensions = [];
+  if (selectedCategories.extensions && extensions) {
+    for (const ext of extensions) {
+      try {
+        await vscode.commands.executeCommand('workbench.extensions.install', ext.id);
+        installedExtensions.push(ext.id);
+      } catch (error) {
+        console.error(`Failed to install extension ${ext.id}:`, error);
+      }
+    }
+    await context.globalState.update('triplecode.importedExtensions', installedExtensions);
+  }
+
+  vscode.window.showInformationMessage(
+    'Import completed. Restart to apply all changes.',
+    'Restart',
+    'Rollback'
+  ).then(selection => {
+    if (selection === 'Restart') {
+      vscode.commands.executeCommand('workbench.action.reloadWindow');
+    } else if (selection === 'Rollback') {
+      vscode.commands.executeCommand('triplecode.rollbackImport');
+    }
+  });
+}
+
+async function rollbackImport(context) {
+  const previousSettings = context.globalState.get('triplecode.importBackup');
+  const importedExtensions = context.globalState.get('triplecode.importedExtensions', []);
+
+  if (!previousSettings && importedExtensions.length === 0) {
+    vscode.window.showInformationMessage('No import to rollback.');
+    return;
+  }
+
+  // Rollback settings
+  if (previousSettings) {
+    const config = vscode.workspace.getConfiguration();
+    for (const [key, value] of Object.entries(previousSettings)) {
+      if (value === undefined) {
+        await config.update(key, undefined, vscode.ConfigurationTarget.Global);
+      } else {
         await config.update(key, value, vscode.ConfigurationTarget.Global);
       }
     }
   }
 
-  if (selectedCategories.extensions && extensions) {
-    for (const ext of extensions) {
-      try {
-        await vscode.commands.executeCommand('workbench.extensions.install', ext.id);
-      } catch (error) {
-        console.error(`Failed to install extension ${ext.id}:`, error);
-      }
+  // Uninstall imported extensions
+  for (const extId of importedExtensions) {
+    try {
+      await vscode.commands.executeCommand('workbench.extensions.uninstall', extId);
+    } catch (error) {
+      console.error(`Failed to uninstall extension ${extId}:`, error);
     }
   }
 
+  // Clear backup
+  await context.globalState.update('triplecode.importBackup', undefined);
+  await context.globalState.update('triplecode.importTimestamp', undefined);
+  await context.globalState.update('triplecode.importedExtensions', undefined);
+
   vscode.window.showInformationMessage(
-    'Import completed. Please restart TripleCode to apply all changes.',
+    'Rollback completed. Restart to apply changes.',
     'Restart'
   ).then(selection => {
     if (selection === 'Restart') {
@@ -518,6 +588,7 @@ function activate(context) {
       : showAgent()),
     vscode.commands.registerCommand('triplecode.newChat', newChat),
     vscode.commands.registerCommand('triplecode.importFromVSCode', showImportPreview),
+    vscode.commands.registerCommand('triplecode.rollbackImport', () => rollbackImport(context)),
     vscode.window.registerWebviewViewProvider('triplecode.agentView', { resolveWebviewView: resolveAgent }, {
       webviewOptions: { retainContextWhenHidden: true }
     })
