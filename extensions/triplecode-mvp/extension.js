@@ -1130,7 +1130,7 @@ function activate(context) {
         throw new Error(`The model response could not be parsed. Try rephrasing the request.\n\nModel said:\n${preview}`);
       }
       if (parsed.noChange) {
-        pushReply('The model did not propose a change.');
+        pushReply(`The model did not propose a change.${parsed.reason ? ` ${parsed.reason}` : ''}`);
         return;
       }
       const eol = activeDocument.eol === vscode.EndOfLine.CRLF ? '\r\n' : '\n';

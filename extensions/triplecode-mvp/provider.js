@@ -64,7 +64,9 @@ function rewriteMessages(document, request) {
 
 function parseRewrite(text) {
   const trimmed = text.trim();
-  if (/^NO\s*CHANGE\b/i.test(trimmed)) return { noChange: true };
+  if (/^NO\s*CHANGE\b/i.test(trimmed)) {
+    return { noChange: true, reason: trimmed.replace(/^NO\s*CHANGE\b[:\-–—]?\s*/i, '').slice(0, 300) };
+  }
   const fence = /```[a-z]*\s*\r?\n([\s\S]*?)```/i.exec(text);
   if (!fence) return null;
   const content = fence[1].replace(/\s+$/, '');
