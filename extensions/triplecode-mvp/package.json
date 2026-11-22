@@ -41,6 +41,10 @@
       {
         "command": "triplecode.rollbackImport",
         "title": "TripleCode: Rollback Last Import"
+      },
+      {
+        "command": "triplecode.designSystem",
+        "title": "TripleCode: Design System"
       }
     ],
     "menus": {

@@ -236,6 +236,178 @@ function getImportPreviewHtml(data, webview) {
 </html>`;
 }
 
+async function showDesignSystem() {
+  const panel = vscode.window.createWebviewPanel(
+    'triplecodeDesignSystem',
+    'TripleCode Design System',
+    vscode.ViewColumn.One,
+    { enableScripts: true, retainContextWhenHidden: true }
+  );
+
+  panel.webview.html = getDesignSystemHtml(panel.webview);
+}
+
+function getDesignSystemHtml(webview) {
+  const uri = name => webview.asWebviewUri(vscode.Uri.joinPath(context.extensionUri, 'media', name));
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TripleCode Design System</title>
+  <link rel="stylesheet" href="${uri('workbench.css')}">
+  <style>
+    body { padding: 40px; max-width: 1200px; margin: 0 auto; }
+    h1 { margin-bottom: 30px; }
+    .nav { display: flex; gap: 10px; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid var(--vscode-panel-border); }
+    .nav button { padding: 8px 16px; }
+    .nav button.active { background: var(--vscode-button-background); color: var(--vscode-button-foreground); }
+    .section { margin-bottom: 60px; }
+    .section h2 { margin-bottom: 20px; }
+    .component-preview { padding: 20px; border: 1px solid var(--vscode-panel-border); border-radius: 8px; background: var(--vscode-sideBar-background); }
+    .component-row { display: flex; gap: 20px; align-items: flex-start; flex-wrap: wrap; }
+    .component-item { min-width: 200px; }
+    .component-item h3 { font-size: 12px; margin: 10px 0 5px; color: var(--vscode-descriptionForeground); }
+  </style>
+</head>
+<body>
+  <h1>TripleCode Design System</h1>
+  
+  <nav class="nav">
+    <button class="active" data-component="welcome">Welcome Screen</button>
+    <button data-component="agent">Agent Panel</button>
+    <button data-component="buttons">Buttons</button>
+    <button data-component="forms">Forms</button>
+  </nav>
+
+  <div id="components">
+    <div class="section" data-section="welcome">
+      <h2>Welcome Screen</h2>
+      <div class="component-preview">
+        <main class="welcome" style="width: 362px; margin: 0;">
+          <img class="logo" src="${uri('imgLogo1.png')}" alt="TripleCode">
+          <div class="welcome-meta"><span>Free</span><button class="link">Settings</button></div>
+          <div class="project-actions">
+            <button><img src="${uri('imgFolder.svg')}" alt="">Open project</button>
+            <button><img src="${uri('imgFolderGit2.svg')}" alt="">Clone repo</button>
+            <button><img src="${uri('imgFolderGit2.svg')}" alt="">Import from VS Code</button>
+            <button disabled><img src="${uri('imgSquareTerminal.svg')}" alt="">Connect via SSH</button>
+          </div>
+        </main>
+      </div>
+    </div>
+
+    <div class="section" data-section="agent" style="display: none;">
+      <h2>Agent Panel</h2>
+      <div class="component-preview" style="height: 400px;">
+        <main class="agent">
+          <header class="chat-header">
+            <div id="chats" style="display: flex; gap: 4px;">
+              <div class="chat-tab" style="border-color: var(--vscode-editorGroup-border); background: var(--vscode-sideBar-background); color: var(--vscode-foreground);">
+                <button style="padding: 0 2px; border: 0; background: transparent; color: inherit;">Chat 1</button>
+                <button style="padding: 0 2px; border: 0; background: transparent; color: inherit;">×</button>
+              </div>
+            </div>
+            <button class="icon-button"><img src="${uri('imgPlus1.svg')}" style="width: 16px; height: 16px;" alt=""></button>
+            <button class="icon-button"><img src="${uri('imgEllipsis.svg')}" style="width: 16px; height: 16px;" alt=""></button>
+          </header>
+          <section class="conversation" style="flex: 1; overflow: auto; padding: 8px;">
+            <p class="task" style="margin: 0; padding: 8px; background: var(--vscode-input-background); border: 1px solid var(--vscode-input-border); border-radius: 4px;">Add a comment: MVP preview</p>
+          </section>
+          <form style="margin: 8px; border: 1px solid var(--vscode-input-border); border-radius: 4px; background: var(--vscode-input-background); overflow: hidden;">
+            <textarea style="display: block; min-height: 67px; width: 100%; background: transparent; padding: 8px; border: 0; resize: none;" placeholder="Add a comment: Describe this module"></textarea>
+            <footer style="display: flex; align-items: center; gap: 10px; min-height: 32px; padding: 0 7px 7px;">
+              <span style="flex: 1; text-align: right; font-size: 11px; color: var(--vscode-descriptionForeground);">src/index.ts</span>
+              <button class="send" style="display: grid; place-items: center; padding: 2px; border: 0; background: var(--vscode-button-secondaryForeground); color: var(--vscode-button-secondaryBackground); border-radius: 4px; width: 24px; height: 24px;">
+                <img src="${uri('imgPlay.svg')}" style="display: block; width: 16px; height: 16px;" alt="">
+              </button>
+            </footer>
+          </form>
+        </main>
+      </div>
+    </div>
+
+    <div class="section" data-section="buttons" style="display: none;">
+      <h2>Buttons</h2>
+      <div class="component-preview">
+        <div class="component-row">
+          <div class="component-item">
+            <button>Default</button>
+            <h3>Default</h3>
+          </div>
+          <div class="component-item">
+            <button class="primary">Primary</button>
+            <h3>Primary</h3>
+          </div>
+          <div class="component-item">
+            <button class="secondary">Secondary</button>
+            <h3>Secondary</h3>
+          </div>
+          <div class="component-item">
+            <button disabled>Disabled</button>
+            <h3>Disabled</h3>
+          </div>
+        </div>
+        <div class="component-row" style="margin-top: 20px;">
+          <div class="component-item">
+            <button class="link">Link button</button>
+            <h3>Link</h3>
+          </div>
+          <div class="component-item">
+            <button class="icon-button"><img src="${uri('imgCog.svg')}" style="width: 16px; height: 16px;" alt=""></button>
+            <h3>Icon button</h3>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" data-section="forms" style="display: none;">
+      <h2>Forms</h2>
+      <div class="component-preview">
+        <div class="component-row">
+          <div class="component-item" style="width: 100%;">
+            <label style="display: block; margin-bottom: 8px;">Text input</label>
+            <input type="text" style="width: 100%; padding: 8px; border: 1px solid var(--vscode-input-border); border-radius: 4px; background: var(--vscode-input-background); color: var(--vscode-input-foreground);" placeholder="Enter text...">
+          </div>
+        </div>
+        <div class="component-row" style="margin-top: 20px;">
+          <div class="component-item">
+            <label style="display: flex; align-items: center; gap: 8px;">
+              <input type="checkbox" checked>
+              <span>Checkbox option</span>
+            </label>
+          </div>
+        </div>
+        <div class="component-row" style="margin-top: 20px;">
+          <div class="component-item">
+            <textarea style="width: 300px; min-height: 80px; padding: 8px; border: 1px solid var(--vscode-input-border); border-radius: 4px; background: var(--vscode-input-background); color: var(--vscode-input-foreground); resize: vertical;" placeholder="Textarea..."></textarea>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const vscode = acquireVsCodeApi();
+    const navButtons = document.querySelectorAll('.nav button');
+    const sections = document.querySelectorAll('.section');
+
+    navButtons.forEach(button => {
+      button.addEventListener('click', () => {
+        navButtons.forEach(b => b.classList.remove('active'));
+        button.classList.add('active');
+        
+        const component = button.dataset.component;
+        sections.forEach(section => {
+          section.style.display = section.dataset.section === component ? 'block' : 'none';
+        });
+      });
+    });
+  </script>
+</body>
+</html>`;
+}
+
 async function performImport(selectedCategories, data, context) {
   const { settings, keybindings, snippets, extensions } = data;
 
@@ -589,6 +761,7 @@ function activate(context) {
     vscode.commands.registerCommand('triplecode.newChat', newChat),
     vscode.commands.registerCommand('triplecode.importFromVSCode', showImportPreview),
     vscode.commands.registerCommand('triplecode.rollbackImport', () => rollbackImport(context)),
+    vscode.commands.registerCommand('triplecode.designSystem', showDesignSystem),
     vscode.window.registerWebviewViewProvider('triplecode.agentView', { resolveWebviewView: resolveAgent }, {
       webviewOptions: { retainContextWhenHidden: true }
     })
