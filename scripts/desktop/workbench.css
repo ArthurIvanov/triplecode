@@ -168,15 +168,7 @@
 }
 .monaco-workbench .part.statusbar > .items-container { align-items: center; }
 .monaco-workbench .part.statusbar .statusbar-item > .statusbar-item-label { padding-inline: 4px; }
-.monaco-workbench .part.statusbar:not(:hover):not(:focus-within)
-.statusbar-item:is([id^="status.editor."], [id="status.languageStatus"], [id="status.notifications"], [id="status.progress"]) {
-  opacity: 0;
-}
 
-.monaco-workbench .part.panel > .title:not(:hover):not(:focus-within) .action-item:not(.checked):not(:has([aria-label="Terminal"])),
-.monaco-workbench .part.panel > .title:not(:hover):not(:focus-within) .title-actions {
-  opacity: 0;
-}
 .monaco-workbench .part.panel > .title .composite-bar .action-item:has([aria-label="Terminal"]) { order: -1; }
 
 .monaco-workbench:has(.tab.active.last-tab:first-child[data-resource-name^="webview-triplecodeWelcome-"])
@@ -187,10 +179,6 @@
 .monaco-workbench .part.activitybar:not(:hover):not(:focus-within)
 .action-item:has(:is(.codicon-accounts-view-bar-icon, .codicon-settings-view-bar-icon)) {
   opacity: 0;
-}
-.monaco-workbench .part.statusbar:not(:hover):not(:focus-within) #status\.notifications {
-  max-width: 0;
-  overflow: hidden;
 }
 
 /* Workspace frame coordinates come from the native grid. The CSS only paints it. */
@@ -246,7 +234,4 @@
 }
 .monaco-workbench .part.panel > .title .composite-bar {
   padding-inline-start: 16px;
-}
-.monaco-workbench .part.panel:not(:hover):not(:focus-within) > .title .active-item-indicator {
-  opacity: 0;
 }
