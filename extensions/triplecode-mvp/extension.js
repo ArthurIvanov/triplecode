@@ -1092,6 +1092,78 @@ function activate(context) {
     }
   }
 
+  function aiParseError(reply) {
+    const preview = reply.length > 300 ? `${reply.slice(0, 300)}…` : reply;
+    return new Error(`The model response could not be parsed. Try rephrasing the request.\n\nModel said:\n${preview}`);
+  }
+
+  async function aiSpecs(request) {
+    const documents = aiContextDocuments();
+    if (!documents.length) throw new Error('Open a source file first.');
+    const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+    const options = { numPredict: 8192, numCtx: 16384 };
+    const knownUris = new Set(documents.map(document => document.uri.toString()));
+
+    let contextDocs = documents;
+    let reply = await aiChat(provider.multiFileMessages(contextDocs, request), options);
+    let parsed = provider.parseMultiRewrite(reply);
+    if (!parsed) throw aiParseError(reply);
+
+    if (!parsed.noChange) {
+      const missing = [];
+      const requested = new Set();
+      for (const entry of parsed.files.slice(0, 6)) {
+        try {
+          const document = await openModelFile(entry.path, root);
+          if (!knownUris.has(document.uri.toString()) && !requested.has(document.uri.toString())) {
+            requested.add(document.uri.toString());
+            missing.push(document);
+          }
+        } catch { /* invalid paths are rejected again on the final pass */ }
+      }
+      if (missing.length) {
+        contextDocs = [...documents, ...missing].slice(0, 6);
+        reply = await aiChat(provider.multiFileMessages(contextDocs, request), options);
+        parsed = provider.parseMultiRewrite(reply);
+        if (!parsed) throw aiParseError(reply);
+      }
+    }
+    const contextUris = new Set(contextDocs.map(document => document.uri.toString()));
+
+    if (parsed.noChange) {
+      currentChat.draft = '';
+      pushReply(`The model did not propose a change.${parsed.reason ? ` ${parsed.reason}` : ''}`);
+      return null;
+    }
+
+    const specs = [];
+    const seenPaths = new Set();
+    const failedPaths = [];
+    for (const entry of parsed.files.slice(0, 6)) {
+      let document;
+      try {
+        document = await openModelFile(entry.path, root);
+      } catch (error) {
+        failedPaths.push(`${entry.path} — ${error.message}`);
+        continue;
+      }
+      if (seenPaths.has(document.uri.toString()) || !contextUris.has(document.uri.toString())) continue;
+      seenPaths.add(document.uri.toString());
+      const eol = document.eol === vscode.EndOfLine.CRLF ? '\r\n' : '\n';
+      const edit = provider.diffEdit(document.getText(), entry.content, eol);
+      if (edit) specs.push({ document, edit });
+    }
+    if (!specs.length && failedPaths.length) {
+      throw new Error(`The model referenced files that could not be opened:\n${failedPaths.join('\n')}`);
+    }
+    if (!specs.length) {
+      currentChat.draft = '';
+      pushReply('The model did not propose a change.');
+      return null;
+    }
+    return specs;
+  }
+
   async function aiOrFallback(primary, fallback) {
     try {
       return await primary();
@@ -1165,35 +1237,9 @@ function activate(context) {
     const id = randomUUID();
     let specs;
     if (useAi) {
-      const documents = aiContextDocuments();
-      if (!documents.length) throw new Error('Open a source file first.');
-      const reply = await aiChat(provider.multiFileMessages(documents, trimmed), { numPredict: 8192, numCtx: 16384 });
-      const parsed = provider.parseMultiRewrite(reply);
-      if (!parsed) {
-        const preview = reply.length > 300 ? `${reply.slice(0, 300)}…` : reply;
-        throw new Error(`The model response could not be parsed. Try rephrasing the request.\n\nModel said:\n${preview}`);
-      }
-      if (parsed.noChange) {
-        currentChat.draft = '';
-        pushReply(`The model did not propose a change.${parsed.reason ? ` ${parsed.reason}` : ''}`);
-        return;
-      }
-      const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-      specs = [];
-      const seenPaths = new Set();
-      for (const entry of parsed.files.slice(0, 6)) {
-        const document = await openModelFile(entry.path, root);
-        if (seenPaths.has(document.uri.toString())) continue;
-        seenPaths.add(document.uri.toString());
-        const eol = document.eol === vscode.EndOfLine.CRLF ? '\r\n' : '\n';
-        const edit = provider.diffEdit(document.getText(), entry.content, eol);
-        if (edit) specs.push({ document, edit });
-      }
-      if (!specs.length) {
-        currentChat.draft = '';
-        pushReply('The model did not propose a change.');
-        return;
-      }
+      const result = await aiSpecs(trimmed);
+      if (!result) return;
+      specs = result;
     } else {
       const all = /^comment all:\s*(.+)$/i.exec(trimmed);
       const single = /^add a comment:\s*(.+)$/i.exec(trimmed);

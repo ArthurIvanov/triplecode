@@ -76,7 +76,7 @@ function multiFileMessages(documents, request) {
   const context = documents.map(document => {
     let content = document.getText();
     if (!content.trim()) content = '(empty file)';
-    if (content.length > 9000) content = `${content.slice(0, 9000)}\n// … truncated …`;
+    if (content.length > 6000) content = `${content.slice(0, 6000)}\n// … truncated …`;
     return `${document.uri.fsPath}\n\n${content}`;
   }).join('\n\n');
   return [
