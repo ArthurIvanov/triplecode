@@ -95,6 +95,25 @@
 - Учетные данные и секреты перепривязываются пользователем вручную
 - SSH и облачные интеграции отображаются как недоступные действия в MVP
 
+## Результаты проверки (2026-11-22, TripleCode 1.143.1 arm64)
+
+Проверено установкой в `~/.triplecode/extensions` через CLI приложения и анализом `exthost.log`. Тестовый проект: `~/Desktop/test` (TypeScript + ESLint 9 + Prettier 3).
+
+| Расширение | ID в Open VSX | Версия | Engine | Статус | Комментарий |
+| --- | --- | --- | --- | --- | --- |
+| ESLint | `dbaeumer.vscode-eslint` | 3.0.34 | ^1.90.0 | ✅ OK | Активировано, `ESLint library loaded`. ID в матрице был неверным (`ms-vscode.vscode-typescript-eslint` — Microsoft-версия только в Marketplace) |
+| Prettier | `esbenp.prettier-vscode` | 12.4.0 | ^1.101.0 | ✅ OK | Активировано, работает; требует ручной проверки format-on-save |
+| Error Lens | `usernamehw.errorlens` | 3.30.0 | ^1.107.0 | ✅ OK | Активировано на старте |
+| TypeScript Importer | `steoates.autoimport` | 1.5.3 | ^1.17.0 | ✅ OK | Активировано на `onLanguage:typescript`. Точный ID — `autoimport`, не `auto-import` |
+| Node.js Modules Intellisense | `wingrunr21.vscode-nodejs-module-intellisense` | — | — | ❌ BLOCKED | **Отсутствует в Open VSX** (у publisher'а только vscode-ruby). Нужна замена или собственная реализация |
+| REST Client | `humao.rest-client` | 0.25.0 | ^1.57.0 | ✅ OK | Установлено; активация по `onLanguage:http` — создан `test.http` в тест-проекте для проверки |
+| GitLens | `eamodio.gitlens` | 19.6.1 | ^1.101.0 | ✅ OK | Активировано, работает; сам установил CLI. Для полной проверки нужен git-репозиторий (тест-папка не под git) |
+| JS (ES6) snippets | `xabikos.JavaScriptSnippets` | 1.8.0 | **0.10.x** | ⚠️ INCOMPATIBLE | Установилось, но `engines.vscode: 0.10.x` несовместим с 1.143 — не активируется. Нужна замена (например, другие snippets-паки) |
+| npm Intellisense | `christian-kohler.npm-intellisense` | 1.4.5 | ^1.0.0 | ✅ OK | Gallery-поиск CLI не нашёл расширение — установлено вручную из .vsix. Активировано на `onLanguage:typescript` |
+| SonarLint | `sonarsource.sonarlint-vscode` | 6.4.0 | ^1.100.0 | ⚠️ DEGRADED | Активировано, но LSP-лог показывает `ResponseErrorException: sonarlint/hasJoinedIdeLabs defines 1 params but received none` — вероятно, несовместимость сборки Open VSX с сервером. Требует ручной проверки аналитики |
+
+**Итог:** 7/10 расширений работают или готовы к ручной проверке, 1 заблокировано (нет в Open VSX), 1 несовместимо по engine, 1 требует доп. проверки (SonarLint).
+
 ## Следующие шаги
 
 1. Для каждого расширения из этапа 1 проверить:
