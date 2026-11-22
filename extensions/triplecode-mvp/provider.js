@@ -9,7 +9,7 @@ async function probe(endpoint, timeoutMs = 2000) {
   }
 }
 
-async function chat({ endpoint, model, messages, timeoutMs = 120000 }) {
+async function chat({ endpoint, model, messages, timeoutMs = 120000, numPredict = 2048 }) {
   const response = await fetch(`${endpoint}/api/chat`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
@@ -17,7 +17,7 @@ async function chat({ endpoint, model, messages, timeoutMs = 120000 }) {
       model,
       messages,
       stream: false,
-      options: { temperature: 0.2, num_predict: 2048 }
+      options: { temperature: 0.2, num_predict: numPredict }
     }),
     signal: AbortSignal.timeout(timeoutMs)
   });
@@ -30,6 +30,7 @@ async function chat({ endpoint, model, messages, timeoutMs = 120000 }) {
 
 function fileContext(document, maxChars = 14000) {
   let content = document.getText();
+  if (!content.trim()) content = '(empty file)';
   const truncated = content.length > maxChars;
   if (truncated) content = `${content.slice(0, maxChars)}\n// … truncated …`;
   return `File: ${document.uri.fsPath}\nLanguage: ${document.languageId}\n\n${content}`;
@@ -50,14 +51,23 @@ function planMessages(document, request) {
 }
 
 function rewriteMessages(document, request) {
+  const exampleBefore = 'function add(a, b) {\n  return a + b;\n}\n';
+  const exampleAfter = 'function add(a, b) {\n  return a + b;\n}\n\nfunction subtract(a, b) {\n  return a - b;\n}\n';
   return [
-    { role: 'system', content: 'You are a coding assistant inside an IDE. Output only the requested file content.' },
+    { role: 'system', content: 'You are a coding assistant inside an IDE. You rewrite files precisely.' },
+    {
+      role: 'user',
+      content: 'File: example.js\nLanguage: javascript\n\n' + exampleBefore +
+        '\nRequest: add a subtract function\n\nReply with the COMPLETE updated file inside one code fence.'
+    },
+    { role: 'assistant', content: '```javascript\n' + exampleAfter + '```' },
     {
       role: 'user',
       content: `${fileContext(document)}\n\nRequest: ${request}\n\n` +
         'Reply with the COMPLETE updated file content inside a single code fence ' +
         '(``` followed by the language id). Change only what the request needs and ' +
-        'keep every other line identical. If no change is needed, reply NOCHANGE.'
+        'keep every other line byte-identical — do not reformat, rename or fix ' +
+        'unrelated code. If no change is needed, reply NOCHANGE.'
     }
   ];
 }
@@ -71,6 +81,7 @@ function parseRewrite(text) {
   if (!fence) return null;
   const content = fence[1].replace(/\s+$/, '');
   if (!content.trim()) return null;
+  if (/^NO\s*CHANGE\s*$/i.test(content.trim())) return { noChange: true };
   return { content };
 }
 

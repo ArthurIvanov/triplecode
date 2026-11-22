@@ -80,7 +80,7 @@
         },
         "triplecode.ai.model": {
           "type": "string",
-          "default": "qwen2.5-coder:3b",
+          "default": "qwen2.5-coder:7b",
           "description": "Ollama model used for chat, plans and edits."
         },
         "triplecode.ai.timeoutMs": {

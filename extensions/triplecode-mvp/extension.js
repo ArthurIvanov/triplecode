@@ -1048,12 +1048,13 @@ function activate(context) {
     }
     return aiProbe;
   }
-  async function aiChat(messages) {
+  async function aiChat(messages, numPredict) {
     return provider.chat({
       endpoint: await aiSetting('ai.endpoint', 'http://localhost:11434'),
       model: await aiSetting('ai.model', 'qwen2.5-coder:7b'),
       messages,
-      timeoutMs: await aiSetting('ai.timeoutMs', 120000)
+      timeoutMs: await aiSetting('ai.timeoutMs', 120000),
+      numPredict
     });
   }
   async function aiOrFallback(primary, fallback) {
@@ -1130,7 +1131,7 @@ function activate(context) {
     let specs;
     if (useAi) {
       if (!activeDocument || activeDocument.isClosed) throw new Error('Open a source file first.');
-      const reply = await aiChat(provider.rewriteMessages(activeDocument, trimmed));
+      const reply = await aiChat(provider.rewriteMessages(activeDocument, trimmed), 4096);
       const parsed = provider.parseRewrite(reply);
       if (!parsed) {
         const preview = reply.length > 300 ? `${reply.slice(0, 300)}…` : reply;
