@@ -12,32 +12,34 @@ type Chat = {
   id: number;
   mode?: Mode;
   replies?: string[];
-  plan?: { task: string } | null;
+  plan?: { task: string; plan?: string } | null;
   attachments?: Attachment[];
 };
-type ChatState = { chats: Chat[]; selected: number; draft: string; model: string };
+type ChatState = { chats: Chat[]; selected: number; draft: string; model: string; progress?: Progress | null; status?: string };
 type Patch = {
   request: string;
   files: { name: string; lines: string[]; start: number; removed: number }[];
-  checks?: { command: string; code: number; output?: string }[];
+  checking?: boolean;
+  checks?: { command: string; code: number; output?: string; target: 'working-tree' }[];
 };
 type Assets = Record<'close' | 'plus' | 'actions' | 'chevron' | 'context' | 'attach' | 'send', string>;
 type Initial = ChatState & { target: string; pending: Patch | null; assets: Assets };
 type Progress = { chat: number; text: string; startedAt: number };
 type HostMessage =
+  | { type: 'focus-composer' }
   | { type: 'target'; name: string }
   | { type: 'pending'; patch: Patch }
-  | { type: 'progress'; chat: number; text: string }
+  | ({ type: 'progress' } & Progress)
   | { type: 'complete' | 'error'; text: string }
   | ({ type: 'chats'; focusPrompt?: boolean } & ChatState);
 type ViewMessage =
-  | { type: 'select-chat' | 'close-chat'; id: number }
+  | { type: 'select-chat' | 'close-chat' | 'stop' | 'attach-menu'; id: number }
   | { type: 'draft'; id: number; value: string }
   | { type: 'mode'; id: number; mode: Mode }
   | { type: 'propose'; id: number; request: string; mode: Mode }
   | { type: 'detach-context'; index: number }
   | { type: 'new-chat' | 'chat-actions' | 'check' | 'discard' | 'apply' | 'review' |
-      'discard-plan' | 'execute-plan' | 'select-model' | 'attach-menu' };
+      'discard-plan' | 'execute-plan' | 'select-model' | 'ready' };
 
 declare function acquireVsCodeApi(): { postMessage(message: ViewMessage): void };
 const vscode = acquireVsCodeApi();
@@ -63,21 +65,23 @@ function selectedMode(state: ChatState): Mode {
 
 function update(state: State, action: Action): State {
   switch (action.type) {
+    case 'focus-composer':
+      return { ...state, focusRequest: state.focusRequest + 1 };
     case 'target':
       return { ...state, target: action.name };
     case 'pending':
       return { ...state, patch: action.patch, status: '', draft: '', submitting: false, progress: null };
     case 'progress':
       return action.chat === state.selected
-        ? { ...state, progress: { chat: action.chat, text: action.text, startedAt: state.progress?.startedAt ?? Date.now() } }
+        ? { ...state, submitting: true, progress: action }
         : state;
     case 'complete':
       return { ...state, patch: null, status: action.text, draft: '', submitting: false, progress: null };
     case 'chats':
       return {
         ...state, chats: action.chats, selected: action.selected, draft: action.draft,
-        model: action.model || state.model, mode: selectedMode(action), status: '',
-        submitting: false, progress: null,
+        model: action.model || state.model, mode: selectedMode(action), status: action.status || '',
+        submitting: Boolean(action.progress), progress: action.progress ?? null,
         focusRequest: state.focusRequest + (action.focusPrompt ? 1 : 0)
       };
     case 'error':
@@ -111,12 +115,15 @@ function Agent({ initial }: { initial: Initial }) {
   const [state, dispatch] = useReducer(update, {
     chats: initial.chats, selected: initial.selected, draft: initial.draft,
     model: initial.model || 'Model', target: initial.target, patch: initial.pending,
-    mode: selectedMode(initial), status: '', submitting: false, progress: null, focusRequest: 0
+    mode: selectedMode(initial), status: initial.status || '',
+    submitting: Boolean(initial.progress), progress: initial.progress ?? null, focusRequest: 0
   });
   const [modeOpen, setModeOpen] = useState(false);
   const [filesOpen, setFilesOpen] = useState(true);
+  const [planOpen, setPlanOpen] = useState(false);
   const prompt = useRef<HTMLTextAreaElement>(null);
   const modePicker = useRef<HTMLDivElement>(null);
+  const reviewButton = useRef<HTMLButtonElement>(null);
   const { patch, selected, mode } = state;
   const chat = state.chats.find(item => item.id === selected);
   const replies = chat?.replies || [];
@@ -137,6 +144,7 @@ function Agent({ initial }: { initial: Initial }) {
       }
     }
     window.addEventListener('message', receive);
+    send({ type: 'ready' });
     document.addEventListener('click', closeModeMenu);
     return () => {
       window.removeEventListener('message', receive);
@@ -145,7 +153,10 @@ function Agent({ initial }: { initial: Initial }) {
   }, []);
 
   useLayoutEffect(() => {
-    if (state.focusRequest) prompt.current?.focus();
+    if (state.focusRequest) {
+      if (prompt.current?.disabled) reviewButton.current?.focus();
+      else prompt.current?.focus();
+    }
   }, [state.focusRequest]);
 
   function submit(event: FormEvent<HTMLFormElement>) {
@@ -200,29 +211,47 @@ function Agent({ initial }: { initial: Initial }) {
             <span id="file-count">{patch.files.length} {patch.files.length === 1 ? 'file' : 'files'}</span>
           </button>
           <div className="review-actions">
-            <button type="button" className="pill-action" onClick={() => send({ type: 'check' })}>Run checks</button>
-            <button type="button" className="pill-action" onClick={() => send({ type: 'discard' })}>Undo all</button>
-            <button type="button" className="pill-action" onClick={() => send({ type: 'apply' })}>Keep all</button>
-            <button type="button" className="review-btn" onClick={() => send({ type: 'review' })}>Review</button>
+            <button type="button" className="pill-action" disabled={patch.checking} aria-describedby="check-target"
+              onClick={() => send({ type: 'check' })}>Run checks</button>
+            <button type="button" className="pill-action" disabled={patch.checking}
+              onClick={() => send({ type: 'discard' })}>Undo all</button>
+            <button type="button" className="pill-action" disabled={patch.checking}
+              onClick={() => send({ type: 'apply' })}>Keep all</button>
+            <button type="button" className="review-btn" ref={reviewButton} onClick={() => send({ type: 'review' })}>Review</button>
           </div>
         </div>
-        <div id="checks" className="checks">
+        <div id="checks" className="checks" aria-live="polite">
+          <p id="check-target" className="check-scope">
+            {patch.checking ? 'Checking current working tree.' : 'Run checks tests the current working tree.'} Proposed patch not tested.
+          </p>
           {patch.checks?.map((check, index) => <div className="check-row" key={index}>
-            <span className={check.code === 0 ? 'check-ok' : 'check-fail'}>{check.code === 0 ? '✓' : '✗'}</span>
-            <span title={check.output || ''}>{check.command} — exit {check.code}</span>
+            <span title={check.output || ''}>
+              {check.target === 'working-tree' ? 'Current working tree' : 'Check target not recorded'}
+              {' · '}{check.command} — exit {check.code}
+            </span>
           </div>)}
         </div>
       </div>}
       {plan && <div id="plan-bar" className="composer-header plan-bar">
         <div className="review-row">
-          <span className="plan-label" id="plan-label" title={plan.task}>
-            {plan.task.length > 60 ? `${plan.task.slice(0, 60)}…` : plan.task}
-          </span>
+          <button type="button" className="plan-toggle" aria-expanded={planOpen}
+            title={plan.plan || plan.task}
+            onClick={() => setPlanOpen(open => !open)}>
+            <span className="plan-label" id="plan-label">
+              {plan.task.length > 60 ? `${plan.task.slice(0, 60)}…` : plan.task}
+            </span>
+          </button>
           <div className="review-actions">
-            <button type="button" className="pill-action" onClick={() => send({ type: 'discard-plan' })}>Discard</button>
-            <button type="button" className="review-btn" onClick={() => send({ type: 'execute-plan' })}>Execute plan</button>
+            <button type="button" className="pill-action" disabled={state.submitting}
+              onClick={() => send({ type: 'discard-plan' })}>Discard</button>
+            <button type="button" className="review-btn" disabled={state.submitting}
+              title="Executes the plan shown above"
+              onClick={() => send({ type: 'execute-plan' })}>Execute plan</button>
           </div>
         </div>
+        {planOpen && (plan.plan
+          ? <pre className="plan-text" id="plan-text">{plan.plan}</pre>
+          : <p className="plan-text muted">Plan text unavailable — regenerate in Plan mode.</p>)}
       </div>}
       <div id="attachments" className="attachments" hidden={!attachments.length}>
         {attachments.map((attachment, index) => {
@@ -230,30 +259,53 @@ function Agent({ initial }: { initial: Initial }) {
           const label = selection ? attachment.label || 'selection' : attachment.path.split('/').pop() || attachment.path;
           return <span className="attachment-chip" key={index}>
             <span className="attachment-label" title={selection ? attachment.text : attachment.path}>{label}</span>
-            <button type="button" className="chip-remove" aria-label="Remove attachment"
-              onClick={() => send({ type: 'detach-context', index })}>×</button>
+            <button type="button" className="chip-remove" aria-label={`Remove attachment: ${label}`} disabled={state.submitting}
+              onClick={() => {
+                send({ type: 'detach-context', index });
+                prompt.current?.focus();
+              }}>×</button>
           </span>;
         })}
       </div>
       <label className="sr-only" htmlFor="prompt">Agent task</label>
       <textarea id="prompt" ref={prompt} maxLength={500} aria-describedby="target"
-        placeholder="Press / for skills, @ for context" required disabled={!!patch} value={state.draft}
+        placeholder="Describe a task. Type @ for context." required disabled={!!patch}
+        readOnly={state.submitting} value={state.draft}
         onChange={event => {
           const value = event.currentTarget.value;
           dispatch({ type: 'edit', value });
           send({ type: 'draft', id: selected, value });
         }}
         onKeyDown={event => {
-          if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
+          if (event.nativeEvent.isComposing) return;
+          if (event.key === 'Escape' && state.submitting) {
             event.preventDefault();
-            event.currentTarget.form?.requestSubmit();
+            send({ type: 'stop', id: selected });
+            return;
+          }
+          const field = event.currentTarget;
+          if (event.key === '@' && !state.submitting && field.selectionStart === field.selectionEnd &&
+              (field.selectionStart === 0 || /\s/.test(field.value[field.selectionStart - 1]))) {
+            event.preventDefault();
+            send({ type: 'attach-menu', id: selected });
+            return;
+          }
+          if (event.key === 'Enter' && !event.shiftKey && !event.altKey && !event.ctrlKey && !event.metaKey) {
+            event.preventDefault();
+            if (!state.submitting) field.form?.requestSubmit();
           }
         }} />
       <footer className="chat-actions">
         <div className="mode-picker" ref={modePicker}>
           <button type="button" className="pill mode" id="mode-button" aria-haspopup="listbox" aria-expanded={modeOpen}
             onClick={() => setModeOpen(open => !open)}>{modes[mode]}</button>
-          <div className="mode-menu" id="mode-menu" role="listbox" hidden={!modeOpen}>
+          <div className="mode-menu" id="mode-menu" role="listbox" hidden={!modeOpen}
+            onKeyDown={event => {
+              if (event.key !== 'Escape') return;
+              event.preventDefault();
+              setModeOpen(false);
+              modePicker.current?.querySelector('button')?.focus();
+            }}>
             {(Object.keys(modes) as Mode[]).map(option => <button key={option} type="button" role="option"
               data-mode={option} aria-selected={option === mode} onClick={() => {
                 dispatch({ type: 'set-mode', mode: option });
@@ -265,12 +317,14 @@ function Agent({ initial }: { initial: Initial }) {
         <button type="button" className="pill model-pill" id="model-pill" title="Select model"
           onClick={() => send({ type: 'select-model' })}>{state.model}</button>
         <span id="target" className="muted" title={target}>{target}</span>
-        <button type="button" className="icon-button context-btn" aria-label="Attach context" title="Attach context"
-          onClick={() => send({ type: 'attach-menu' })}><img src={assets.context} alt="" /></button>
-        <button type="button" className="icon-button attachment" aria-label="Attach context" title="Attach context"
-          onClick={() => send({ type: 'attach-menu' })}><img src={assets.attach} alt="" /></button>
-        <button aria-label="Send" title="Send" type="submit" className="send" disabled={!!patch || state.submitting}>
-          <img src={assets.send} alt="" />
+        <button type="button" className="icon-button context-btn" aria-label="Attach context" title="Attach context" disabled={state.submitting}
+          onClick={() => send({ type: 'attach-menu', id: selected })}><img src={assets.context} alt="" /></button>
+        <button type="button" className="icon-button attachment" aria-label="Attach context" title="Attach context" disabled={state.submitting}
+          onClick={() => send({ type: 'attach-menu', id: selected })}><img src={assets.attach} alt="" /></button>
+        <button aria-label={state.submitting ? 'Stop' : 'Send'} title={state.submitting ? 'Stop' : 'Send'}
+          type={state.submitting ? 'button' : 'submit'} className="send" disabled={!!patch}
+          onClick={state.submitting ? () => send({ type: 'stop', id: selected }) : undefined}>
+          {state.submitting ? <span className="stop-glyph" aria-hidden="true" /> : <img src={assets.send} alt="" />}
         </button>
       </footer>
     </form>

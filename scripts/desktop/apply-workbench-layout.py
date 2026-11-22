@@ -77,6 +77,9 @@ for before, after in (
     ('get actionGap(){return!this.layoutService.isFloatingPanelsEnabled()||this._isCompact?0:',
      'get actionGap(){return this._isCompact?0:!this.layoutService.isFloatingPanelsEnabled()?4:'),
     (title_bar, title_items + title_bar),
+    # Use the shared design-system surface on the native, draggable editor tab.
+    ('E(".tab",{draggable:!0,role:"tab"})',
+     'E(".tab.triplecode-editor-tab",{draggable:!0,role:"tab"})'),
     ('return{normal:di.tabsSize35,compact:di.tabsSize22,modernUI:di.tabsSize32',
      'return{normal:di.tabsSize32,compact:di.tabsSize22,modernUI:di.tabsSize32'),
     ('super("workbench.parts.auxiliarybar",{hasTitle:!0,trailingSeparator:!0',
@@ -134,6 +137,8 @@ shutil.copytree(Path(__file__).with_name("icons"), (out / css_name).parent / "tr
 with (out / css_name).open("ab") as css:
     css.write(b"\n")
     css.write(Path(__file__).with_name("workbench.css").read_bytes())
+    css.write(b"\n")
+    css.write((Path(__file__).parents[2] / "extensions/triplecode-mvp/media/tab-surface.css").read_bytes())
 
 for name in (js_name, css_name):
     digest = hashlib.sha256((out / name).read_bytes()).digest()

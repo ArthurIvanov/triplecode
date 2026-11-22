@@ -1,23 +1,33 @@
 import { useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { componentCatalog } from './component-catalog';
+import { componentCatalog, reactSupport, type ComponentPreview } from './component-catalog';
 
 const media: string = JSON.parse(document.getElementById('initial')!.textContent!);
 const asset = (name: string) => `${media}/${name}`;
 const designUrl = 'https://www.figma.com/design/H0WMYGGclEWe3lbjUabY3h/Triplecode-app';
+
+function CatalogPreview({ name, preview }: { name: string; preview: ComponentPreview }) {
+  const parts = preview.content.split('|');
+  return <div className={`catalog-preview catalog-preview--${preview.kind}`} role="img" aria-label={`${name} preview`}>
+    {preview.kind === 'logo' ? <img src={asset('imgLogo1.png')} alt="" />
+      : parts.map((part, index) => <span key={index}>{part}</span>)}
+  </div>;
+}
 
 function Catalog() {
   const [search, setSearch] = useState('');
   const query = search.trim().toLowerCase();
   const visibleGroups = componentCatalog.map(group => ({
     ...group,
-    components: group.components.filter(component =>
-      [group.title, group.implementation, ...component].join(' ').toLowerCase().includes(query))
+    components: group.components.filter(([name, usage, source, preview, node]) =>
+      [group.title, group.implementation, name, usage, source, reactSupport[preview.react].label, node]
+        .join(' ').toLowerCase().includes(query))
   })).filter(group => group.components.length);
   const count = visibleGroups.reduce((total, group) => total + group.components.length, 0);
 
   return <>
     <h2>Component catalog</h2>
+    <p className="muted">Previews illustrate the current UI. Figma links open the mapped design.</p>
     <div className="catalog-toolbar">
       <label>Search components
         <input type="search" value={search} onChange={event => setSearch(event.currentTarget.value)}
@@ -32,13 +42,16 @@ function Catalog() {
         <p className="catalog-source">{group.implementation}</p>
         <div className="catalog-table">
           <table aria-label={`${group.title} components`}>
-            <thead><tr><th scope="col">Component</th><th scope="col">Used in</th><th scope="col">Code</th><th scope="col">Figma</th></tr></thead>
+            <thead><tr><th scope="col">Component</th><th scope="col">Preview</th><th scope="col">Used in</th><th scope="col">Code</th><th scope="col">React</th><th scope="col">Figma</th></tr></thead>
             <tbody>
-              {group.components.map(([name, usage, entryPoint, figmaNode]) => (
+              {group.components.map(([name, usage, entryPoint, preview, figmaNode]) => (
                 <tr key={name}>
                   <th scope="row">{name}</th>
+                  <td><CatalogPreview name={name} preview={preview} /></td>
                   <td>{usage}</td>
                   <td><code>{entryPoint}</code></td>
+                  <td className="catalog-react"><strong>{reactSupport[preview.react].label}</strong>
+                    <span>{reactSupport[preview.react].detail}</span></td>
                   <td>{figmaNode
                     ? <a href={`${designUrl}?node-id=${figmaNode.replace(':', '-')}`}>View node</a>
                     : <span className="muted">Unmapped</span>}</td>

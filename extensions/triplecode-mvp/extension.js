@@ -463,8 +463,11 @@ function activate(context) {
   let activeDocument;
   let pending;
   let applying = false;
+  let activeRun;
   let agent;
   let agentView;
+  let agentReady = false;
+  let focusComposerOnReady = false;
   let nextChatId = 1;
   let chats = [{ id: nextChatId, draft: '', mode: 'agent', replies: [] }];
   let currentChat = chats[0];
@@ -579,11 +582,25 @@ function activate(context) {
     if (!vscode.workspace.workspaceFolders?.length) return;
     updateTarget(vscode.window.activeTextEditor);
     await vscode.commands.executeCommand('triplecode.agentView.focus');
+    focusAgentComposer();
+  }
+
+  function focusAgentComposer() {
+    focusComposerOnReady = !agentReady;
+    if (agentReady) void agent?.postMessage({ type: 'focus-composer' });
+  }
+
+  async function toggleAgent() {
+    if (!agentView?.visible) return showAgent();
+    focusComposerOnReady = false;
+    await vscode.commands.executeCommand('workbench.action.closeAuxiliaryBar');
+    await vscode.commands.executeCommand('workbench.action.focusActiveEditorGroup');
   }
 
   function resolveAgent(view) {
     agent = view.webview;
     agentView = view;
+    agentReady = false;
     const reportVisibility = () => vscode.commands.executeCommand('setContext', 'triplecode.agentVisible', view.visible);
     const visibility = view.onDidChangeVisibility(reportVisibility);
     void reportVisibility();
@@ -593,6 +610,7 @@ function activate(context) {
       if (agent === view.webview) {
         agent = undefined;
         agentView = undefined;
+        agentReady = false;
         void vscode.commands.executeCommand('setContext', 'triplecode.agentVisible', false);
       }
     });
@@ -600,6 +618,10 @@ function activate(context) {
       if (applying) return;
       try {
         switch (message.type) {
+          case 'ready':
+            agentReady = true;
+            if (focusComposerOnReady && view.visible) focusAgentComposer();
+            break;
           case 'draft':
             if (message.id === currentChat.id && typeof message.value === 'string') {
               currentChat.draft = message.value.slice(0, 500);
@@ -626,11 +648,12 @@ function activate(context) {
             if (message.id !== currentChat.id) throw new Error('The selected chat changed. Try again.');
             await propose(message.request, message.mode ?? currentChat.mode);
             break;
+          case 'stop':
+            if (activeRun?.chat.id === message.id) stopRun('Stopped. Draft kept.');
+            break;
           case 'execute-plan': {
             const plan = currentChat.plan;
             if (!plan) break;
-            currentChat.plan = null;
-            persistChats();
             await propose(`${plan.task}\n\nApproved plan:\n${plan.plan}`, 'agent', true);
             break;
           }
@@ -646,11 +669,14 @@ function activate(context) {
             agent?.postMessage({ type: 'chats', ...chatState() });
             break;
           case 'attach-menu':
+            if (message.id !== currentChat.id) break;
             await showAttachMenu();
-            agent?.postMessage({ type: 'chats', ...chatState() });
+            if (message.id === currentChat.id && view.visible) {
+              agent?.postMessage({ type: 'chats', ...chatState(), focusPrompt: true });
+            }
             break;
           case 'detach-context':
-            if (currentChat.attachments && Number.isInteger(message.index)) {
+            if (!activeRun && currentChat.attachments && Number.isInteger(message.index)) {
               currentChat.attachments.splice(message.index, 1);
               persistChats();
               agent?.postMessage({ type: 'chats', ...chatState() });
@@ -671,6 +697,7 @@ function activate(context) {
             }
             break;
           case 'discard':
+            if (pending?.checking) throw new Error('Wait for the current working tree check to finish.');
             if (pending) recordHistory('discard', `${pending.request} — ${pending.files.length} file${pending.files.length === 1 ? '' : 's'}`);
             await clearPatch('Changes discarded.');
             break;
@@ -704,16 +731,15 @@ function activate(context) {
     }
     return aiProbe;
   }
-  async function aiChat(messages, options = {}) {
+  async function aiChat(messages, signal, options = {}) {
     const mode = await aiSetting('ai.provider', 'auto');
-    const timeoutMs = await aiSetting('ai.timeoutMs', 120000);
     if (mode === 'openrouter') {
       return provider.chatCompletions({
         baseUrl: await aiSetting('ai.openrouterEndpoint', 'https://openrouter.ai/api/v1'),
         apiKey: await openRouterKey(),
         model: await aiSetting('ai.openrouterModel', 'openai/gpt-4o-mini'),
         messages,
-        timeoutMs,
+        signal,
         maxTokens: options.numPredict || 4096
       });
     }
@@ -721,7 +747,7 @@ function activate(context) {
       endpoint: await aiSetting('ai.endpoint', 'http://localhost:11434'),
       model: await aiSetting('ai.model', 'qwen2.5-coder:7b'),
       messages,
-      timeoutMs,
+      signal,
       numPredict: options.numPredict,
       numCtx: options.numCtx
     });
@@ -774,10 +800,10 @@ function activate(context) {
     return `\n\nAttached context:\n${parts.join('\n')}`;
   }
 
-  async function aiSpecs(request, extraDocuments = [], onStage) {
+  async function aiSpecs(request, extraDocuments, run) {
     const documents = [];
     const seenDocs = new Set();
-    for (const document of [...extraDocuments, ...aiContextDocuments()]) {
+    for (const document of [...extraDocuments, ...run.documents]) {
       if (document && !document.isClosed && !seenDocs.has(document.uri.toString())) {
         seenDocs.add(document.uri.toString());
         documents.push(document);
@@ -790,8 +816,9 @@ function activate(context) {
     const knownUris = new Set(documents.map(document => document.uri.toString()));
 
     let contextDocs = documents;
-    onStage?.('Waiting for model…');
-    let reply = await aiChat(provider.multiFileMessages(contextDocs, request), options);
+    postProgress(run, 'Waiting for model…');
+    let reply = await aiChat(provider.multiFileMessages(contextDocs, request), run.signal, options);
+    run.signal.throwIfAborted();
     let parsed = provider.parseMultiRewrite(reply);
     if (!parsed) throw aiParseError(reply);
 
@@ -799,6 +826,7 @@ function activate(context) {
       const missing = [];
       const requested = new Set();
       for (const entry of parsed.files.slice(0, 6)) {
+        run.signal.throwIfAborted();
         try {
           const document = await openModelFile(entry.path, root);
           if (!knownUris.has(document.uri.toString()) && !requested.has(document.uri.toString())) {
@@ -809,25 +837,25 @@ function activate(context) {
       }
       if (missing.length) {
         contextDocs = [...documents, ...missing].slice(0, 6);
-        onStage?.('Expanding context…');
-        reply = await aiChat(provider.multiFileMessages(contextDocs, request), options);
+        postProgress(run, 'Expanding context…');
+        reply = await aiChat(provider.multiFileMessages(contextDocs, request), run.signal, options);
+        run.signal.throwIfAborted();
         parsed = provider.parseMultiRewrite(reply);
         if (!parsed) throw aiParseError(reply);
       }
     }
+    run.signal.throwIfAborted();
     const contextUris = new Set(contextDocs.map(document => document.uri.toString()));
 
     if (parsed.noChange) {
-      currentChat.draft = '';
-      currentChat.attachments = [];
-      pushReply(`The model did not propose a change.${parsed.reason ? ` ${parsed.reason}` : ''}`);
-      return null;
+      return { reply: `The model did not propose a change.${parsed.reason ? ` ${parsed.reason}` : ''}` };
     }
 
     const specs = [];
     const seenPaths = new Set();
     const failedPaths = [];
     for (const entry of parsed.files.slice(0, 6)) {
+      run.signal.throwIfAborted();
       let document;
       try {
         document = await openModelFile(entry.path, root);
@@ -844,37 +872,59 @@ function activate(context) {
     if (!specs.length && failedPaths.length) {
       throw new Error(`The model referenced files that could not be opened:\n${failedPaths.join('\n')}`);
     }
-    if (!specs.length) {
-      currentChat.draft = '';
-      currentChat.attachments = [];
-      pushReply('The model did not propose a change.');
-      return null;
-    }
-    return specs;
+    return specs.length ? { specs } : { reply: 'The model did not propose a change.' };
   }
 
-  async function aiOrFallback(primary, fallback) {
+  async function aiOrFallback(signal, primary, fallback) {
     try {
       return await primary();
-    } catch {
+    } catch (error) {
+      signal.throwIfAborted();
+      if (error?.name === 'TimeoutError' || error?.name === 'AbortError') throw error;
       return fallback();
     }
   }
 
-  function recordHistory(kind, summary, detail = '') {
+  function recordHistory(kind, summary, detail = '', checkTarget) {
     const history = context.globalState.get('triplecode.history', []);
-    history.unshift({ ts: Date.now(), kind, summary, detail });
+    history.unshift({ ts: Date.now(), kind, summary, detail, checkTarget });
     void context.globalState.update('triplecode.history', history.slice(0, 50));
   }
 
-  function postProgress(text) {
-    agent?.postMessage({ type: 'progress', chat: currentChat.id, text });
+  function checkHistoryScope(entry) {
+    if (entry.kind !== 'check') return '';
+    return entry.checkTarget === 'working-tree'
+      ? 'Current working tree · Proposed patch not tested'
+      : 'Check target not recorded';
   }
 
-  function pushReply(text) {
-    currentChat.replies.push(text);
+  function postProgress(run, text) {
+    run.signal.throwIfAborted();
+    run.progress = { chat: run.chat.id, text, startedAt: run.startedAt };
+    agent?.postMessage({ type: 'progress', ...run.progress });
+  }
+
+  function finishRun(run, status = '') {
+    if (activeRun !== run) return;
+    clearTimeout(run.timeout);
+    activeRun = undefined;
+    run.chat.status = status;
     persistChats();
-    agent?.postMessage({ type: 'chats', ...chatState() });
+    if (currentChat === run.chat) agent?.postMessage({ type: 'chats', ...chatState() });
+  }
+
+  function stopRun(status) {
+    const run = activeRun;
+    if (!run) return;
+    run.controller.abort();
+    finishRun(run, status);
+  }
+
+  function completeChatTurn(chat, reply, plan = null) {
+    chat.draft = '';
+    chat.attachments = [];
+    chat.plan = plan;
+    if (reply) chat.replies.push(reply);
   }
 
   function answerAsk(document, request) {
@@ -895,10 +945,10 @@ function activate(context) {
       'Try “how many lines” or “functions”. Agent mode applies changes: “add a comment: text” or “comment all: text”.';
   }
 
-  function planRequest(request) {
+  function planRequest(request, document) {
     const all = /^comment all:/i.test(request.trim());
     const documents = all ? candidateDocuments().filter(doc => supportsComments(doc.languageId)).slice(0, 12)
-      : activeDocument && supportsComments(activeDocument.languageId) ? [activeDocument] : [];
+      : document && supportsComments(document.languageId) ? [document] : [];
     if (!documents.length) return 'Open a source file that supports // comments first.';
     const steps = documents.map((document, index) =>
       `${index + 1}. Insert a comment at the top of ${fileName(document)}.`);
@@ -910,28 +960,48 @@ function activate(context) {
     if (typeof request !== 'string' || !request.trim() || (!trusted && request.length > 500)) {
       throw new Error('Enter a request of up to 500 characters.');
     }
-    const trimmed = request.trim();
-    const attachments = currentChat.attachments || [];
-    currentChat.plan = null;
-    postProgress('Checking provider…');
-    const useAi = await aiAvailable();
-    const aiRequest = trimmed + attachmentSuffix(attachments);
-    if (mode === 'ask') {
-      currentChat.draft = '';
-      currentChat.attachments = [];
-      pushReply(useAi
-        ? await aiOrFallback(() => { postProgress('Waiting for model…'); return aiChat(provider.askMessages(activeDocument, aiRequest)); }, () => answerAsk(activeDocument, trimmed))
-        : answerAsk(activeDocument, trimmed));
-      return;
+    if (activeRun) return;
+    const chat = currentChat;
+    if (!trusted) chat.draft = request;
+    chat.status = '';
+    persistChats();
+    const controller = new AbortController();
+    const run = {
+      chat, controller, signal: controller.signal, startedAt: Date.now(),
+      document: activeDocument, documents: aiContextDocuments()
+    };
+    activeRun = run;
+    const timeoutMs = vscode.workspace.getConfiguration('triplecode').get('ai.timeoutMs', 120000);
+    run.timeout = setTimeout(() => {
+      if (activeRun === run) stopRun('Agent timed out. Draft kept.');
+    }, timeoutMs);
+    try {
+      await proposeInRun(request.trim(), mode, run);
+      finishRun(run);
+    } catch (error) {
+      if (!run.signal.aborted) finishRun(run, error.message);
     }
-    if (mode === 'plan') {
-      currentChat.draft = '';
-      currentChat.attachments = [];
-      const planText = useAi
-        ? await aiOrFallback(() => { postProgress('Waiting for model…'); return aiChat(provider.planMessages(activeDocument, aiRequest)); }, () => planRequest(trimmed))
-        : planRequest(trimmed);
-      if (useAi) currentChat.plan = { task: trimmed, plan: planText.slice(0, 8000) };
-      pushReply(planText);
+  }
+
+  async function proposeInRun(trimmed, mode, run) {
+    const { chat, document, signal } = run;
+    const attachments = chat.attachments || [];
+    postProgress(run, 'Checking provider…');
+    const useAi = await aiAvailable();
+    signal.throwIfAborted();
+    const aiRequest = trimmed + attachmentSuffix(attachments);
+    if (mode === 'ask' || mode === 'plan') {
+      const fallback = () => mode === 'ask' ? answerAsk(document, trimmed) : planRequest(trimmed, document);
+      const messages = mode === 'ask' ? provider.askMessages : provider.planMessages;
+      const reply = useAi
+        ? await aiOrFallback(signal, () => {
+          postProgress(run, 'Waiting for model…');
+          return aiChat(messages(document, aiRequest), signal);
+        }, fallback)
+        : fallback();
+      signal.throwIfAborted();
+      const plan = mode === 'plan' && useAi ? { task: trimmed, plan: reply.slice(0, 8000) } : null;
+      completeChatTurn(chat, reply, plan);
       return;
     }
 
@@ -941,6 +1011,7 @@ function activate(context) {
       const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
       const extraDocuments = [];
       for (const attachment of attachments.filter(a => a.kind === 'file')) {
+        signal.throwIfAborted();
         try {
           extraDocuments.push(await openModelFile(attachment.path, root));
         } catch { /* skip attachments that are not accessible files */ }
@@ -948,9 +1019,14 @@ function activate(context) {
       const selectionSuffix = attachments.filter(a => a.kind === 'selection')
         .map(a => `\`\`\`\n${a.text}\n\`\`\``).join('\n');
       const agentRequest = trimmed + (selectionSuffix ? `\n\nAttached selection:\n${selectionSuffix}` : '');
-      const result = await aiSpecs(agentRequest, extraDocuments, postProgress);
-      if (!result) return;
-      specs = result;
+      signal.throwIfAborted();
+      const result = await aiSpecs(agentRequest, extraDocuments, run);
+      signal.throwIfAborted();
+      if (result.reply) {
+        completeChatTurn(chat, result.reply);
+        return;
+      }
+      specs = result.specs;
     } else {
       const all = /^comment all:\s*(.+)$/i.exec(trimmed);
       const single = /^add a comment:\s*(.+)$/i.exec(trimmed);
@@ -961,9 +1037,9 @@ function activate(context) {
         body = all[1];
         if (!documents.length) throw new Error('No open source files support // comments.');
       } else if (single) {
-        if (!activeDocument || activeDocument.isClosed) throw new Error('Open a source file first.');
-        if (!supportsComments(activeDocument.languageId)) throw new Error('Open a source file that supports // comments.');
-        documents = [activeDocument];
+        if (!document || document.isClosed) throw new Error('Open a source file first.');
+        if (!supportsComments(document.languageId)) throw new Error('Open a source file that supports // comments.');
+        documents = [document];
         body = single[1];
       } else {
         throw new Error('Try “add a comment: text” for one file or “comment all: text” for every open source file.');
@@ -978,7 +1054,7 @@ function activate(context) {
       });
     }
 
-    postProgress('Building review…');
+    postProgress(run, 'Building review…');
     const files = specs.map((spec, index) => {
       const document = spec.document;
       const before = document.getText();
@@ -990,10 +1066,8 @@ function activate(context) {
       patches.set(modified.toString(), before.slice(0, spec.edit.offset) + spec.edit.insertion + before.slice(spec.edit.offset + deleteLength));
       return { document, before, edit: spec.edit, original, modified, column: vscode.window.activeTextEditor?.viewColumn };
     });
-    currentChat.draft = '';
-    currentChat.attachments = [];
+    completeChatTurn(chat);
     pending = { request: trimmed, files, checks: [] };
-    persistChats();
     recordHistory('propose', `${trimmed} — ${files.length} file${files.length === 1 ? '' : 's'}`);
     agent?.postMessage({ type: 'pending', patch: describePatch(pending) });
   }
@@ -1003,6 +1077,7 @@ function activate(context) {
     return {
       request: patch.request,
       checks: patch.checks,
+      checking: Boolean(patch.checking),
       files: patch.files.map(file => {
         const removed = file.edit.deleteLength
           ? file.before.slice(file.edit.offset, file.edit.offset + file.edit.deleteLength).replace(/\n$/, '').split('\n').length
@@ -1028,6 +1103,7 @@ function activate(context) {
   async function apply() {
     const patch = pending;
     if (!patch) return;
+    if (patch.checking) throw new Error('Wait for the current working tree check to finish.');
     const workspaceEdit = new vscode.WorkspaceEdit();
     for (const file of patch.files) {
       const document = await vscode.workspace.openTextDocument(file.document.uri);
@@ -1049,22 +1125,28 @@ function activate(context) {
 
   async function runCheck() {
     const patch = pending;
-    if (!patch) return;
+    if (!patch || patch.checking) return;
     const folder = vscode.workspace.workspaceFolders?.[0];
     if (!folder) throw new Error('Open a project folder first.');
     const command = vscode.workspace.getConfiguration('triplecode').get('checkCommand', 'npm test');
-    const { stdout, stderr, code } = await new Promise((resolve, reject) => {
-      exec(command, { cwd: folder.uri.fsPath, timeout: 60000, maxBuffer: 512 * 1024 }, (error, out, err) => {
-        if (error && typeof error.code !== 'number') return reject(error);
-        resolve({ stdout: out, stderr: err, code: error ? error.code : 0 });
-      });
-    });
-    const output = `${stdout}\n${stderr}`.trim();
-    const tail = output.split('\n').slice(-8).join('\n');
-    const entry = { command, code, output: tail };
-    patch.checks.push(entry);
-    recordHistory('check', `${command} — exit ${entry.code}`, tail.split('\n')[0] ?? '');
+    patch.checking = true;
     agent?.postMessage({ type: 'pending', patch: describePatch(patch) });
+    try {
+      const { stdout, stderr, code } = await new Promise((resolve, reject) => {
+        exec(command, { cwd: folder.uri.fsPath, timeout: 60000, maxBuffer: 512 * 1024 }, (error, out, err) => {
+          if (error && typeof error.code !== 'number') return reject(error);
+          resolve({ stdout: out, stderr: err, code: error ? error.code : 0 });
+        });
+      });
+      const output = `${stdout}\n${stderr}`.trim();
+      const tail = output.split('\n').slice(-8).join('\n');
+      const target = 'working-tree';
+      patch.checks.push({ command, code, output: tail, target });
+      recordHistory('check', `${command} — exit ${code}`, tail.split('\n')[0] ?? '', target);
+    } finally {
+      patch.checking = false;
+      if (pending === patch) agent?.postMessage({ type: 'pending', patch: describePatch(patch) });
+    }
   }
 
   async function clearPatch(text) {
@@ -1092,6 +1174,7 @@ function activate(context) {
       await vscode.window.showInformationMessage('Apply or discard the current patch first.');
       return;
     }
+    stopRun('Stopped when switching chats. Draft kept.');
     currentChat = { id: ++nextChatId, draft: '', mode: 'agent', replies: [] };
     chats = [currentChat, ...chats];
     persistChats();
@@ -1119,7 +1202,9 @@ function activate(context) {
       draft: currentChat.draft,
       plan: currentChat.plan || null,
       attachments: currentChat.attachments || [],
-      model: currentModelLabel()
+      model: currentModelLabel(),
+      progress: activeRun?.chat === currentChat ? activeRun.progress : null,
+      status: currentChat.status || ''
     };
   }
 
@@ -1131,14 +1216,17 @@ function activate(context) {
     }
     const items = history.map((entry, index) => ({
       label: `${entry.kind === 'check' ? '$(check)' : entry.kind === 'apply' ? '$(check)' : entry.kind === 'discard' ? '$(trash)' : '$(edit)'} ${entry.summary}`,
-      detail: new Date(entry.ts).toLocaleString(),
+      detail: [checkHistoryScope(entry), new Date(entry.ts).toLocaleString()].filter(Boolean).join(' · '),
       description: entry.detail || undefined,
       index
     }));
     const picked = await vscode.window.showQuickPick(items, { placeHolder: 'Agent check history' });
     if (picked) {
       const entry = history[picked.index];
-      await vscode.window.showInformationMessage(`${entry.summary}\n${entry.detail || ''}\n${new Date(entry.ts).toLocaleString()}`);
+      await vscode.window.showInformationMessage(
+        [entry.summary, checkHistoryScope(entry), entry.detail, new Date(entry.ts).toLocaleString()]
+          .filter(Boolean).join('\n')
+      );
     }
   }
 
@@ -1220,10 +1308,12 @@ function activate(context) {
   }
 
   async function showAttachMenu() {
+    if (activeRun) return;
     if (pending) {
       await vscode.window.showInformationMessage('Apply or discard the current patch first.');
       return;
     }
+    const chat = currentChat;
     const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || '';
     const items = [];
     if (activeDocument && !activeDocument.isClosed && activeDocument.uri.scheme === 'file') {
@@ -1259,6 +1349,7 @@ function activate(context) {
         });
       }
     } catch { /* workspace search unavailable */ }
+    if (currentChat !== chat || activeRun) return;
     if (!items.length) {
       await vscode.window.showInformationMessage('Nothing to attach — open a source file or workspace folder first.');
       return;
@@ -1266,15 +1357,19 @@ function activate(context) {
     const picked = await vscode.window.showQuickPick(items, {
       placeHolder: `Attach context to the next request (${currentChat.attachments?.length || 0}/5)`
     });
-    if (!picked?.attachment) return;
+    if (!picked?.attachment || currentChat !== chat || activeRun || pending) return;
+    pushAttachment(picked.attachment);
+  }
+
+  function pushAttachment(attachment) {
     currentChat.attachments = currentChat.attachments || [];
-    const attachment = picked.attachment;
     const exists = currentChat.attachments.some(existing =>
       existing.kind === attachment.kind &&
       (attachment.kind === 'file' ? existing.path === attachment.path : existing.text === attachment.text));
     if (!exists && currentChat.attachments.length < 5) {
       currentChat.attachments.push(attachment);
       persistChats();
+      agent?.postMessage({ type: 'chats', ...chatState() });
     }
   }
 
@@ -1282,6 +1377,9 @@ function activate(context) {
     if (pending) return;
     const chat = chats.find(item => item.id === id);
     if (!chat) return;
+    if (activeRun && (close ? activeRun.chat === chat : currentChat !== chat)) {
+      stopRun('Stopped when switching chats. Draft kept.');
+    }
     if (close) {
       chats = chats.filter(item => item !== chat);
       if (!chats.length) chats = [{ id: ++nextChatId, draft: '', mode: 'agent', replies: [] }];
@@ -1320,9 +1418,7 @@ function activate(context) {
     vscode.workspace.onDidGrantWorkspaceTrust(prepareWorkspace),
     vscode.commands.registerCommand('triplecode.welcome', showWelcome),
     vscode.commands.registerCommand('triplecode.agent', showAgent),
-    vscode.commands.registerCommand('triplecode.focusAgent', () => agentView?.visible
-      ? vscode.commands.executeCommand('workbench.action.closeAuxiliaryBar')
-      : showAgent()),
+    vscode.commands.registerCommand('triplecode.focusAgent', toggleAgent),
     vscode.commands.registerCommand('triplecode.newChat', newChat),
     vscode.commands.registerCommand('triplecode.checkHistory', showCheckHistory),
     vscode.commands.registerCommand('triplecode.importFromVSCode', () => showImportPreview(context)),

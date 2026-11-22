@@ -9,7 +9,7 @@ async function probe(endpoint, timeoutMs = 2000) {
   }
 }
 
-async function chat({ endpoint, model, messages, timeoutMs = 120000, numPredict = 2048, numCtx = 8192 }) {
+async function chat({ endpoint, model, messages, timeoutMs = 120000, signal, numPredict = 2048, numCtx = 8192 }) {
   const response = await fetch(`${endpoint}/api/chat`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
@@ -19,7 +19,7 @@ async function chat({ endpoint, model, messages, timeoutMs = 120000, numPredict 
       stream: false,
       options: { temperature: 0.2, num_predict: numPredict, num_ctx: numCtx }
     }),
-    signal: AbortSignal.timeout(timeoutMs)
+    signal: signal ?? AbortSignal.timeout(timeoutMs)
   });
   if (!response.ok) throw new Error(`Model request failed (HTTP ${response.status}).`);
   const data = await response.json();
@@ -28,7 +28,7 @@ async function chat({ endpoint, model, messages, timeoutMs = 120000, numPredict 
   return text.trim();
 }
 
-async function chatCompletions({ baseUrl, apiKey, model, messages, timeoutMs = 120000, maxTokens = 4096 }) {
+async function chatCompletions({ baseUrl, apiKey, model, messages, timeoutMs = 120000, signal, maxTokens = 4096 }) {
   const response = await fetch(`${baseUrl.replace(/\/+$/, '')}/chat/completions`, {
     method: 'POST',
     headers: {
@@ -42,7 +42,7 @@ async function chatCompletions({ baseUrl, apiKey, model, messages, timeoutMs = 1
       max_tokens: maxTokens,
       stream: false
     }),
-    signal: AbortSignal.timeout(timeoutMs)
+    signal: signal ?? AbortSignal.timeout(timeoutMs)
   });
   if (!response.ok) {
     const detail = await response.text().catch(() => '');

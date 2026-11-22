@@ -188,33 +188,60 @@
 }
 .monaco-workbench .part.activitybar .action-label { --triplecode-glyph-size: 20px; }
 
-/* Keep the native tab's actions and layout modes. Draw the Figma surface
-   inside the default-height strip, with the close slot reserved at rest. */
-.monaco-workbench .part.editor .tabs:not(.compact-height) .tabs-container .tab {
+/* Workbench owns editor tab sizing modes, file icons and commands. */
+.monaco-workbench .part.editor .tabs:not(.compact-height) .tabs-container {
+  column-gap: 1px;
+  padding-inline-start: 2px;
+}
+.monaco-workbench .part.editor .tabs:not(.compact-height) .tabs-container .triplecode-editor-tab {
   align-self: center;
-  box-sizing: border-box;
-  height: 24px !important;
+  align-items: center;
   padding-inline-start: 8px;
-  border: 1px solid transparent;
-  border-radius: 4px;
-  background-color: transparent !important;
-  color: var(--vscode-tab-inactiveForeground, var(--vscode-foreground)) !important;
 }
-.monaco-workbench .part.editor .tabs:not(.compact-height) .tabs-container .tab:hover:not(.active) {
-  background-color: var(--vscode-tab-hoverBackground, var(--vscode-list-hoverBackground)) !important;
+/* The native label inherits the 32 px strip line height unless this is
+   overridden on the actual resource label inside the 24 px tab. */
+.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs:not(.compact-height)
+.tabs-container > .triplecode-editor-tab > .tab-label {
+  align-items: center;
+  height: 20px;
+  min-height: 0;
+  line-height: 20px;
 }
-.monaco-workbench .part.editor .tabs:not(.compact-height) .tabs-container .tab.active {
-  background-color: var(--vscode-sideBar-background) !important;
-  border-color: var(--vscode-editorGroup-border);
-  color: var(--vscode-tab-activeForeground, var(--vscode-foreground)) !important;
+.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs:not(.compact-height)
+.tabs-container > .triplecode-editor-tab > .tab-label::before {
+  align-self: center;
+  height: 20px;
+  padding-inline-end: 4px;
+  line-height: 20px !important;
 }
-.monaco-workbench .part.editor .tabs:not(.compact-height) .tab-label,
-.monaco-workbench .part.editor .tabs:not(.compact-height) .tab-label .label-name {
-  font-size: 14px !important;
+.monaco-workbench .part.editor .tabs:not(.compact-height) .triplecode-editor-tab .tab-label .label-name {
+  font-size: 14px;
   font-weight: 400;
   line-height: 20px;
 }
-.monaco-workbench .part.editor .tabs:not(.compact-height) .tab:not(.dirty, .sticky, :hover, :focus-visible, :has(:focus-visible)) .tab-actions {
+.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs:not(.compact-height)
+.tabs-container > .triplecode-editor-tab:not(.sticky-compact, .close-action-off) > .tab-actions {
+  box-sizing: border-box;
+  flex: 0 0 20px;
+  width: 20px;
+  margin-inline: 4px;
+}
+.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs:not(.compact-height)
+.tabs-container > .triplecode-editor-tab:not(.sticky-compact) > .tab-actions :is(.monaco-action-bar, .actions-container) {
+  box-sizing: border-box;
+  width: 100%;
+  padding-inline: 0;
+}
+.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs:not(.compact-height)
+.tabs-container > .triplecode-editor-tab:not(.sticky-compact) > .tab-actions .action-label.codicon {
+  display: grid;
+  box-sizing: border-box;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  padding: 2px;
+}
+.monaco-workbench .part.editor .tabs:not(.compact-height) .triplecode-editor-tab:not(.dirty, .sticky, :hover, :focus-visible, :has(:focus-visible)) .tab-actions {
   opacity: 0;
 }
 

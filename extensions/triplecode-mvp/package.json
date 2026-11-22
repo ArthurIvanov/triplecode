@@ -99,7 +99,7 @@
         "triplecode.ai.timeoutMs": {
           "type": "number",
           "default": 120000,
-          "description": "Timeout for a single model request in milliseconds."
+          "description": "Timeout for an entire agent turn in milliseconds, including provider selection and context retrieval. Inline completions use a limit of at most 10 seconds."
         },
         "triplecode.ai.openrouterEndpoint": {
           "type": "string",
@@ -137,6 +137,14 @@
         }
       }
     },
+    "keybindings": [
+      {
+        "command": "triplecode.focusAgent",
+        "key": "ctrl+alt+a",
+        "mac": "cmd+ctrl+a",
+        "when": "workbenchState != empty && !inQuickOpen"
+      }
+    ],
     "menus": {
       "commandPalette": [
         {

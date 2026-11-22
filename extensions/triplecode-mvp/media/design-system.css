@@ -80,3 +80,45 @@ h1 { margin-bottom: 30px; }
 .catalog-table tbody th { font-weight: 500; }
 .catalog-table code { overflow-wrap: anywhere; }
 .catalog-table a { color: var(--vscode-textLink-foreground); white-space: nowrap; }
+
+.catalog-preview {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 132px;
+  max-width: 200px;
+  min-height: 30px;
+  padding: 5px 6px;
+  border: 1px solid var(--vscode-editorGroup-border);
+  border-radius: 4px;
+  background: var(--vscode-editorGroupHeader-tabsBackground);
+  color: var(--vscode-foreground);
+  font-size: 11px;
+  line-height: 1.4;
+}
+.catalog-preview > span { min-width: 0; overflow-wrap: anywhere; }
+.catalog-preview--window span:first-child { color: var(--vscode-notificationsWarningIcon-foreground, #e4aa64); }
+.catalog-preview:is(.catalog-preview--tree, .catalog-preview--field, .catalog-preview--panel, .catalog-preview--code,
+.catalog-preview--diff, .catalog-preview--menu) { flex-direction: column; align-items: stretch; }
+.catalog-preview:is(.catalog-preview--toolbar, .catalog-preview--tabs) > span,
+.catalog-preview:is(.catalog-preview--pill, .catalog-preview--primary, .catalog-preview--card) > span {
+  padding: 2px 5px;
+  border: 1px solid var(--vscode-editorGroup-border);
+  border-radius: 3px;
+  background: var(--vscode-sideBar-background);
+}
+.catalog-preview--toolbar > span { text-align: center; }
+.catalog-preview--tabs > span:not(:first-child) { border-color: transparent; color: var(--vscode-descriptionForeground); }
+.catalog-preview--split > span { flex: 1; padding: 6px 3px; background: var(--vscode-sideBar-background); }
+.catalog-preview--split > span + span { border-inline-start: 1px solid var(--vscode-editorGroup-border); }
+.catalog-preview--field > span:first-child { padding: 3px 5px; background: var(--vscode-input-background); }
+.catalog-preview--file > span:first-child, .catalog-preview--link { color: var(--vscode-textLink-foreground); }
+.catalog-preview--status, .catalog-preview--tree > span:first-child { color: var(--vscode-descriptionForeground); }
+.catalog-preview:is(.catalog-preview--code, .catalog-preview--diff) > span { font-family: var(--vscode-editor-font-family, monospace); }
+.catalog-preview--diff > span:last-child { background: var(--vscode-diffEditor-insertedLineBackground); }
+.catalog-preview--menu > span:first-child { background: var(--vscode-list-activeSelectionBackground); }
+.catalog-preview--logo img { display: block; width: auto; height: 26px; margin-inline: auto; }
+.catalog-preview--primary > span { background: var(--vscode-button-background); color: var(--vscode-button-foreground); }
+.catalog-react { min-width: 128px; }
+.catalog-react strong { display: block; font-weight: 600; }
+.catalog-react span { color: var(--vscode-descriptionForeground); font-size: 12px; }
