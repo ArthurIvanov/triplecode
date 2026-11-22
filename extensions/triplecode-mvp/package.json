@@ -61,6 +61,10 @@
       {
         "command": "triplecode.selectModel",
         "title": "TripleCode: Select Model"
+      },
+      {
+        "command": "triplecode.setInlineApiKey",
+        "title": "TripleCode: Set Inline API Key"
       }
     ],
     "configuration": {
@@ -110,7 +114,26 @@
         "triplecode.ai.inlineEnabled": {
           "type": "boolean",
           "default": false,
-          "description": "Show inline AI completions (ghost text) in supported editors. Uses the configured AI provider."
+          "description": "Show inline AI completions (ghost text) in supported editors. Uses the dedicated inline model settings below."
+        },
+        "triplecode.ai.inlineProvider": {
+          "type": "string",
+          "enum": [
+            "ollama",
+            "openai"
+          ],
+          "default": "ollama",
+          "description": "Backend for inline completions: ollama (local Ollama server) or openai (any OpenAI-compatible endpoint, e.g. a self-hosted completion model)."
+        },
+        "triplecode.ai.inlineEndpoint": {
+          "type": "string",
+          "default": "http://localhost:11434",
+          "description": "Endpoint for inline completions: Ollama base URL, or an OpenAI-compatible base URL ending in /v1 when inlineProvider is openai."
+        },
+        "triplecode.ai.inlineModel": {
+          "type": "string",
+          "default": "qwen2.5-coder:1.5b",
+          "description": "Model used for inline completions. For openai provider set the served model name."
         }
       }
     },

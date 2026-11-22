@@ -33,7 +33,7 @@ async function chatCompletions({ baseUrl, apiKey, model, messages, timeoutMs = 1
     method: 'POST',
     headers: {
       'content-type': 'application/json',
-      authorization: `Bearer ${apiKey}`
+      ...(apiKey ? { authorization: `Bearer ${apiKey}` } : {})
     },
     body: JSON.stringify({
       model,

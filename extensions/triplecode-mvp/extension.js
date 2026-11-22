@@ -1467,6 +1467,22 @@ function activate(context) {
     }
   }
 
+  async function setInlineApiKey() {
+    const key = await vscode.window.showInputBox({
+      prompt: 'Inline completion API key for the OpenAI-compatible endpoint (leave empty to remove)',
+      password: true,
+      ignoreFocusOut: true
+    });
+    if (key === undefined) return;
+    if (key.trim()) {
+      await context.secrets.store('triplecode.inlineApiKey', key.trim());
+      await vscode.window.showInformationMessage('Inline API key saved.');
+    } else {
+      await context.secrets.delete('triplecode.inlineApiKey');
+      await vscode.window.showInformationMessage('Inline API key removed.');
+    }
+  }
+
   async function selectModel() {
     const mode = await aiSetting('ai.provider', 'auto');
     const config = vscode.workspace.getConfiguration('triplecode');
@@ -1623,6 +1639,7 @@ function activate(context) {
     vscode.commands.registerCommand('triplecode.rollbackImport', () => rollbackImport(context)),
     vscode.commands.registerCommand('triplecode.designSystem', () => showDesignSystem(context)),
     vscode.commands.registerCommand('triplecode.setApiKey', setApiKey),
+    vscode.commands.registerCommand('triplecode.setInlineApiKey', setInlineApiKey),
     vscode.commands.registerCommand('triplecode.selectModel', selectModel),
     vscode.window.registerWebviewViewProvider('triplecode.agentView', { resolveWebviewView: resolveAgent }, {
       webviewOptions: { retainContextWhenHidden: true }

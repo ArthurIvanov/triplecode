@@ -29,27 +29,27 @@ function registerInlineAI(context) {
 
   async function aiChat(messages) {
     const config = vscode.workspace.getConfiguration('triplecode');
-    const mode = config.get('ai.provider', 'auto');
-    const timeoutMs = Math.min(Number(config.get('ai.timeoutMs', 120000)) || 120000, 30000);
+    const kind = config.get('ai.inlineProvider', 'ollama');
+    const timeoutMs = Math.min(Number(config.get('ai.timeoutMs', 120000)) || 120000, 10000);
     try {
-      if (mode === 'openrouter') {
-        const apiKey = await context.secrets.get('triplecode.openrouterKey');
-        if (!apiKey) return null;
+      if (kind === 'openai') {
+        const model = config.get('ai.inlineModel', '');
+        if (!model) return null;
+        const apiKey = await context.secrets.get('triplecode.inlineApiKey') || '';
         return await provider.chatCompletions({
-          baseUrl: config.get('ai.openrouterEndpoint', 'https://openrouter.ai/api/v1'),
+          baseUrl: config.get('ai.inlineEndpoint', 'http://localhost:8000/v1'),
           apiKey,
-          model: config.get('ai.openrouterModel', 'openai/gpt-4o-mini'),
+          model,
           messages,
           timeoutMs,
           maxTokens: 256
         });
       }
-      if (mode === 'stub') return null;
-      const endpoint = config.get('ai.endpoint', 'http://localhost:11434');
-      if (mode === 'auto' && !(await probeOllama(endpoint))) return null;
+      const endpoint = config.get('ai.inlineEndpoint', 'http://localhost:11434');
+      if (!(await probeOllama(endpoint))) return null;
       return await provider.chat({
         endpoint,
-        model: config.get('ai.model', 'qwen2.5-coder:7b'),
+        model: config.get('ai.inlineModel', 'qwen2.5-coder:1.5b'),
         messages,
         timeoutMs,
         numPredict: 256,
