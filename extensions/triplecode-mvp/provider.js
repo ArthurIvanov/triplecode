@@ -28,6 +28,43 @@ async function chat({ endpoint, model, messages, timeoutMs = 120000, numPredict 
   return text.trim();
 }
 
+async function chatCompletions({ baseUrl, apiKey, model, messages, timeoutMs = 120000, maxTokens = 4096 }) {
+  const response = await fetch(`${baseUrl.replace(/\/+$/, '')}/chat/completions`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      authorization: `Bearer ${apiKey}`
+    },
+    body: JSON.stringify({
+      model,
+      messages,
+      temperature: 0.2,
+      max_tokens: maxTokens,
+      stream: false
+    }),
+    signal: AbortSignal.timeout(timeoutMs)
+  });
+  if (!response.ok) {
+    const detail = await response.text().catch(() => '');
+    throw new Error(`Model request failed (HTTP ${response.status})${detail ? `: ${detail.slice(0, 200)}` : '.'}`);
+  }
+  const data = await response.json();
+  const text = data?.choices?.[0]?.message?.content;
+  if (typeof text !== 'string' || !text.trim()) throw new Error('Model returned an empty response.');
+  return text.trim();
+}
+
+async function listOllamaModels(endpoint, timeoutMs = 3000) {
+  try {
+    const response = await fetch(`${endpoint}/api/tags`, { signal: AbortSignal.timeout(timeoutMs) });
+    if (!response.ok) return [];
+    const data = await response.json();
+    return (data?.models || []).map(model => model.name).filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
 function fileContext(document, maxChars = 14000) {
   let content = document.getText();
   if (!content.trim()) content = '(empty file)';
@@ -153,4 +190,4 @@ function diffEdit(before, after, eol = '\n') {
   return { offset, deleteLength, insertion };
 }
 
-module.exports = { probe, chat, askMessages, planMessages, rewriteMessages, multiFileMessages, parseRewrite, parseMultiRewrite, diffEdit };
+module.exports = { probe, chat, chatCompletions, listOllamaModels, askMessages, planMessages, rewriteMessages, multiFileMessages, parseRewrite, parseMultiRewrite, diffEdit };

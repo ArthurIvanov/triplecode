@@ -53,6 +53,14 @@
       {
         "command": "triplecode.checkHistory",
         "title": "TripleCode: Check History"
+      },
+      {
+        "command": "triplecode.setApiKey",
+        "title": "TripleCode: Set API Key"
+      },
+      {
+        "command": "triplecode.selectModel",
+        "title": "TripleCode: Select Model"
       }
     ],
     "configuration": {
@@ -68,10 +76,11 @@
           "enum": [
             "auto",
             "ollama",
+            "openrouter",
             "stub"
           ],
           "default": "auto",
-          "description": "AI provider for the agent chat: auto (probe Ollama, fall back to stub), ollama (require Ollama), stub (deterministic local responses)."
+          "description": "AI provider for the agent chat: auto (probe Ollama, fall back to stub), ollama (local Ollama server), openrouter (cloud via your own API key), stub (deterministic local responses)."
         },
         "triplecode.ai.endpoint": {
           "type": "string",
@@ -87,6 +96,16 @@
           "type": "number",
           "default": 120000,
           "description": "Timeout for a single model request in milliseconds."
+        },
+        "triplecode.ai.openrouterEndpoint": {
+          "type": "string",
+          "default": "https://openrouter.ai/api/v1",
+          "description": "OpenAI-compatible endpoint for the OpenRouter provider."
+        },
+        "triplecode.ai.openrouterModel": {
+          "type": "string",
+          "default": "openai/gpt-4o-mini",
+          "description": "OpenRouter model id used when the provider is openrouter."
         }
       }
     },

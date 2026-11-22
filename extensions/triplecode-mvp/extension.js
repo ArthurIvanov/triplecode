@@ -1057,9 +1057,19 @@ function activate(context) {
   async function aiSetting(key, fallback) {
     return vscode.workspace.getConfiguration('triplecode').get(key, fallback);
   }
+  async function openRouterKey() {
+    return context.secrets.get('triplecode.openrouterKey') || '';
+  }
+
   async function aiAvailable() {
     const mode = await aiSetting('ai.provider', 'auto');
     if (mode === 'stub') return false;
+    if (mode === 'openrouter') {
+      if (!(await openRouterKey())) {
+        throw new Error('No API key configured. Run “TripleCode: Set API Key” first.');
+      }
+      return true;
+    }
     if (mode === 'ollama') return true;
     if (!aiProbe) {
       aiProbe = provider.probe(await aiSetting('ai.endpoint', 'http://localhost:11434')).catch(() => false);
@@ -1067,12 +1077,25 @@ function activate(context) {
     return aiProbe;
   }
   async function aiChat(messages, options = {}) {
+    const mode = await aiSetting('ai.provider', 'auto');
+    const timeoutMs = await aiSetting('ai.timeoutMs', 120000);
+    if (mode === 'openrouter') {
+      return provider.chatCompletions({
+        baseUrl: await aiSetting('ai.openrouterEndpoint', 'https://openrouter.ai/api/v1'),
+        apiKey: await openRouterKey(),
+        model: await aiSetting('ai.openrouterModel', 'openai/gpt-4o-mini'),
+        messages,
+        timeoutMs,
+        maxTokens: options.numPredict || 4096
+      });
+    }
     return provider.chat({
       endpoint: await aiSetting('ai.endpoint', 'http://localhost:11434'),
       model: await aiSetting('ai.model', 'qwen2.5-coder:7b'),
       messages,
-      timeoutMs: await aiSetting('ai.timeoutMs', 120000),
-      ...options
+      timeoutMs,
+      numPredict: options.numPredict,
+      numCtx: options.numCtx
     });
   }
   function aiContextDocuments() {
@@ -1435,6 +1458,67 @@ function activate(context) {
     }
   }
 
+  async function setApiKey() {
+    const key = await vscode.window.showInputBox({
+      prompt: 'OpenRouter API key (leave empty to remove the saved key)',
+      password: true,
+      ignoreFocusOut: true
+    });
+    if (key === undefined) return;
+    if (key.trim()) {
+      await context.secrets.store('triplecode.openrouterKey', key.trim());
+      await vscode.window.showInformationMessage('OpenRouter API key saved.');
+    } else {
+      await context.secrets.delete('triplecode.openrouterKey');
+      await vscode.window.showInformationMessage('OpenRouter API key removed.');
+    }
+  }
+
+  async function selectModel() {
+    const mode = await aiSetting('ai.provider', 'auto');
+    const config = vscode.workspace.getConfiguration('triplecode');
+    if (mode === 'openrouter') {
+      const current = await aiSetting('ai.openrouterModel', 'openai/gpt-4o-mini');
+      const presets = [
+        'openai/gpt-4o-mini', 'openai/gpt-4o', 'anthropic/claude-3.5-haiku',
+        'google/gemini-2.0-flash-001', 'qwen/qwen-2.5-coder-32b-instruct',
+        'deepseek/deepseek-chat', 'meta-llama/llama-3.3-70b-instruct'
+      ];
+      const picked = await vscode.window.showQuickPick(
+        [...presets, '$(edit) Custom model id…'],
+        { placeHolder: `OpenRouter model (current: ${current})` }
+      );
+      if (!picked) return;
+      const model = picked.startsWith('$(')
+        ? await vscode.window.showInputBox({ prompt: 'OpenRouter model id', value: current })
+        : picked;
+      if (model?.trim()) {
+        await config.update('ai.openrouterModel', model.trim(), vscode.ConfigurationTarget.Global);
+      }
+      return;
+    }
+    const endpoint = await aiSetting('ai.endpoint', 'http://localhost:11434');
+    const remote = await provider.listOllamaModels(endpoint);
+    const models = remote.length ? remote : ['qwen2.5-coder:7b', 'qwen2.5-coder:3b', 'llama3.2:3b'];
+    const current = await aiSetting('ai.model', 'qwen2.5-coder:7b');
+    const picked = await vscode.window.showQuickPick(
+      [...models, '$(edit) Custom model name…', '$(cloud) Switch to OpenRouter…'],
+      { placeHolder: `Ollama model (current: ${current})` }
+    );
+    if (!picked) return;
+    if (picked.startsWith('$(cloud)')) {
+      await config.update('ai.provider', 'openrouter', vscode.ConfigurationTarget.Global);
+      await vscode.window.showInformationMessage('Provider set to OpenRouter. Run “TripleCode: Set API Key” if needed, then “TripleCode: Select Model”.');
+      return;
+    }
+    const model = picked.startsWith('$(')
+      ? await vscode.window.showInputBox({ prompt: 'Ollama model name', value: current })
+      : picked;
+    if (model?.trim()) {
+      await config.update('ai.model', model.trim(), vscode.ConfigurationTarget.Global);
+    }
+  }
+
   function updateChats(id, close) {
     if (pending) return;
     const chat = chats.find(item => item.id === id);
@@ -1486,6 +1570,8 @@ function activate(context) {
     vscode.commands.registerCommand('triplecode.importFromFile', () => showFileImport(context)),
     vscode.commands.registerCommand('triplecode.rollbackImport', () => rollbackImport(context)),
     vscode.commands.registerCommand('triplecode.designSystem', () => showDesignSystem(context)),
+    vscode.commands.registerCommand('triplecode.setApiKey', setApiKey),
+    vscode.commands.registerCommand('triplecode.selectModel', selectModel),
     vscode.window.registerWebviewViewProvider('triplecode.agentView', { resolveWebviewView: resolveAgent }, {
       webviewOptions: { retainContextWhenHidden: true }
     })
