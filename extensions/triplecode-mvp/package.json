@@ -274,6 +274,7 @@
     }
   },
   "devDependencies": {
+    "@fontsource/inter": "^5.2.5",
     "@storybook/react-vite": "^10.6.8",
     "@types/react": "19.2.2",
     "@types/react-dom": "19.2.2",
