@@ -871,7 +871,7 @@ function activate(context) {
     void context.workspaceState.update('triplecode.chats', {
       nextId: nextChatId,
       current: currentChat.id,
-      chats: chats.map(chat => ({ id: chat.id, draft: chat.draft, mode: chat.mode, replies: chat.replies.slice(-50) }))
+      chats: chats.map(chat => ({ id: chat.id, draft: chat.draft, mode: chat.mode, replies: chat.replies.slice(-50), plan: chat.plan || null }))
     });
   }
 
@@ -884,7 +884,10 @@ function activate(context) {
         id: chat.id,
         draft: typeof chat.draft === 'string' ? chat.draft.slice(0, 500) : '',
         mode: ['ask', 'plan', 'agent'].includes(chat.mode) ? chat.mode : 'agent',
-        replies: Array.isArray(chat.replies) ? chat.replies.filter(reply => typeof reply === 'string').slice(-50) : []
+        replies: Array.isArray(chat.replies) ? chat.replies.filter(reply => typeof reply === 'string').slice(-50) : [],
+        plan: chat.plan && typeof chat.plan.task === 'string' && typeof chat.plan.plan === 'string'
+          ? { task: chat.plan.task.slice(0, 500), plan: chat.plan.plan.slice(0, 8000) }
+          : null
       }));
     if (!chats.length) return;
     nextChatId = Math.max(nextChatId, saved.nextId || 0, ...chats.map(chat => chat.id));
@@ -1009,6 +1012,21 @@ function activate(context) {
           case 'propose':
             if (message.id !== currentChat.id) throw new Error('The selected chat changed. Try again.');
             await propose(message.request, message.mode ?? currentChat.mode);
+            break;
+          case 'execute-plan': {
+            const plan = currentChat.plan;
+            if (!plan) break;
+            currentChat.plan = null;
+            persistChats();
+            await propose(`${plan.task}\n\nApproved plan:\n${plan.plan}`, 'agent', true);
+            break;
+          }
+          case 'discard-plan':
+            if (currentChat.plan) {
+              currentChat.plan = null;
+              persistChats();
+              agent?.postMessage({ type: 'chats', ...chatState() });
+            }
             break;
           case 'review':
             if (pending) await showDiff(pending);
@@ -1212,12 +1230,13 @@ function activate(context) {
     return [`Plan for “${request}”:`, ...steps, 'Switch to Agent mode and resend the request to apply it.'].join('\n');
   }
 
-  async function propose(request, mode = 'agent') {
+  async function propose(request, mode = 'agent', trusted = false) {
     if (pending) throw new Error('Apply or discard the current patch first.');
-    if (typeof request !== 'string' || !request.trim() || request.length > 500) {
+    if (typeof request !== 'string' || !request.trim() || (!trusted && request.length > 500)) {
       throw new Error('Enter a request of up to 500 characters.');
     }
     const trimmed = request.trim();
+    currentChat.plan = null;
     const useAi = await aiAvailable();
     if (mode === 'ask') {
       currentChat.draft = '';
@@ -1228,9 +1247,11 @@ function activate(context) {
     }
     if (mode === 'plan') {
       currentChat.draft = '';
-      pushReply(useAi
+      const planText = useAi
         ? await aiOrFallback(() => aiChat(provider.planMessages(activeDocument, trimmed)), () => planRequest(trimmed))
-        : planRequest(trimmed));
+        : planRequest(trimmed);
+      if (useAi) currentChat.plan = { task: trimmed, plan: planText.slice(0, 8000) };
+      pushReply(planText);
       return;
     }
 
@@ -1388,9 +1409,10 @@ function activate(context) {
 
   function chatState() {
     return {
-      chats: chats.map(chat => ({ id: chat.id, mode: chat.mode, replies: chat.replies })),
+      chats: chats.map(chat => ({ id: chat.id, mode: chat.mode, replies: chat.replies, plan: chat.plan || null })),
       selected: currentChat.id,
-      draft: currentChat.draft
+      draft: currentChat.draft,
+      plan: currentChat.plan || null
     };
   }
 
@@ -1530,6 +1552,15 @@ function render(webview, base, screen, initial) {
           </div>
         </div>
         <div id="checks" class="checks"></div>
+      </div>
+      <div id="plan-bar" class="composer-header plan-bar" hidden>
+        <div class="review-row">
+          <span class="plan-label" id="plan-label">Plan ready</span>
+          <div class="review-actions">
+            <button type="button" data-action="discard-plan" class="pill-action">Discard</button>
+            <button type="button" data-action="execute-plan" class="review-btn">Execute plan</button>
+          </div>
+        </div>
       </div>
       <label class="sr-only" for="prompt">Agent task</label>
       <textarea id="prompt" maxlength="500" aria-describedby="target" placeholder="Press / for skills, @ for context" required></textarea>

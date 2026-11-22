@@ -237,6 +237,18 @@ body[data-screen="agent"] { height: 100vh; overflow: hidden; }
   padding: 8px;
   border-bottom: 1px solid var(--triplecode-chat-request-border, var(--vscode-input-border));
 }
+.agent .plan-bar {
+  border-bottom: 0;
+  border-top: 1px solid var(--triplecode-chat-request-border, var(--vscode-input-border));
+}
+.agent .plan-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--vscode-descriptionForeground, #9097a2);
+  font-size: 12px;
+}
 .agent .review-row {
   display: flex;
   align-items: center;

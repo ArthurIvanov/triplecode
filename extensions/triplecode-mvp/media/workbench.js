@@ -53,6 +53,8 @@ if (document.body.dataset.screen === 'welcome') {
   const checksBox = document.querySelector('#checks');
   const request = document.querySelector('#request');
   const prompt = document.querySelector('#prompt');
+  const planBar = document.querySelector('#plan-bar');
+  const planLabel = document.querySelector('#plan-label');
   const send = request.querySelector('button[type="submit"]');
   const chats = document.querySelector('#chats');
   const modeButton = document.querySelector('#mode-button');
@@ -89,6 +91,12 @@ if (document.body.dataset.screen === 'welcome') {
     selectedChat = state.selected;
     const selected = state.chats.find(chat => chat.id === selectedChat);
     applyMode(selected?.mode || 'agent');
+    planBar.hidden = !selected?.plan;
+    if (selected?.plan) {
+      const task = selected.plan.task;
+      planLabel.textContent = task.length > 60 ? `${task.slice(0, 60)}…` : task;
+      planLabel.title = task;
+    }
     const tabs = state.chats.map(chat => {
       const tab = document.createElement('div');
       tab.className = 'chat-tab';
