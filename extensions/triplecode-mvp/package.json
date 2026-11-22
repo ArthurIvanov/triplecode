@@ -55,6 +55,10 @@
         "title": "TripleCode: Check History"
       },
       {
+        "command": "triplecode.undoLastApply",
+        "title": "TripleCode: Undo Last AI Apply"
+      },
+      {
         "command": "triplecode.setApiKey",
         "title": "TripleCode: Set API Key"
       },

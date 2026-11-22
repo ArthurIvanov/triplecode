@@ -463,6 +463,7 @@ function activate(context) {
   let activeDocument;
   let pending;
   let applying = false;
+  const appliedOps = [];
   let activeRun;
   let agent;
   let agentView;
@@ -1167,6 +1168,19 @@ function activate(context) {
     }
     if (pending !== patch) return;
     if (!await vscode.workspace.applyEdit(workspaceEdit)) throw new Error('The editor could not apply the patch.');
+    appliedOps.push({
+      request: patch.request,
+      files: targets.map(file => {
+        const deleteLength = file.edit.deleteLength || 0;
+        return {
+          uri: file.document.uri,
+          before: file.before,
+          after: file.before.slice(0, file.edit.offset) + file.edit.insertion +
+            file.before.slice(file.edit.offset + deleteLength)
+        };
+      })
+    });
+    if (appliedOps.length > 10) appliedOps.shift();
     const total = patch.files.length;
     const applied = new Set(targets);
     recordHistory('apply', `${patch.request} — ${targets.length} of ${total} file${total === 1 ? '' : 's'} applied`);
@@ -1222,6 +1236,40 @@ function activate(context) {
     const tail = output.split('\n').slice(-8).join('\n');
     patch.checks.push({ command, code: result.code, output: tail, target });
     recordHistory('check', `${command} — exit ${result.code}`, tail.split('\n')[0] ?? '', target);
+  }
+
+  async function undoLastApply() {
+    const batch = appliedOps.pop();
+    if (!batch) {
+      await vscode.window.showInformationMessage('No AI-applied changes to undo.');
+      return;
+    }
+    const workspaceEdit = new vscode.WorkspaceEdit();
+    const conflicted = [];
+    let restored = 0;
+    for (const file of batch.files) {
+      const document = await vscode.workspace.openTextDocument(file.uri);
+      if (document.getText() === file.after) {
+        const end = document.positionAt(document.getText().length);
+        workspaceEdit.replace(file.uri, new vscode.Range(document.positionAt(0), end), file.before);
+        restored++;
+      } else {
+        conflicted.push(file);
+      }
+    }
+    if (restored && !await vscode.workspace.applyEdit(workspaceEdit)) {
+      appliedOps.push(batch);
+      throw new Error('The editor could not undo the patch.');
+    }
+    if (conflicted.length) appliedOps.push({ request: batch.request, files: conflicted });
+    recordHistory('undo', `${batch.request} — restored ${restored} of ${batch.files.length} file${batch.files.length === 1 ? '' : 's'}`);
+    if (conflicted.length) {
+      const names = conflicted.map(file => file.uri.path.split('/').pop());
+      await vscode.window.showWarningMessage(
+        `Undo skipped ${conflicted.length} file${conflicted.length === 1 ? '' : 's'} changed since apply: ${names.join(', ')}`);
+    } else {
+      await vscode.window.showInformationMessage(`Undid AI changes in ${restored} file${restored === 1 ? '' : 's'}.`);
+    }
   }
 
   async function runCheck() {
@@ -1528,6 +1576,7 @@ function activate(context) {
     const picked = await vscode.window.showQuickPick([
       { label: '$(edit) Rename current chat…', action: 'rename' },
       { label: '$(list-unordered) Switch to chat…', action: 'switch' },
+      { label: '$(discard) Undo last AI apply', command: 'triplecode.undoLastApply' },
       { label: '$(window) Open View…', command: 'workbench.action.openView' },
       { label: '$(close) Hide Agent Panel', command: 'workbench.action.closeAuxiliaryBar' }
     ], { placeHolder: 'Agent actions' });
@@ -1576,6 +1625,7 @@ function activate(context) {
     vscode.commands.registerCommand('triplecode.focusAgent', toggleAgent),
     vscode.commands.registerCommand('triplecode.newChat', newChat),
     vscode.commands.registerCommand('triplecode.checkHistory', showCheckHistory),
+    vscode.commands.registerCommand('triplecode.undoLastApply', undoLastApply),
     vscode.commands.registerCommand('triplecode.importFromVSCode', () => showImportPreview(context)),
     vscode.commands.registerCommand('triplecode.importFromFile', () => showFileImport(context)),
     vscode.commands.registerCommand('triplecode.rollbackImport', () => rollbackImport(context)),
