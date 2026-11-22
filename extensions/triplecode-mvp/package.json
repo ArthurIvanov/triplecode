@@ -1,0 +1,162 @@
+{
+  "name": "triplecode-mvp",
+  "displayName": "TripleCode MVP",
+  "publisher": "triplecode",
+  "version": "0.0.1",
+  "private": true,
+  "engines": {
+    "vscode": "^1.143.0"
+  },
+  "main": "./extension.js",
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "triplecode.welcome",
+        "title": "TripleCode: Welcome"
+      },
+      {
+        "command": "triplecode.agent",
+        "title": "TripleCode: Open Agent"
+      },
+      {
+        "command": "triplecode.focusAgent",
+        "title": "Agents",
+        "icon": "$(comment-discussion)"
+      },
+      {
+        "command": "triplecode.newChat",
+        "title": "New chat",
+        "icon": {
+          "light": "media/imgPlus1.svg",
+          "dark": "media/imgPlus1.svg"
+        }
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "triplecode.agent",
+          "when": "workbenchState != empty"
+        },
+        {
+          "command": "triplecode.focusAgent",
+          "when": "false"
+        },
+        {
+          "command": "triplecode.newChat",
+          "when": "false"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "triplecode.newChat",
+          "when": "view == triplecode.agentView",
+          "group": "navigation@1"
+        }
+      ]
+    },
+    "configurationDefaults": {
+      "chat.disableAIFeatures": true,
+      "workbench.secondarySideBar.defaultVisibility": "hidden",
+      "workbench.startupEditor": "none",
+      "window.commandCenter": false,
+      "window.title": "${rootName}${separator}${appName}",
+      "workbench.editor.showTabs": "multiple",
+      "workbench.editor.tabSizing": "shrink",
+      "workbench.panel.defaultLocation": "bottom",
+      "workbench.panel.opensMaximized": "never",
+      "breadcrumbs.enabled": false,
+      "editor.minimap.enabled": false,
+      "editor.fontSize": 14,
+      "editor.lineHeight": 26,
+      "editor.padding.top": 20,
+      "editor.renderLineHighlight": "none",
+      "terminal.integrated.fontSize": 13,
+      "workbench.colorCustomizations": {
+        "[Dark Modern]": {
+          "foreground": "#F3F4F6",
+          "descriptionForeground": "#9097A2",
+          "titleBar.activeBackground": "#131416",
+          "titleBar.inactiveBackground": "#131416",
+          "titleBar.activeForeground": "#F3F4F6",
+          "titleBar.border": "#2B2D31",
+          "activityBar.background": "#131416",
+          "activityBar.foreground": "#F3F4F6",
+          "activityBar.inactiveForeground": "#B8BDC7",
+          "activityBar.activeBackground": "#303236",
+          "activityBar.activeBorder": "#00000000",
+          "activityBar.border": "#00000000",
+          "sideBar.background": "#1D1E20",
+          "sideBar.foreground": "#DCDFE5",
+          "sideBar.border": "#303236",
+          "sideBarTitle.foreground": "#B8BDC7",
+          "sideBarSectionHeader.background": "#1D1E20",
+          "sideBarSectionHeader.border": "#00000000",
+          "editor.background": "#1D1E20",
+          "editor.foreground": "#F3F4F6",
+          "editorGroupHeader.tabsBackground": "#131416",
+          "editorGroupHeader.tabsBorder": "#2B2D31",
+          "editorGroup.border": "#303236",
+          "tab.activeBackground": "#1D1E20",
+          "tab.activeForeground": "#DCDFE5",
+          "tab.inactiveForeground": "#F3F4F6",
+          "tab.hoverBackground": "#252629",
+          "tab.inactiveBackground": "#131416",
+          "tab.activeBorderTop": "#00000000",
+          "tab.border": "#00000000",
+          "panel.background": "#131416",
+          "panel.border": "#303236",
+          "terminal.background": "#131416",
+          "terminal.foreground": "#DCDFE5",
+          "statusBar.background": "#131416",
+          "statusBar.noFolderBackground": "#131416",
+          "statusBar.border": "#2B2D31",
+          "statusBar.foreground": "#DCDFE5",
+          "input.background": "#2B2D31",
+          "input.foreground": "#F3F4F6",
+          "input.border": "#303236",
+          "input.placeholderForeground": "#9097A2",
+          "editorWidget.background": "#1D1E20",
+          "editorWidget.border": "#303236",
+          "list.activeSelectionBackground": "#2B2D31",
+          "list.inactiveSelectionBackground": "#2B2D31",
+          "button.secondaryBackground": "#2B2D31",
+          "button.secondaryForeground": "#F3F4F6",
+          "button.secondaryHoverBackground": "#383A3F",
+          "textLink.foreground": "#619BFF",
+          "scrollbarSlider.background": "#FFFFFF14",
+          "scrollbarSlider.hoverBackground": "#FFFFFF28",
+          "scrollbarSlider.activeBackground": "#FFFFFF3D",
+          "scrollbar.shadow": "#00000000"
+        }
+      },
+      "workbench.colorTheme": "Dark Modern",
+      "editor.scrollbar.verticalScrollbarSize": 10,
+      "editor.overviewRulerBorder": false,
+      "workbench.layoutControl.type": "toggles",
+      "workbench.statusBar.experimental.fontSize": 10
+    },
+    "viewsContainers": {
+      "secondarySidebar": [
+        {
+          "id": "triplecode-agents",
+          "title": "Chat 1",
+          "icon": "media/imgMessageSquare.svg"
+        }
+      ]
+    },
+    "views": {
+      "triplecode-agents": [
+        {
+          "id": "triplecode.agentView",
+          "name": "Chat 1",
+          "type": "webview",
+          "when": "workbenchState != empty"
+        }
+      ]
+    }
+  }
+}

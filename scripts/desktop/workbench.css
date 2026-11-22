@@ -1,0 +1,236 @@
+/* TripleCode framing for the pinned desktop Workbench. Grid sizing stays native. */
+.monaco-workbench .part.editor,
+.monaco-workbench .part.sidebar,
+.monaco-workbench .part.auxiliarybar,
+.monaco-workbench .part.panel {
+  box-shadow: inset 0 0 0 1px var(--vscode-editorGroup-border);
+}
+
+.monaco-workbench .part.sidebar > .title,
+.monaco-workbench .part.auxiliarybar > .title {
+  background: var(--vscode-editorGroupHeader-tabsBackground);
+}
+
+.monaco-workbench .part.activitybar .action-item {
+  box-sizing: border-box;
+  border-radius: 6px;
+}
+
+
+.monaco-workbench .part.statusbar {
+  border-top: 1px solid var(--vscode-statusBar-border);
+}
+
+/* The sole Welcome editor fills the empty workspace without a visible tab strip. */
+.monaco-workbench .editor-group-container:has(.tab.active.last-tab:first-child[data-resource-name^="webview-triplecodeWelcome-"]) > .title {
+  visibility: hidden;
+}
+
+.monaco-workbench:has(.tab.active.last-tab:first-child[data-resource-name^="webview-triplecodeWelcome-"]) .titlebar .configure-layout {
+  visibility: hidden;
+}
+
+.monaco-workbench .part.editor:has(.tab.active.last-tab:first-child[data-resource-name^="webview-triplecodeWelcome-"]),
+.monaco-workbench .editor-group-container:has(.tab.active.last-tab:first-child[data-resource-name^="webview-triplecodeWelcome-"]) {
+  background-color: var(--vscode-titleBar-activeBackground) !important;
+  box-shadow: none;
+}
+
+/* The toolbar keeps native commands, focus, keybindings and selection state. */
+.monaco-workbench .titlebar-right .action-toolbar-container .action-label {
+  border-radius: 4px;
+}
+
+.monaco-workbench .titlebar-right .action-label[aria-label="Agents"] {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  width: auto;
+  min-width: 64px;
+  padding: 0 8px;
+  border-radius: 14px;
+  white-space: nowrap;
+}
+
+.monaco-workbench .titlebar-right .action-label[aria-label="Agents"]::after {
+  content: "Agents";
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 20px;
+}
+
+.monaco-workbench .titlebar-right .action-label[aria-label="Agents"]:is(.checked, [aria-pressed="true"], [aria-checked="true"]) {
+  color: var(--vscode-button-secondaryBackground) !important;
+  background: var(--vscode-button-secondaryForeground);
+}
+.monaco-workbench .titlebar-right .action-label[aria-label="Agents"]:is(.checked, [aria-pressed="true"], [aria-checked="true"])::after {
+  color: var(--vscode-button-secondaryBackground);
+}
+
+.monaco-workbench .titlebar-right .action-item:has(> .action-label:is([aria-label^="Back"], [aria-label^="Forward"])) {
+  position: fixed;
+  top: 6px;
+  z-index: 1;
+}
+.monaco-workbench .titlebar-right .action-item:has(> .action-label[aria-label^="Back"]) { left: 71px; }
+.monaco-workbench .titlebar-right .action-item:has(> .action-label[aria-label^="Forward"]) { left: 94px; }
+.monaco-workbench .titlebar-right .action-label[aria-label^="Back"] { --triplecode-glyph: url("./triplecode-icons/imgChevronLeft.svg"); }
+.monaco-workbench .titlebar-right .action-label[aria-label^="Forward"] { --triplecode-glyph: url("./triplecode-icons/imgChevronRight.svg"); }
+
+.monaco-workbench .titlebar-right .codicon-panel-left,
+.monaco-workbench .titlebar-right .codicon-panel-left-off-layout-icon { --triplecode-glyph: url("./triplecode-icons/imgPanelLeft.svg"); }
+.monaco-workbench .titlebar-right .codicon-panel-layout-icon,
+.monaco-workbench .titlebar-right .codicon-panel-off-layout-icon { --triplecode-glyph: url("./triplecode-icons/imgPanelBottomDashed.svg"); }
+.monaco-workbench .titlebar-right .codicon-auxiliarybar-right-off-layout-icon,
+.monaco-workbench .titlebar-right .codicon-auxiliarybar-right-layout-icon { --triplecode-glyph: url("./triplecode-icons/imgMessageSquareDashed.svg"); }
+.monaco-workbench .titlebar-right .action-label[aria-label^="Settings"] { --triplecode-glyph: url("./triplecode-icons/imgCog.svg"); }
+.monaco-workbench .titlebar-right .action-label[aria-label="Agents"] { --triplecode-glyph: url("./triplecode-icons/imgListTree.svg"); }
+
+.monaco-workbench .part.activitybar .codicon-explorer-view-icon { --triplecode-glyph: url("./triplecode-icons/imgFiles.svg"); }
+.monaco-workbench .part.activitybar .codicon-search-view-icon { --triplecode-glyph: url("./triplecode-icons/imgSearch.svg"); }
+.monaco-workbench .part.activitybar .codicon-source-control-view-icon { --triplecode-glyph: url("./triplecode-icons/imgGitBranch1.svg"); }
+.monaco-workbench .part.activitybar .codicon-extensions-view-icon { --triplecode-glyph: url("./triplecode-icons/imgBox.svg"); }
+.monaco-workbench .part.activitybar .action-item:has(.codicon-run-view-icon) { display: none !important; }
+
+.monaco-workbench .part.editor .editor-actions .codicon-split-horizontal { --triplecode-glyph: url("./triplecode-icons/imgColumns2.svg"); }
+.monaco-workbench :is(.part.editor .editor-actions, .part.auxiliarybar .title-actions) .codicon-toolbar-more { --triplecode-glyph: url("./triplecode-icons/imgEllipsis.svg"); }
+
+.monaco-workbench .part.statusbar .codicon-remote { --triplecode-glyph: url("./triplecode-icons/imgChevronsRightLeftAngle.svg"); }
+.monaco-workbench .part.statusbar .codicon-git-branch { --triplecode-glyph: url("./triplecode-icons/imgGitBranch.svg"); }
+.monaco-workbench .part.statusbar .codicon-sync { --triplecode-glyph: url("./triplecode-icons/imgRefreshCw.svg"); }
+.monaco-workbench .part.statusbar .codicon-error { --triplecode-glyph: url("./triplecode-icons/imgCircleX.svg"); }
+.monaco-workbench .part.statusbar .codicon-warning { --triplecode-glyph: url("./triplecode-icons/imgTriangleAlert.svg"); }
+
+.monaco-workbench :is(.titlebar-right, .part.statusbar, .part.editor .editor-actions, .part.auxiliarybar .title-actions)
+.codicon:is([aria-label^="Back"], [aria-label^="Forward"], [aria-label^="Settings"], [aria-label="Agents"], .codicon-panel-left, .codicon-panel-left-off-layout-icon, .codicon-panel-layout-icon, .codicon-panel-off-layout-icon, .codicon-auxiliarybar-right-off-layout-icon, .codicon-auxiliarybar-right-layout-icon, .codicon-split-horizontal, .codicon-toolbar-more, .codicon-remote, .codicon-git-branch, .codicon-sync, .codicon-error, .codicon-warning)::before,
+.monaco-workbench .part.activitybar
+.codicon:is(.codicon-explorer-view-icon, .codicon-search-view-icon, .codicon-source-control-view-icon, .codicon-extensions-view-icon)::before {
+  content: "";
+  display: inline-block;
+  flex-shrink: 0;
+  width: var(--triplecode-glyph-size, 16px);
+  height: var(--triplecode-glyph-size, 16px);
+  background: currentColor;
+  mask: var(--triplecode-glyph) center / contain no-repeat;
+}
+.monaco-workbench .part.activitybar .action-label { --triplecode-glyph-size: 20px; }
+
+/* Keep the native tab's actions and layout modes. Draw the Figma surface
+   inside the default-height strip, with the close slot reserved at rest. */
+.monaco-workbench .part.editor .tabs:not(.compact-height) .tabs-container .tab {
+  align-self: center;
+  box-sizing: border-box;
+  height: 24px !important;
+  padding-inline-start: 8px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background-color: transparent !important;
+  color: var(--vscode-tab-inactiveForeground, var(--vscode-foreground)) !important;
+}
+.monaco-workbench .part.editor .tabs:not(.compact-height) .tabs-container .tab:hover:not(.active) {
+  background-color: var(--vscode-tab-hoverBackground, var(--vscode-list-hoverBackground)) !important;
+}
+.monaco-workbench .part.editor .tabs:not(.compact-height) .tabs-container .tab.active {
+  background-color: var(--vscode-sideBar-background) !important;
+  border-color: var(--vscode-editorGroup-border);
+  color: var(--vscode-tab-activeForeground, var(--vscode-foreground)) !important;
+}
+.monaco-workbench .part.editor .tabs:not(.compact-height) .tab-label,
+.monaco-workbench .part.editor .tabs:not(.compact-height) .tab-label .label-name {
+  font-size: 14px !important;
+  font-weight: 400;
+  line-height: 20px;
+}
+.monaco-workbench .part.editor .tabs:not(.compact-height) .tab:not(.dirty, .sticky, :hover, :focus-visible, :has(:focus-visible)) .tab-actions {
+  opacity: 0;
+}
+
+.monaco-workbench .part.auxiliarybar .title .action-label { text-transform: none; }
+.monaco-workbench .part.auxiliarybar.triplecode-chat-title > .title {
+  display: none;
+}
+
+.monaco-workbench .part.statusbar {
+  padding-inline: 9px;
+}
+.monaco-workbench .part.statusbar > .items-container { align-items: center; }
+.monaco-workbench .part.statusbar .statusbar-item > .statusbar-item-label { padding-inline: 4px; }
+.monaco-workbench .part.statusbar:not(:hover):not(:focus-within)
+.statusbar-item:is([id^="status.editor."], [id="status.languageStatus"], [id="status.notifications"], [id="status.progress"]) {
+  opacity: 0;
+}
+
+.monaco-workbench .part.panel > .title:not(:hover):not(:focus-within) .action-item:not(.checked):not(:has([aria-label="Terminal"])),
+.monaco-workbench .part.panel > .title:not(:hover):not(:focus-within) .title-actions {
+  opacity: 0;
+}
+.monaco-workbench .part.panel > .title .composite-bar .action-item:has([aria-label="Terminal"]) { order: -1; }
+
+.monaco-workbench:has(.tab.active.last-tab:first-child[data-resource-name^="webview-triplecodeWelcome-"])
+:is(.titlebar-right .action-item:has(> .action-label[aria-label^="Toggle"]), .part.statusbar #status\.problems) {
+  visibility: hidden;
+}
+
+.monaco-workbench .part.activitybar:not(:hover):not(:focus-within)
+.action-item:has(:is(.codicon-accounts-view-bar-icon, .codicon-settings-view-bar-icon)) {
+  opacity: 0;
+}
+.monaco-workbench .part.statusbar:not(:hover):not(:focus-within) #status\.notifications {
+  max-width: 0;
+  overflow: hidden;
+}
+
+/* Workspace frame coordinates come from the native grid. The CSS only paints it. */
+.monaco-workbench .triplecode-gutter {
+  width: 100%;
+  height: 100%;
+  background: var(--vscode-titleBar-activeBackground);
+}
+.monaco-workbench .part.activitybar:not(.compact) .action-item {
+  width: 44px;
+  border-radius: 6px;
+}
+.monaco-workbench .part.activitybar:not(.compact) .action-item .action-label {
+  width: 44px;
+}
+.monaco-workbench .part.sidebar {
+  border-start-start-radius: 8px;
+  border-end-start-radius: 8px;
+  overflow: hidden;
+}
+.monaco-workbench .part.sidebar.right {
+  border-radius: 0 8px 8px 0;
+}
+.monaco-workbench .part.auxiliarybar.left {
+  border-radius: 8px 0 0 8px;
+}
+.monaco-workbench .part.auxiliarybar {
+  border-start-end-radius: 8px;
+  border-end-end-radius: 8px;
+  overflow: hidden;
+}
+.monaco-workbench.noauxiliarybar .part.editor {
+  border-start-end-radius: 8px;
+}
+.monaco-workbench.noauxiliarybar .part.panel {
+  border-end-end-radius: 8px;
+}
+.monaco-workbench.noauxiliarybar.nopanel .part.editor {
+  border-end-end-radius: 8px;
+}
+.monaco-workbench .part.editor,
+.monaco-workbench .part.panel {
+  overflow: hidden;
+}
+.monaco-workbench .part.sidebar > .title {
+  background: var(--vscode-sideBar-background);
+}
+.monaco-workbench .explorer-folders-view .monaco-list-row .monaco-tl-row {
+  line-height: 30px;
+}
+.monaco-workbench .part.panel > .title .composite-bar {
+  padding-inline-start: 16px;
+}
+.monaco-workbench .part.panel:not(:hover):not(:focus-within) > .title .active-item-indicator {
+  opacity: 0;
+}
