@@ -2,17 +2,29 @@
 :root {
   /* Colors */
   --triplecode-foreground: #f3f4f6;
+  --triplecode-fg-secondary: #dcdfe5;
+  --triplecode-fg-grey-loud-enabled: #e4e7ec;
   --triplecode-description-foreground: #9097a2;
+  --triplecode-activitybar-foreground: #f3f4f6;
+  --triplecode-activitybar-inactive-foreground: #9097a2;
+  --triplecode-activitybar-active-background: #303236;
   --triplecode-text-link-foreground: #266cf7;
   --triplecode-button-secondary-foreground: #f3f4f6;
   --triplecode-editor-widget-background: #1d1e20;
   --triplecode-editor-widget-border: #303236;
   --triplecode-config-background: #131416;
+  --triplecode-config-text-4: #9097a2;
   --triplecode-titlebar-border: #2b2d31;
   --triplecode-editor-background: #131416;
   --triplecode-editor-foreground: #f3f4f6;
   --triplecode-chat-request-background: #2b2d31;
-  --triplecode-fg-grey-loud-enabled: #7c828d;
+  --triplecode-list-active-selection-background: #2b2d31;
+  --triplecode-list-hoverBackground: rgba(255, 255, 255, 0.06);
+  --triplecode-side-bar-background: #1d1e20;
+  --triplecode-side-bar-border: #303236;
+  --triplecode-terminal-background: #131416;
+  --triplecode-terminal-foreground: #e4e7ec;
+  --triplecode-status-bar-foreground: #e4e7ec;
   --triplecode-transparent: #ffffff00;
 
   /* Title Bar (macOS) */
@@ -23,31 +35,52 @@
   /* Typography */
   --triplecode-font-family-text: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --triplecode-font-family-body: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  
+
   --triplecode-font-size-xsmall: 10px;
   --triplecode-font-size-small: 12px;
   --triplecode-font-size-medium: 14px;
-  
+  --triplecode-font-size-heading: 11px;
+  --triplecode-font-size-code: 13px;
+
   --triplecode-line-height-xsmall: 14px;
   --triplecode-line-height-small: 16px;
   --triplecode-line-height-medium: 20px;
-  
+
   --triplecode-font-weight-regular: 400;
   --triplecode-font-weight-medium: 500;
 
-  /* Spacing */
+  /* Corner radius */
+  --triplecode-none: 0px;
+  --triplecode-xs: 2px;
+  --triplecode-s: 4px;
+  --triplecode-sm: 6px;
+  --triplecode-m: 8px;
+  --triplecode-ml: 12px;
+  --triplecode-full: 999px;
+
+  /* Padding */
+  --triplecode-padding-xs: 2px;
+  --triplecode-padding-s: 4px;
+  --triplecode-padding-sm: 6px;
+  --triplecode-padding-m: 8px;
+  --triplecode-padding-ml: 10px;
+  --triplecode-padding-xl: 16px;
+
+  /* Gaps */
+  --triplecode-gap-closest: 2px;
+  --triplecode-gap-dependent: 4px;
+  --triplecode-gap-dependant: 4px;
+  --triplecode-gap-related: 8px;
+  --triplecode-gap-grouped: 16px;
+  --triplecode-gap-section: 32px;
+
+  /* Spacing (legacy aliases for padding scale) */
   --triplecode-spacing-xs: 2px;
   --triplecode-spacing-sm: 4px;
   --triplecode-spacing-md: 6px;
   --triplecode-spacing-lg: 8px;
   --triplecode-spacing-xl: 10px;
   --triplecode-spacing-2xl: 16px;
-
-  /* Gaps */
-  --triplecode-gap-dependant: 4px;
-  --triplecode-gap-related: 8px;
-  --triplecode-gap-grouped: 16px;
-  --triplecode-gap-section: 32px;
 }
 
 /* Map to VS Code theme variables */
@@ -60,7 +93,13 @@
   --vscode-editorWidget-border: var(--triplecode-editor-widget-border);
   --vscode-editor-background: var(--triplecode-editor-background);
   --vscode-editor-foreground: var(--triplecode-editor-foreground);
-  
+  --vscode-sideBar-background: var(--triplecode-side-bar-background);
+  --vscode-sideBar-border: var(--triplecode-side-bar-border);
+  --vscode-sideBar-foreground: var(--triplecode-foreground);
+  --vscode-list-activeSelectionBackground: var(--triplecode-list-active-selection-background);
+  --vscode-statusBar-foreground: var(--triplecode-status-bar-foreground);
+  --vscode-statusBar-background: var(--triplecode-editor-background);
+
   --vscode-font-family: var(--triplecode-font-family-body);
   --vscode-font-size: var(--triplecode-font-size-medium);
   --vscode-font-weight: var(--triplecode-font-weight-regular);

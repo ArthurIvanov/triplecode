@@ -193,30 +193,64 @@
 .monaco-workbench .part.activitybar:not(.compact) .action-item .action-label {
   width: 44px;
 }
-.monaco-workbench .part.sidebar {
+/* Radius only where a part corner faces two gutters. Side parts are
+   interior while their outward neighbour is visible. */
+.monaco-workbench .part.activitybar,
+.monaco-workbench .part.sidebar,
+.monaco-workbench .part.auxiliarybar {
+  overflow: hidden;
+}
+.monaco-workbench .part.activitybar.left {
   border-start-start-radius: 8px;
   border-end-start-radius: 8px;
-  overflow: hidden;
 }
-.monaco-workbench .part.sidebar.right {
-  border-radius: 0 8px 8px 0;
-}
-.monaco-workbench .part.auxiliarybar.left {
-  border-radius: 8px 0 0 8px;
-}
-.monaco-workbench .part.auxiliarybar {
+.monaco-workbench .part.activitybar.right {
   border-start-end-radius: 8px;
   border-end-end-radius: 8px;
-  overflow: hidden;
+}
+.monaco-workbench.noactivitybar .part.sidebar.left {
+  border-start-start-radius: 8px;
+  border-end-start-radius: 8px;
+}
+.monaco-workbench.noactivitybar .part.sidebar.right {
+  border-start-end-radius: 8px;
+  border-end-end-radius: 8px;
+}
+.monaco-workbench .part.auxiliarybar.left {
+  border-start-start-radius: 8px;
+  border-end-start-radius: 8px;
+}
+.monaco-workbench .part.auxiliarybar.right {
+  border-start-end-radius: 8px;
+  border-end-end-radius: 8px;
 }
 .monaco-workbench.noauxiliarybar .part.editor {
   border-start-end-radius: 8px;
 }
-.monaco-workbench.noauxiliarybar .part.panel {
+.monaco-workbench.noauxiliarybar .part.panel.bottom {
   border-end-end-radius: 8px;
 }
 .monaco-workbench.noauxiliarybar.nopanel .part.editor {
   border-end-end-radius: 8px;
+}
+.monaco-workbench.panel-position-top.noauxiliarybar .part.editor {
+  border-end-end-radius: 8px;
+}
+.monaco-workbench.noactivitybar.nosidebar .part.editor {
+  border-start-start-radius: 8px;
+}
+.monaco-workbench.noactivitybar.nosidebar.nopanel .part.editor,
+.monaco-workbench.panel-position-top.noactivitybar.nosidebar .part.editor {
+  border-end-start-radius: 8px;
+}
+.monaco-workbench.noactivitybar.nosidebar .part.panel.bottom {
+  border-end-start-radius: 8px;
+}
+.monaco-workbench.noactivitybar.nosidebar .part.panel.top {
+  border-start-start-radius: 8px;
+}
+.monaco-workbench.noauxiliarybar .part.panel.top {
+  border-start-end-radius: 8px;
 }
 .monaco-workbench .part.editor,
 .monaco-workbench .part.panel {
