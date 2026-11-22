@@ -479,6 +479,8 @@ function activate(context) {
       current: currentChat.id,
       chats: chats.map(chat => ({
         id: chat.id, draft: chat.draft, mode: chat.mode, replies: chat.replies.slice(-50),
+        name: chat.name || '',
+        queue: (chat.queue || []).slice(0, 3).map(item => ({ request: String(item.request || '').slice(0, 500), mode: item.mode })),
         plan: chat.plan || null,
         attachments: (chat.attachments || []).slice(0, 5).map(attachment =>
           attachment.kind === 'selection'
@@ -495,6 +497,7 @@ function activate(context) {
       .filter(chat => Number.isInteger(chat?.id))
       .map(chat => ({
         id: chat.id,
+        name: typeof chat.name === 'string' ? chat.name.slice(0, 80) : '',
         draft: typeof chat.draft === 'string' ? chat.draft.slice(0, 500) : '',
         mode: ['ask', 'plan', 'agent'].includes(chat.mode) ? chat.mode : 'agent',
         replies: Array.isArray(chat.replies) ? chat.replies.filter(reply => typeof reply === 'string').slice(-50) : [],
@@ -503,6 +506,10 @@ function activate(context) {
           : null,
         attachments: Array.isArray(chat.attachments)
           ? chat.attachments.filter(a => a && (a.kind === 'file' ? typeof a.path === 'string' : a.kind === 'selection' && typeof a.text === 'string')).slice(0, 5)
+          : [],
+        queue: Array.isArray(chat.queue)
+          ? chat.queue.filter(item => item && typeof item.request === 'string' && item.request.trim())
+            .map(item => ({ request: item.request.slice(0, 500), mode: ['ask', 'plan', 'agent'].includes(item.mode) ? item.mode : 'agent' })).slice(0, 3)
           : []
       }));
     if (!chats.length) return;
@@ -650,6 +657,13 @@ function activate(context) {
             break;
           case 'stop':
             if (activeRun?.chat.id === message.id) stopRun('Stopped. Draft kept.');
+            break;
+          case 'clear-queue':
+            if (message.id === currentChat.id && currentChat.queue?.length) {
+              currentChat.queue = [];
+              persistChats();
+              agent?.postMessage({ type: 'chats', ...chatState() });
+            }
             break;
           case 'execute-plan': {
             const plan = currentChat.plan;
@@ -920,6 +934,14 @@ function activate(context) {
     agent?.postMessage({ type: 'progress', ...run.progress });
   }
 
+  function drainQueue(chat) {
+    const item = chat.queue?.shift();
+    if (!item) return;
+    persistChats();
+    propose(item.request, item.mode, true)
+      .catch(error => agent?.postMessage({ type: 'error', text: error.message }));
+  }
+
   function finishRun(run, status = '') {
     if (activeRun !== run) return;
     clearTimeout(run.timeout);
@@ -927,6 +949,7 @@ function activate(context) {
     run.chat.status = status;
     persistChats();
     if (currentChat === run.chat) agent?.postMessage({ type: 'chats', ...chatState() });
+    if (!pending && run.chat === currentChat) drainQueue(run.chat);
   }
 
   function stopRun(status) {
@@ -976,8 +999,16 @@ function activate(context) {
     if (typeof request !== 'string' || !request.trim() || (!trusted && request.length > 500)) {
       throw new Error('Enter a request of up to 500 characters.');
     }
-    if (activeRun) return;
     const chat = currentChat;
+    if (activeRun) {
+      const queue = chat.queue || (chat.queue = []);
+      if (queue.length >= 3) throw new Error('Queue is full (3). Wait for the current run or stop it.');
+      queue.push({ request: request.trim(), mode });
+      chat.draft = '';
+      persistChats();
+      agent?.postMessage({ type: 'chats', ...chatState() });
+      return;
+    }
     if (!trusted) chat.draft = request;
     chat.status = '';
     persistChats();
@@ -1296,6 +1327,7 @@ function activate(context) {
     return {
       chats: chats.map(chat => ({
         id: chat.id, mode: chat.mode, replies: chat.replies,
+        name: chat.name || '', status: chat.status || '', queued: chat.queue?.length || 0,
         plan: chat.plan || null, attachments: chat.attachments || []
       })),
       selected: currentChat.id,
@@ -1486,18 +1518,41 @@ function activate(context) {
       if (currentChat === chat) currentChat = chats[0];
     } else {
       currentChat = chat;
+      if (!activeRun && !pending && chat.queue?.length) drainQueue(chat);
     }
     persistChats();
     agent?.postMessage({ type: 'chats', ...chatState() });
   }
 
   async function showChatActions() {
-    const actions = [
-      { label: 'Open View…', command: 'workbench.action.openView' },
-      { label: 'Hide Agent Panel', command: 'workbench.action.closeAuxiliaryBar' }
-    ];
-    const action = await vscode.window.showQuickPick(actions, { placeHolder: 'Agent actions' });
-    if (action) await vscode.commands.executeCommand(action.command);
+    const picked = await vscode.window.showQuickPick([
+      { label: '$(edit) Rename current chat…', action: 'rename' },
+      { label: '$(list-unordered) Switch to chat…', action: 'switch' },
+      { label: '$(window) Open View…', command: 'workbench.action.openView' },
+      { label: '$(close) Hide Agent Panel', command: 'workbench.action.closeAuxiliaryBar' }
+    ], { placeHolder: 'Agent actions' });
+    if (!picked) return;
+    if (picked.action === 'rename') {
+      const name = await vscode.window.showInputBox({
+        value: currentChat.name || '', prompt: 'Chat name', placeHolder: 'e.g. Fix login flow'
+      });
+      if (name !== undefined) {
+        currentChat.name = name.trim().slice(0, 80);
+        persistChats();
+        agent?.postMessage({ type: 'chats', ...chatState() });
+      }
+    } else if (picked.action === 'switch') {
+      const items = chats.map(chat => ({
+        label: chat.name || `Chat ${chat.id}`,
+        description: chat === currentChat ? 'current' : undefined,
+        detail: chat.status || undefined,
+        chat
+      }));
+      const target = await vscode.window.showQuickPick(items, { placeHolder: 'Switch to chat' });
+      if (target) updateChats(target.chat.id, false);
+    } else if (picked.command) {
+      await vscode.commands.executeCommand(picked.command);
+    }
   }
 
   const localWorkspace = vscode.window.createStatusBarItem('triplecode.local-workspace', vscode.StatusBarAlignment.Left, 100);

@@ -10,6 +10,9 @@ type Attachment =
   | { kind: 'file'; path: string };
 type Chat = {
   id: number;
+  name?: string;
+  status?: string;
+  queued?: number;
   mode?: Mode;
   replies?: string[];
   plan?: { task: string; plan?: string } | null;
@@ -33,7 +36,7 @@ type HostMessage =
   | { type: 'complete' | 'error'; text: string }
   | ({ type: 'chats'; focusPrompt?: boolean } & ChatState);
 type ViewMessage =
-  | { type: 'select-chat' | 'close-chat' | 'stop' | 'attach-menu'; id: number }
+  | { type: 'select-chat' | 'close-chat' | 'stop' | 'attach-menu' | 'clear-queue'; id: number }
   | { type: 'draft'; id: number; value: string }
   | { type: 'mode'; id: number; mode: Mode }
   | { type: 'propose'; id: number; request: string; mode: Mode }
@@ -162,8 +165,8 @@ function Agent({ initial }: { initial: Initial }) {
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (patch || state.submitting) return;
-    dispatch({ type: 'submit' });
+    if (patch) return;
+    if (!state.submitting) dispatch({ type: 'submit' });
     send({ type: 'propose', id: selected, request: state.draft, mode });
   }
 
@@ -172,7 +175,8 @@ function Agent({ initial }: { initial: Initial }) {
       <div id="chats" role="group" aria-label="Chats">
         {state.chats.map(item => <div className="chat-tab" key={item.id}>
           <button type="button" disabled={!!patch} aria-pressed={item.id === selected}
-            onClick={() => send({ type: 'select-chat', id: item.id })}>Chat {item.id}</button>
+            title={item.status || item.name || `Chat ${item.id}`}
+            onClick={() => send({ type: 'select-chat', id: item.id })}>{item.name || `Chat ${item.id}`}</button>
           <button type="button" disabled={!!patch} aria-label={`Close Chat ${item.id}`}
             onClick={() => send({ type: 'close-chat', id: item.id })}><img src={assets.close} alt="" /></button>
         </div>)}
@@ -271,6 +275,10 @@ function Agent({ initial }: { initial: Initial }) {
           ? <pre className="plan-text" id="plan-text">{plan.plan}</pre>
           : <p className="plan-text muted">Plan text unavailable — regenerate in Plan mode.</p>)}
       </div>}
+      {(chat?.queued ?? 0) > 0 && <p className="queue-note">
+        {chat!.queued} request{chat!.queued === 1 ? '' : 's'} queued
+        <button type="button" className="pill-action" onClick={() => send({ type: 'clear-queue', id: selected })}>Cancel queue</button>
+      </p>}
       <div id="attachments" className="attachments" hidden={!attachments.length}>
         {attachments.map((attachment, index) => {
           const selection = attachment.kind === 'selection';
@@ -288,7 +296,7 @@ function Agent({ initial }: { initial: Initial }) {
       <label className="sr-only" htmlFor="prompt">Agent task</label>
       <textarea id="prompt" ref={prompt} maxLength={500} aria-describedby="target"
         placeholder="Describe a task. Type @ for context." required disabled={!!patch}
-        readOnly={state.submitting} value={state.draft}
+        value={state.draft}
         onChange={event => {
           const value = event.currentTarget.value;
           dispatch({ type: 'edit', value });

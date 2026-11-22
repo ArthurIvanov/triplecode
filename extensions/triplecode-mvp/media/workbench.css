@@ -394,6 +394,15 @@ body[data-screen="agent"] { height: 100vh; overflow: hidden; }
 }
 .agent .context-btn img, .agent .attachment img { width: 16px; height: 16px; display: block; }
 .agent .attachment { opacity: 0.6; }
+.queue-note {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 4px 8px;
+  font-size: 11px;
+  color: var(--vscode-descriptionForeground);
+}
 .attachments {
   display: flex;
   flex-wrap: wrap;
