@@ -200,6 +200,7 @@ if (document.body.dataset.screen === 'welcome') {
         break;
       case 'chats':
         renderChats(data);
+        prompt.disabled = send.disabled = !review.hidden;
         showStatus('');
         break;
       case 'error':
