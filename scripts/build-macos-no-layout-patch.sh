@@ -53,7 +53,11 @@ ditto -x -k "$archive" "$stage"
 app="$stage/TripleCode.app"
 mv "$stage/VSCodium.app" "$app"
 resources="$app/Contents/Resources/app"
-ditto extensions/triplecode-mvp "$resources/extensions/triplecode-mvp"
+extension=extensions/triplecode-mvp
+npm --prefix "$extension" ci --no-audit --no-fund
+npm --prefix "$extension" run build:webview
+rsync -a --exclude=/node_modules/ --exclude=/webview/ --exclude=/package-lock.json \
+  "$extension/" "$resources/extensions/triplecode-mvp/"
 
 python3 - "$app" "$app_name" <<'PY'
 import json

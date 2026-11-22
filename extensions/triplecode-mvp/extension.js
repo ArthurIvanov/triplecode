@@ -216,350 +216,33 @@ function getImportPreviewHtml(data, webview, media) {
 </html>`;
 }
 
-async function showDesignSystem(context) {
+function showDesignSystem(context) {
+  const media = vscode.Uri.joinPath(context.extensionUri, 'media');
   const panel = vscode.window.createWebviewPanel(
     'triplecodeDesignSystem',
     'TripleCode Design System',
     vscode.ViewColumn.One,
-    { enableScripts: true, retainContextWhenHidden: true }
+    { enableScripts: true, retainContextWhenHidden: true, localResourceRoots: [media] }
   );
 
-  panel.webview.html = getDesignSystemHtml(panel.webview, context);
-}
-
-function getDesignSystemHtml(webview, context) {
-  const uri = name => webview.asWebviewUri(vscode.Uri.joinPath(context.extensionUri, 'media', name));
-  return `<!DOCTYPE html>
+  const { webview } = panel;
+  const uri = name => webview.asWebviewUri(vscode.Uri.joinPath(media, name));
+  const initial = JSON.stringify(webview.asWebviewUri(media).toString()).replaceAll('<', '\\u003c');
+  webview.html = `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${webview.cspSource}; style-src ${webview.cspSource}; script-src ${webview.cspSource}">
   <title>TripleCode Design System</title>
   <link rel="stylesheet" href="${uri('workbench.css')}">
   <link rel="stylesheet" href="${uri('figma-design.css')}">
-  <style>
-    body { padding: 40px; max-width: 1200px; margin: 0 auto; }
-    h1 { margin-bottom: 30px; }
-    .nav { display: flex; gap: 10px; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid var(--vscode-panel-border); }
-    .nav button { padding: 8px 16px; }
-    .nav button.active { background: var(--vscode-button-background); color: var(--vscode-button-foreground); }
-    .section { margin-bottom: 60px; }
-    .section h2 { margin-bottom: 20px; }
-    .component-preview { padding: 20px; border: 1px solid var(--vscode-panel-border); border-radius: 8px; background: var(--vscode-sideBar-background); }
-    .component-row { display: flex; gap: 20px; align-items: flex-start; flex-wrap: wrap; }
-    .component-item { min-width: 200px; }
-    .component-item h3 { font-size: 12px; margin: 10px 0 5px; color: var(--vscode-descriptionForeground); }
-  </style>
+  <link rel="stylesheet" href="${uri('design-system.css')}">
 </head>
 <body>
-  <h1>TripleCode Design System</h1>
-  
-  <nav class="nav">
-    <button class="active" data-component="figma-welcome">Figma Welcome</button>
-    <button data-component="welcome">Legacy Welcome</button>
-    <button data-component="agent">Agent Panel</button>
-    <button data-component="buttons">Buttons</button>
-    <button data-component="forms">Forms</button>
-    <button data-component="tabs">Tabs</button>
-  </nav>
-
-  <div id="components">
-    <div class="section" data-section="figma-welcome">
-      <h2>Figma Welcome Screen (Synced)</h2>
-      <div class="component-preview" style="padding: 0; overflow: hidden;">
-        <div class="top-bar">
-          <div class="top-bar-left">
-            <div class="window-buttons">
-              <img src="${uri('figma-assets/imgWindowButtons.svg')}" alt="Window controls">
-            </div>
-            <div style="display: flex; gap: var(--triplecode-gap-dependent); align-items: center;">
-              <button class="action-button">
-                <img src="${uri('figma-assets/imgChevronLeft.svg')}" alt="Back">
-              </button>
-              <button class="action-button">
-                <img src="${uri('figma-assets/imgChevronRight.svg')}" alt="Forward">
-              </button>
-            </div>
-          </div>
-          <div class="top-bar-center">
-            <button class="action-button" style="padding: 0 var(--triplecode-padding-s);">
-              <span class="action-button-text">TripleCode</span>
-            </button>
-          </div>
-          <div class="top-bar-right">
-            <!-- Sidebar icons placeholder -->
-          </div>
-        </div>
-        <div class="welcome-content" style="height: 600px;">
-          <div class="welcome-container">
-            <img class="welcome-logo" src="${uri('imgLogo1.png')}" alt="TripleCode">
-            <div style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
-              <span class="tag"><span class="tag-text">Free</span></span>
-              <a href="#" class="link">Settings</a>
-            </div>
-            <div class="card-grid">
-              <button class="card">
-                <div class="card-content">
-                  <img class="card-icon" src="${uri('figma-assets/imgFolder.svg')}" alt="Folder">
-                  <span class="card-text">Open project</span>
-                </div>
-              </button>
-              <button class="card">
-                <div class="card-content">
-                  <img class="card-icon" src="${uri('figma-assets/imgFolderGit2.svg')}" alt="Folder Git">
-                  <span class="card-text">Clone repo</span>
-                </div>
-              </button>
-              <button class="card" style="grid-column: 1 / -1;">
-                <div class="card-content">
-                  <img class="card-icon" src="${uri('figma-assets/imgSquareTerminal.svg')}" alt="Terminal">
-                  <span class="card-text">Connect via SSH</span>
-                </div>
-              </button>
-            </div>
-            <div class="stack">
-              <div class="stack-center">
-                <p>Projects you open will appear here.</p>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div class="bottom-bar">
-          <div class="bottom-bar-left">
-            <button class="icon-button">
-              <img src="${uri('figma-assets/imgChevronsRightLeftAngle.svg')}" alt="Layout">
-            </button>
-            <button class="button">
-              <img src="${uri('figma-assets/imgGitBranch.svg')}" alt="Git">
-              <span class="button-text">Local workspace</span>
-            </button>
-          </div>
-          <div class="bottom-bar-right">
-            <span class="status-text">TripleCode IDE</span>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div class="section" data-section="welcome" style="display: none;">
-      <h2>Welcome Screen (Legacy)</h2>
-      <div class="component-preview">
-        <main class="welcome" style="width: 362px; margin: 0;">
-          <img class="logo" src="${uri('imgLogo1.png')}" alt="TripleCode">
-          <div class="welcome-meta"><span class="tag">Free</span><button class="link">Settings</button></div>
-          <div class="card-grid">
-            <button class="card"><img src="${uri('imgFolder.svg')}" alt=""><span>Open project</span></button>
-            <button class="card"><img src="${uri('imgFolderGit2.svg')}" alt=""><span>Clone repo</span></button>
-            <button class="card"><img src="${uri('imgSquareTerminal.svg')}" alt=""><span>Connect via SSH</span></button>
-          </div>
-          <div class="stack"><div class="stack-center"><p>Projects you open will appear here.</p></div></div>
-        </main>
-      </div>
-    </div>
-
-    <div class="section" data-section="agent" style="display: none;">
-      <h2>Agent Panel</h2>
-      <div class="component-preview" style="height: 400px;">
-        <main class="agent">
-          <header class="chat-header">
-            <div id="chats" style="display: flex; gap: 4px;">
-              <div class="chat-tab" style="border-color: var(--vscode-editorGroup-border); background: var(--vscode-sideBar-background); color: var(--vscode-foreground);">
-                <button style="padding: 0 2px; border: 0; background: transparent; color: inherit;">Chat 1</button>
-                <button style="padding: 0 2px; border: 0; background: transparent; color: inherit;">×</button>
-              </div>
-            </div>
-            <button class="icon-button"><img src="${uri('imgPlus1.svg')}" style="width: 16px; height: 16px;" alt=""></button>
-            <button class="icon-button"><img src="${uri('imgEllipsis.svg')}" style="width: 16px; height: 16px;" alt=""></button>
-          </header>
-          <section class="conversation" style="flex: 1; overflow: auto;">
-            <p class="agent-message">Add a comment: MVP preview</p>
-          </section>
-          <form class="composer">
-            <div class="composer-header">
-              <div class="review-row">
-                <button type="button" class="files-toggle" aria-expanded="true">
-                  <img src="${uri('figma-assets/imgChevronRight.svg')}" alt="">
-                  <span>1 file</span>
-                </button>
-                <div class="review-actions">
-                  <button type="button" class="pill-action">Run checks</button>
-                  <button type="button" class="pill-action">Undo all</button>
-                  <button type="button" class="pill-action">Keep all</button>
-                  <button type="button" class="review-btn">Review</button>
-                </div>
-              </div>
-            </div>
-            <textarea placeholder="Press / for skills, @ for context" disabled style="min-height: 30px;"></textarea>
-            <footer class="chat-actions">
-              <div class="mode-picker">
-                <button type="button" class="pill mode" aria-expanded="false">Agent</button>
-                <div class="mode-menu" role="listbox" hidden>
-                  <button type="button" role="option">Ask</button>
-                  <button type="button" role="option">Plan</button>
-                  <button type="button" role="option" aria-selected="true">Agent</button>
-                </div>
-              </div>
-              <button type="button" class="pill model-pill" id="model-pill" data-action="select-model" title="Select model">Model</button>
-              <span id="target" class="muted">src/index.ts</span>
-              <button type="button" class="icon-button context-btn" disabled aria-label="Attach context"><img src="${uri('figma-assets/imgShape.svg')}" alt=""></button>
-              <button type="button" class="icon-button attachment" disabled aria-label="Attach context"><img src="${uri('imgPaperclip.svg')}" alt=""></button>
-              <button type="button" class="send" disabled><img src="${uri('imgPlay.svg')}" alt=""></button>
-            </footer>
-          </form>
-        </main>
-      </div>
-    </div>
-
-    <div class="section" data-section="buttons" style="display: none;">
-      <h2>Buttons</h2>
-      <div class="component-preview">
-        <div class="component-row">
-          <div class="component-item">
-            <button>Default</button>
-            <h3>Default</h3>
-          </div>
-          <div class="component-item">
-            <button class="primary">Primary</button>
-            <h3>Primary</h3>
-          </div>
-          <div class="component-item">
-            <button class="secondary">Secondary</button>
-            <h3>Secondary</h3>
-          </div>
-          <div class="component-item">
-            <button disabled>Disabled</button>
-            <h3>Disabled</h3>
-          </div>
-        </div>
-        <div class="component-row" style="margin-top: 20px;">
-          <div class="component-item">
-            <button class="link">Link button</button>
-            <h3>Link</h3>
-          </div>
-          <div class="component-item">
-            <button class="icon-button"><img src="${uri('imgCog.svg')}" style="width: 16px; height: 16px;" alt=""></button>
-            <h3>Icon button</h3>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div class="section" data-section="forms" style="display: none;">
-      <h2>Forms</h2>
-      <div class="component-preview">
-        <div class="component-row">
-          <div class="component-item" style="width: 100%;">
-            <label style="display: block; margin-bottom: 8px;">Text input</label>
-            <input type="text" style="width: 100%; padding: 8px; border: 1px solid var(--vscode-input-border); border-radius: 4px; background: var(--vscode-input-background); color: var(--vscode-input-foreground);" placeholder="Enter text...">
-          </div>
-        </div>
-        <div class="component-row" style="margin-top: 20px;">
-          <div class="component-item">
-            <label style="display: flex; align-items: center; gap: 8px;">
-              <input type="checkbox" checked>
-              <span>Checkbox option</span>
-            </label>
-          </div>
-        </div>
-        <div class="component-row" style="margin-top: 20px;">
-          <div class="component-item">
-            <textarea style="width: 300px; min-height: 80px; padding: 8px; border: 1px solid var(--vscode-input-border); border-radius: 4px; background: var(--vscode-input-background); color: var(--vscode-input-foreground); resize: vertical;" placeholder="Textarea..."></textarea>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div class="section" data-section="tabs" style="display: none;">
-      <h2>Tabs</h2>
-      <div class="component-preview">
-        <div class="component-row">
-          <div class="component-item" style="width: 100%;">
-            <h3>Default Tabs</h3>
-            <div class="tabs-container">
-              <button class="tab active">
-                <span>index.ts</span>
-                <button class="tab-close" onclick="event.stopPropagation()">×</button>
-              </button>
-              <button class="tab">
-                <span>app.tsx</span>
-                <button class="tab-close" onclick="event.stopPropagation()">×</button>
-              </button>
-              <button class="tab">
-                <span>styles.css</span>
-                <button class="tab-close" onclick="event.stopPropagation()">×</button>
-              </button>
-            </div>
-          </div>
-        </div>
-        <div class="component-row" style="margin-top: 30px;">
-          <div class="component-item" style="width: 100%;">
-            <h3>Tabs with Icons</h3>
-            <div class="tabs-container">
-              <button class="tab active">
-                <img src="${uri('imgFiles.svg')}" style="width: 14px; height: 14px;" alt="">
-                <span>Explorer</span>
-                <button class="tab-close" onclick="event.stopPropagation()">×</button>
-              </button>
-              <button class="tab">
-                <img src="${uri('imgSearch.svg')}" style="width: 14px; height: 14px;" alt="">
-                <span>Search</span>
-                <button class="tab-close" onclick="event.stopPropagation()">×</button>
-              </button>
-              <button class="tab">
-                <img src="${uri('imgGitBranch.svg')}" style="width: 14px; height: 14px;" alt="">
-                <span>Git</span>
-                <button class="tab-close" onclick="event.stopPropagation()">×</button>
-              </button>
-            </div>
-          </div>
-        </div>
-        <div class="component-row" style="margin-top: 30px;">
-          <div class="component-item" style="width: 100%;">
-            <h3>Single Tab</h3>
-            <div class="tabs-container">
-              <button class="tab active">
-                <span>README.md</span>
-                <button class="tab-close" onclick="event.stopPropagation()">×</button>
-              </button>
-            </div>
-          </div>
-        </div>
-        <div class="component-row" style="margin-top: 30px;">
-          <div class="component-item" style="width: 100%;">
-            <h3>Many Tabs (scrollable)</h3>
-            <div class="tabs-container" style="overflow-x: auto;">
-              <button class="tab active"><span>index.ts</span><button class="tab-close" onclick="event.stopPropagation()">×</button></button>
-              <button class="tab"><span>app.tsx</span><button class="tab-close" onclick="event.stopPropagation()">×</button></button>
-              <button class="tab"><span>styles.css</span><button class="tab-close" onclick="event.stopPropagation()">×</button></button>
-              <button class="tab"><span>utils.ts</span><button class="tab-close" onclick="event.stopPropagation()">×</button></button>
-              <button class="tab"><span>config.json</span><button class="tab-close" onclick="event.stopPropagation()">×</button></button>
-              <button class="tab"><span>package.json</span><button class="tab-close" onclick="event.stopPropagation()">×</button></button>
-              <button class="tab"><span>README.md</span><button class="tab-close" onclick="event.stopPropagation()">×</button></button>
-              <button class="tab"><span>CHANGELOG.md</span><button class="tab-close" onclick="event.stopPropagation()">×</button></button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <script>
-    const vscode = acquireVsCodeApi();
-    const navButtons = document.querySelectorAll('.nav button');
-    const sections = document.querySelectorAll('.section');
-
-    navButtons.forEach(button => {
-      button.addEventListener('click', () => {
-        navButtons.forEach(b => b.classList.remove('active'));
-        button.classList.add('active');
-        
-        const component = button.dataset.component;
-        sections.forEach(section => {
-          section.style.display = section.dataset.section === component ? 'block' : 'none';
-        });
-      });
-    });
-  </script>
+  <div id="design-system-root"></div>
+  <script type="application/json" id="initial">${initial}</script>
+  <script src="${uri('design-system.js')}" defer></script>
 </body>
 </html>`;
 }
@@ -1091,7 +774,7 @@ function activate(context) {
     return `\n\nAttached context:\n${parts.join('\n')}`;
   }
 
-  async function aiSpecs(request, extraDocuments = []) {
+  async function aiSpecs(request, extraDocuments = [], onStage) {
     const documents = [];
     const seenDocs = new Set();
     for (const document of [...extraDocuments, ...aiContextDocuments()]) {
@@ -1107,6 +790,7 @@ function activate(context) {
     const knownUris = new Set(documents.map(document => document.uri.toString()));
 
     let contextDocs = documents;
+    onStage?.('Waiting for model…');
     let reply = await aiChat(provider.multiFileMessages(contextDocs, request), options);
     let parsed = provider.parseMultiRewrite(reply);
     if (!parsed) throw aiParseError(reply);
@@ -1125,6 +809,7 @@ function activate(context) {
       }
       if (missing.length) {
         contextDocs = [...documents, ...missing].slice(0, 6);
+        onStage?.('Expanding context…');
         reply = await aiChat(provider.multiFileMessages(contextDocs, request), options);
         parsed = provider.parseMultiRewrite(reply);
         if (!parsed) throw aiParseError(reply);
@@ -1182,6 +867,10 @@ function activate(context) {
     void context.globalState.update('triplecode.history', history.slice(0, 50));
   }
 
+  function postProgress(text) {
+    agent?.postMessage({ type: 'progress', chat: currentChat.id, text });
+  }
+
   function pushReply(text) {
     currentChat.replies.push(text);
     persistChats();
@@ -1224,13 +913,14 @@ function activate(context) {
     const trimmed = request.trim();
     const attachments = currentChat.attachments || [];
     currentChat.plan = null;
+    postProgress('Checking provider…');
     const useAi = await aiAvailable();
     const aiRequest = trimmed + attachmentSuffix(attachments);
     if (mode === 'ask') {
       currentChat.draft = '';
       currentChat.attachments = [];
       pushReply(useAi
-        ? await aiOrFallback(() => aiChat(provider.askMessages(activeDocument, aiRequest)), () => answerAsk(activeDocument, trimmed))
+        ? await aiOrFallback(() => { postProgress('Waiting for model…'); return aiChat(provider.askMessages(activeDocument, aiRequest)); }, () => answerAsk(activeDocument, trimmed))
         : answerAsk(activeDocument, trimmed));
       return;
     }
@@ -1238,7 +928,7 @@ function activate(context) {
       currentChat.draft = '';
       currentChat.attachments = [];
       const planText = useAi
-        ? await aiOrFallback(() => aiChat(provider.planMessages(activeDocument, aiRequest)), () => planRequest(trimmed))
+        ? await aiOrFallback(() => { postProgress('Waiting for model…'); return aiChat(provider.planMessages(activeDocument, aiRequest)); }, () => planRequest(trimmed))
         : planRequest(trimmed);
       if (useAi) currentChat.plan = { task: trimmed, plan: planText.slice(0, 8000) };
       pushReply(planText);
@@ -1258,7 +948,7 @@ function activate(context) {
       const selectionSuffix = attachments.filter(a => a.kind === 'selection')
         .map(a => `\`\`\`\n${a.text}\n\`\`\``).join('\n');
       const agentRequest = trimmed + (selectionSuffix ? `\n\nAttached selection:\n${selectionSuffix}` : '');
-      const result = await aiSpecs(agentRequest, extraDocuments);
+      const result = await aiSpecs(agentRequest, extraDocuments, postProgress);
       if (!result) return;
       specs = result;
     } else {
@@ -1288,6 +978,7 @@ function activate(context) {
       });
     }
 
+    postProgress('Building review…');
     const files = specs.map((spec, index) => {
       const document = spec.document;
       const before = document.getText();

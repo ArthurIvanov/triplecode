@@ -23,9 +23,11 @@ type Patch = {
 };
 type Assets = Record<'close' | 'plus' | 'actions' | 'chevron' | 'context' | 'attach' | 'send', string>;
 type Initial = ChatState & { target: string; pending: Patch | null; assets: Assets };
+type Progress = { chat: number; text: string; startedAt: number };
 type HostMessage =
   | { type: 'target'; name: string }
   | { type: 'pending'; patch: Patch }
+  | { type: 'progress'; chat: number; text: string }
   | { type: 'complete' | 'error'; text: string }
   | ({ type: 'chats'; focusPrompt?: boolean } & ChatState);
 type ViewMessage =
@@ -47,6 +49,7 @@ type State = ChatState & {
   mode: Mode;
   status: string;
   submitting: boolean;
+  progress: Progress | null;
   focusRequest: number;
 };
 type Action = HostMessage |
@@ -63,31 +66,52 @@ function update(state: State, action: Action): State {
     case 'target':
       return { ...state, target: action.name };
     case 'pending':
-      return { ...state, patch: action.patch, status: '', draft: '', submitting: false };
+      return { ...state, patch: action.patch, status: '', draft: '', submitting: false, progress: null };
+    case 'progress':
+      return action.chat === state.selected
+        ? { ...state, progress: { chat: action.chat, text: action.text, startedAt: state.progress?.startedAt ?? Date.now() } }
+        : state;
     case 'complete':
-      return { ...state, patch: null, status: action.text, draft: '', submitting: false };
+      return { ...state, patch: null, status: action.text, draft: '', submitting: false, progress: null };
     case 'chats':
       return {
         ...state, chats: action.chats, selected: action.selected, draft: action.draft,
         model: action.model || state.model, mode: selectedMode(action), status: '',
-        submitting: false, focusRequest: state.focusRequest + (action.focusPrompt ? 1 : 0)
+        submitting: false, progress: null,
+        focusRequest: state.focusRequest + (action.focusPrompt ? 1 : 0)
       };
     case 'error':
-      return { ...state, status: action.text, submitting: false };
+      return { ...state, status: action.text, submitting: false, progress: null };
     case 'edit':
       return { ...state, draft: action.value };
     case 'set-mode':
       return { ...state, mode: action.mode };
     case 'submit':
-      return { ...state, submitting: true, status: '' };
+      return {
+        ...state, submitting: true, status: '',
+        progress: { chat: state.selected, text: 'Working…', startedAt: Date.now() }
+      };
   }
+}
+
+function ProgressIndicator({ progress }: { progress: Progress }) {
+  const [elapsed, setElapsed] = useState(0);
+  useLayoutEffect(() => {
+    const timer = setInterval(() => setElapsed(Math.floor((Date.now() - progress.startedAt) / 1000)), 1000);
+    return () => clearInterval(timer);
+  }, [progress.startedAt]);
+  return <p className="agent-message progress" role="status">
+    <span className="progress-spinner" aria-hidden="true" />
+    <span className="progress-text">{progress.text}</span>
+    <span className="progress-time">{elapsed}s</span>
+  </p>;
 }
 
 function Agent({ initial }: { initial: Initial }) {
   const [state, dispatch] = useReducer(update, {
     chats: initial.chats, selected: initial.selected, draft: initial.draft,
     model: initial.model || 'Model', target: initial.target, patch: initial.pending,
-    mode: selectedMode(initial), status: '', submitting: false, focusRequest: 0
+    mode: selectedMode(initial), status: '', submitting: false, progress: null, focusRequest: 0
   });
   const [modeOpen, setModeOpen] = useState(false);
   const [filesOpen, setFilesOpen] = useState(true);
@@ -98,6 +122,7 @@ function Agent({ initial }: { initial: Initial }) {
   const replies = chat?.replies || [];
   const attachments = chat?.attachments || [];
   const plan = chat?.plan;
+  const progress = state.progress && state.progress.chat === selected ? state.progress : null;
   const target = state.target || 'Open a source file';
   const { assets } = initial;
 
@@ -145,9 +170,10 @@ function Agent({ initial }: { initial: Initial }) {
       <button type="button" className="icon-button" aria-label="Agent actions" data-action="chat-actions"
         onClick={() => send({ type: 'chat-actions' })}><img src={assets.actions} alt="" /></button>
     </header>
-    <section id="conversation" className="conversation" hidden={!replies.length && !patch} aria-label="Agent output">
+    <section id="conversation" className="conversation" hidden={!replies.length && !patch && !progress} aria-label="Agent output">
       <div id="messages">
         {replies.map((reply, index) => <p className="agent-message" key={index}>{reply}</p>)}
+        {progress && <ProgressIndicator progress={progress} />}
       </div>
       {patch && <>
         <p id="task" className="agent-message request">{patch.request}</p>
