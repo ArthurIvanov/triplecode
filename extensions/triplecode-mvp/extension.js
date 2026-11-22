@@ -6,6 +6,8 @@ const { readFile, access, readdir } = require('node:fs/promises');
 const { join } = require('node:path');
 const { homedir } = require('node:os');
 const { exec } = require('node:child_process');
+const { writeFile, mkdir, unlink } = require('node:fs/promises');
+const { dirname } = require('node:path');
 const { commentEdit, supportsComments } = require('./patch');
 
 // VS Code paths on macOS
@@ -87,7 +89,7 @@ async function readVSCodeExtensions() {
   }
 }
 
-async function showImportPreview() {
+async function showImportPreview(context) {
   const vsCodePath = await findVSCodeInstallation();
   if (!vsCodePath) {
     const action = await vscode.window.showWarningMessage(
@@ -96,7 +98,7 @@ async function showImportPreview() {
       'Cancel'
     );
     if (action === 'Import from File') {
-      await vscode.commands.executeCommand('workbench.action.profiles.import');
+      await showFileImport(context);
     }
     return;
   }
@@ -108,29 +110,81 @@ async function showImportPreview() {
     readVSCodeExtensions()
   ]);
 
+  presentImportPreview({ source: vsCodePath, settings, keybindings, snippets, extensions }, context);
+}
+
+async function showFileImport(context) {
+  const selected = await vscode.window.showOpenDialog({
+    canSelectFiles: true,
+    canSelectFolders: false,
+    canSelectMany: false,
+    filters: { 'JSON': ['json'] },
+    openLabel: 'Import settings file'
+  });
+  if (!selected?.length) return;
+  let settings;
+  try {
+    settings = JSON.parse(await readFile(selected[0].fsPath, 'utf-8'));
+  } catch {
+    vscode.window.showErrorMessage('Could not parse the selected file as JSON.');
+    return;
+  }
+  const dir = dirname(selected[0].fsPath);
+  let keybindings = null;
+  let snippets = null;
+  if (/[\\/]User$/.test(dir)) {
+    try {
+      keybindings = JSON.parse(await readFile(join(dir, 'keybindings.json'), 'utf-8'));
+    } catch { /* no sibling keybindings */ }
+    try {
+      snippets = {};
+      for (const entry of await readdir(join(dir, 'snippets'), { withFileTypes: true })) {
+        if (entry.isFile() && entry.name.endsWith('.json')) {
+          snippets[entry.name] = JSON.parse(await readFile(join(dir, 'snippets', entry.name), 'utf-8'));
+        }
+      }
+    } catch { /* no sibling snippets */ }
+  }
+  presentImportPreview({ source: selected[0].fsPath, settings, keybindings, snippets, extensions: null }, context);
+}
+
+function presentImportPreview(data, context) {
+  const { settings, keybindings, snippets, extensions } = data;
+
   const previewPanel = vscode.window.createWebviewPanel(
     'triplecodeImportPreview',
-    'Import from VS Code',
+    'Import Profile',
     vscode.ViewColumn.One,
     { enableScripts: true }
   );
 
   const previewData = {
-    vsCodePath,
+    source: data.source,
     settings: settings ? Object.keys(settings).length : 0,
-    keybindings: keybindings ? keybindings.length : 0,
+    keybindings: Array.isArray(keybindings) ? keybindings.length : 0,
     snippets: snippets ? Object.keys(snippets).length : 0,
     extensions: extensions ? extensions.length : 0,
     extensionIds: extensions ? extensions.map(e => e.id) : [],
-    hasBackup: context.globalState.get('triplecode.importBackup') !== undefined
+    hasBackup: context.globalState.get('triplecode.importBackup') !== undefined ||
+      context.globalState.get('triplecode.importFileBackup') !== undefined
   };
 
   previewPanel.webview.html = getImportPreviewHtml(previewData, previewPanel.webview);
 
   previewPanel.webview.onDidReceiveMessage(async message => {
     if (message.type === 'import') {
-      await performImport(message.selectedCategories, { settings, keybindings, snippets, extensions }, context);
+      const report = await performImport(message.selectedCategories, { settings, keybindings, snippets, extensions }, context);
       previewPanel.dispose();
+      vscode.window.showInformationMessage(importReportMessage(report), 'Restart', 'Rollback').then(selection => {
+        if (selection === 'Restart') {
+          vscode.commands.executeCommand('workbench.action.reloadWindow');
+        } else if (selection === 'Rollback') {
+          vscode.commands.executeCommand('triplecode.rollbackImport');
+        }
+      });
+    } else if (message.type === 'import-file') {
+      previewPanel.dispose();
+      await showFileImport(context);
     } else if (message.type === 'rollback') {
       await rollbackImport(context);
       previewPanel.dispose();
@@ -165,8 +219,8 @@ function getImportPreviewHtml(data, webview) {
   </style>
 </head>
 <body>
-  <h1>Import from VS Code</h1>
-  <p>Found VS Code at: <code>${data.vsCodePath}</code></p>
+  <h1>Import Profile</h1>
+  <p>Source: <code>${data.source}</code></p>
 
   <div class="section">
     <h2>Settings</h2>
@@ -205,6 +259,7 @@ function getImportPreviewHtml(data, webview) {
 
   <div class="actions">
     <button class="primary" id="import">Import</button>
+    <button class="secondary" id="import-file">Import from File…</button>
     ${rollbackButton}
     <button class="secondary" id="cancel">Cancel</button>
   </div>
@@ -225,6 +280,10 @@ function getImportPreviewHtml(data, webview) {
 
     document.getElementById('cancel').addEventListener('click', () => {
       vscode.postMessage({ type: 'cancel' });
+    });
+
+    document.getElementById('import-file').addEventListener('click', () => {
+      vscode.postMessage({ type: 'import-file' });
     });
 
     ${data.hasBackup ? `
@@ -580,55 +639,149 @@ function getDesignSystemHtml(webview, context) {
 </html>`;
 }
 
+const SENSITIVE_KEY = /(?:^|[._-])(token|secret|password|passwd|credential|apikey|api[-_]?key|auth|session|cookie|private[-_]?key)(?:[._-]|$)/i;
+const SKIPPED_PREFIXES = ['settingsSync.'];
+const CORE_PREFIXES = new Set([
+  'workbench', 'editor', 'terminal', 'git', 'files', 'search', 'scm', 'debug',
+  'typescript', 'javascript', 'emmet', 'markdown', 'extensions', 'security',
+  'telemetry', 'update', 'window', 'chat', 'problems', 'testing', 'remote',
+  'task', 'launch', 'breadcrumbs', 'diffEditor', 'inlineChat', 'notebook',
+  'accessibility', 'merge-conflict', 'scmProvider', 'timeline', 'todo', 'views',
+  'welcome', 'settings', 'snippets', 'npm', 'jest', 'eslint', 'prettier',
+  'tailwindcss', 'css', 'html', 'json', 'yaml', 'xml', 'php', 'python', 'java',
+  'go', 'rust', 'csharp', 'ruby', 'shellscript', 'vue', 'react', 'svelte',
+  'astro', 'graphql', 'prisma', 'liveShare', 'voice', 'notebook'
+]);
+
+function isSensitiveSetting(key) {
+  return SKIPPED_PREFIXES.some(prefix => key.startsWith(prefix)) || SENSITIVE_KEY.test(key);
+}
+
+function userDataDir(context) {
+  let dir = context.globalStorageUri.fsPath;
+  for (let index = 0; index < 4; index += 1) {
+    if (/[\\/]User$/.test(dir)) return vscode.Uri.file(dir);
+    dir = dirname(dir);
+  }
+  return null;
+}
+
+async function readUserFile(dir, name) {
+  try {
+    return await readFile(join(dir.fsPath, name), 'utf-8');
+  } catch {
+    return null;
+  }
+}
+
 async function performImport(selectedCategories, data, context) {
   const { settings, keybindings, snippets, extensions } = data;
+  const report = { settingsApplied: 0, settingsSkipped: [], thirdParty: [], keybindings: 0, snippets: 0, extensionsInstalled: 0, extensionsFailed: [] };
 
   // Save current settings for rollback
-  const previousSettings = {};
   if (selectedCategories.settings && settings) {
     const config = vscode.workspace.getConfiguration();
+    const previousSettings = {};
     for (const [key, value] of Object.entries(settings)) {
-      if (key.startsWith('workbench.') || key.startsWith('editor.')) {
-        previousSettings[key] = config.get(key);
-        await config.update(key, value, vscode.ConfigurationTarget.Global);
+      if (isSensitiveSetting(key)) {
+        report.settingsSkipped.push(key);
+        continue;
       }
+      if (!CORE_PREFIXES.has(key.split('.')[0])) report.thirdParty.push(key);
+      previousSettings[key] = config.get(key);
+      await config.update(key, value, vscode.ConfigurationTarget.Global);
+      report.settingsApplied += 1;
     }
     await context.globalState.update('triplecode.importBackup', previousSettings);
     await context.globalState.update('triplecode.importTimestamp', Date.now());
   }
 
+  // Apply keybindings and snippets into the TripleCode user data directory
+  const userDir = userDataDir(context);
+  if (userDir) {
+    const fileBackup = {};
+    if (selectedCategories.keybindings && Array.isArray(keybindings) && keybindings.length) {
+      const target = join(userDir.fsPath, 'keybindings.json');
+      const existing = await readUserFile(userDir, 'keybindings.json');
+      if (existing !== null) {
+        try {
+          const parsed = JSON.parse(existing);
+          const merged = [...parsed, ...keybindings];
+          fileBackup.keybindings = existing;
+          await writeFile(target, JSON.stringify(merged, null, '\t'), 'utf-8');
+          report.keybindings = keybindings.length;
+        } catch {
+          report.keybindings = -1;
+        }
+      } else {
+        fileBackup.keybindings = null;
+        await writeFile(target, JSON.stringify(keybindings, null, '\t'), 'utf-8');
+        report.keybindings = keybindings.length;
+      }
+    }
+    if (selectedCategories.snippets && snippets) {
+      const names = Object.keys(snippets);
+      if (names.length) {
+        const snippetsDir = join(userDir.fsPath, 'snippets');
+        await mkdir(snippetsDir, { recursive: true });
+        fileBackup.snippets = {};
+        for (const name of names) {
+          const fileName = name.endsWith('.json') ? name : `${name}.json`;
+          const target = join(snippetsDir, fileName);
+          const existing = await readUserFile(vscode.Uri.file(snippetsDir), fileName);
+          fileBackup.snippets[fileName] = existing;
+          await writeFile(target, JSON.stringify(snippets[name], null, '\t'), 'utf-8');
+        }
+        report.snippets = names.length;
+      }
+    }
+    if (Object.keys(fileBackup).length) {
+      await context.globalState.update('triplecode.importFileBackup', fileBackup);
+    }
+  }
+
   // Track installed extensions for rollback
-  const installedExtensions = [];
   if (selectedCategories.extensions && extensions) {
+    const installedExtensions = [];
     for (const ext of extensions) {
       try {
         await vscode.commands.executeCommand('workbench.extensions.install', ext.id);
         installedExtensions.push(ext.id);
+        report.extensionsInstalled += 1;
       } catch (error) {
-        console.error(`Failed to install extension ${ext.id}:`, error);
+        report.extensionsFailed.push(ext.id);
       }
     }
     await context.globalState.update('triplecode.importedExtensions', installedExtensions);
   }
 
-  vscode.window.showInformationMessage(
-    'Import completed. Restart to apply all changes.',
-    'Restart',
-    'Rollback'
-  ).then(selection => {
-    if (selection === 'Restart') {
-      vscode.commands.executeCommand('workbench.action.reloadWindow');
-    } else if (selection === 'Rollback') {
-      vscode.commands.executeCommand('triplecode.rollbackImport');
-    }
-  });
+  await context.globalState.update('triplecode.lastImportReport', { ...report, ts: Date.now() });
+  return report;
+}
+
+function importReportMessage(report) {
+  const lines = [
+    `Import completed: ${report.settingsApplied} settings, ${report.keybindings > 0 ? `${report.keybindings} keybindings` : report.keybindings === -1 ? 'keybindings skipped (existing file has comments)' : 'no keybindings'}, ${report.snippets} snippets, ${report.extensionsInstalled} extensions.`
+  ];
+  if (report.settingsSkipped.length) {
+    lines.push(`Skipped ${report.settingsSkipped.length} sensitive setting${report.settingsSkipped.length === 1 ? '' : 's'}: ${report.settingsSkipped.slice(0, 5).join(', ')}${report.settingsSkipped.length > 5 ? '…' : ''}`);
+  }
+  if (report.thirdParty.length) {
+    lines.push(`Third-party settings applied: ${report.thirdParty.length} (${report.thirdParty.slice(0, 5).join(', ')}${report.thirdParty.length > 5 ? '…' : ''})`);
+  }
+  if (report.extensionsFailed.length) {
+    lines.push(`Failed to install: ${report.extensionsFailed.slice(0, 5).join(', ')}`);
+  }
+  lines.push('Restart to apply all changes.');
+  return lines.join('\n');
 }
 
 async function rollbackImport(context) {
   const previousSettings = context.globalState.get('triplecode.importBackup');
   const importedExtensions = context.globalState.get('triplecode.importedExtensions', []);
+  const fileBackup = context.globalState.get('triplecode.importFileBackup');
 
-  if (!previousSettings && importedExtensions.length === 0) {
+  if (!previousSettings && !fileBackup && importedExtensions.length === 0) {
     vscode.window.showInformationMessage('No import to rollback.');
     return;
   }
@@ -652,6 +805,33 @@ async function rollbackImport(context) {
     } catch (error) {
       console.error(`Failed to uninstall extension ${extId}:`, error);
     }
+  }
+
+  // Restore keybindings and snippets
+  if (fileBackup) {
+    const userDir = userDataDir(context);
+    if (userDir) {
+      if ('keybindings' in fileBackup) {
+        const target = join(userDir.fsPath, 'keybindings.json');
+        if (fileBackup.keybindings === null) {
+          await unlink(target).catch(() => {});
+        } else if (typeof fileBackup.keybindings === 'string') {
+          await writeFile(target, fileBackup.keybindings, 'utf-8').catch(() => {});
+        }
+      }
+      if (fileBackup.snippets) {
+        const snippetsDir = join(userDir.fsPath, 'snippets');
+        for (const [name, content] of Object.entries(fileBackup.snippets)) {
+          const target = join(snippetsDir, name);
+          if (content === null) {
+            await unlink(target).catch(() => {});
+          } else {
+            await writeFile(target, content, 'utf-8').catch(() => {});
+          }
+        }
+      }
+    }
+    await context.globalState.update('triplecode.importFileBackup', undefined);
   }
 
   // Clear backup
@@ -1074,7 +1254,8 @@ function activate(context) {
       : showAgent()),
     vscode.commands.registerCommand('triplecode.newChat', newChat),
     vscode.commands.registerCommand('triplecode.checkHistory', showCheckHistory),
-    vscode.commands.registerCommand('triplecode.importFromVSCode', showImportPreview),
+    vscode.commands.registerCommand('triplecode.importFromVSCode', () => showImportPreview(context)),
+    vscode.commands.registerCommand('triplecode.importFromFile', () => showFileImport(context)),
     vscode.commands.registerCommand('triplecode.rollbackImport', () => rollbackImport(context)),
     vscode.commands.registerCommand('triplecode.designSystem', () => showDesignSystem(context)),
     vscode.window.registerWebviewViewProvider('triplecode.agentView', { resolveWebviewView: resolveAgent }, {

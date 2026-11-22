@@ -39,6 +39,10 @@
         "title": "TripleCode: Import from VS Code"
       },
       {
+        "command": "triplecode.importFromFile",
+        "title": "TripleCode: Import Profile from File"
+      },
+      {
         "command": "triplecode.rollbackImport",
         "title": "TripleCode: Rollback Last Import"
       },
