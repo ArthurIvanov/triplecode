@@ -861,6 +861,31 @@ function activate(context) {
   let currentChat = chats[0];
   let welcome;
 
+  function persistChats() {
+    void context.workspaceState.update('triplecode.chats', {
+      nextId: nextChatId,
+      current: currentChat.id,
+      chats: chats.map(chat => ({ id: chat.id, draft: chat.draft, mode: chat.mode, replies: chat.replies.slice(-50) }))
+    });
+  }
+
+  function restoreChats() {
+    const saved = context.workspaceState.get('triplecode.chats');
+    if (!Array.isArray(saved?.chats) || !saved.chats.length) return;
+    chats = saved.chats
+      .filter(chat => Number.isInteger(chat?.id))
+      .map(chat => ({
+        id: chat.id,
+        draft: typeof chat.draft === 'string' ? chat.draft.slice(0, 500) : '',
+        mode: ['ask', 'plan', 'agent'].includes(chat.mode) ? chat.mode : 'agent',
+        replies: Array.isArray(chat.replies) ? chat.replies.filter(reply => typeof reply === 'string').slice(-50) : []
+      }));
+    if (!chats.length) return;
+    nextChatId = Math.max(nextChatId, saved.nextId || 0, ...chats.map(chat => chat.id));
+    currentChat = chats.find(chat => chat.id === saved.current) || chats[0];
+  }
+  restoreChats();
+
   function candidate(editor) {
     return editor?.document.uri.scheme === 'file' &&
       vscode.workspace.getWorkspaceFolder(editor.document.uri);
@@ -956,11 +981,13 @@ function activate(context) {
           case 'draft':
             if (message.id === currentChat.id && typeof message.value === 'string') {
               currentChat.draft = message.value.slice(0, 500);
+              persistChats();
             }
             break;
           case 'mode':
             if (message.id === currentChat.id && ['ask', 'plan', 'agent'].includes(message.mode)) {
               currentChat.mode = message.mode;
+              persistChats();
             }
             break;
           case 'new-chat':
@@ -1010,6 +1037,7 @@ function activate(context) {
 
   function pushReply(text) {
     currentChat.replies.push(text);
+    persistChats();
     agent?.postMessage({ type: 'chats', ...chatState() });
   }
 
@@ -1087,6 +1115,7 @@ function activate(context) {
     });
     currentChat.draft = request;
     pending = { request: trimmed, files, checks: [] };
+    persistChats();
     recordHistory('propose', `${trimmed} — ${files.length} file${files.length === 1 ? '' : 's'}`);
     agent?.postMessage({ type: 'pending', patch: describePatch(pending) });
   }
@@ -1155,6 +1184,7 @@ function activate(context) {
     const patch = pending;
     pending = undefined;
     currentChat.draft = '';
+    persistChats();
     agent?.postMessage({ type: 'complete', text });
     if (!patch) return;
     const originals = new Set(patch.files.map(file => file.original.toString()));
@@ -1177,6 +1207,7 @@ function activate(context) {
     }
     currentChat = { id: ++nextChatId, draft: '', mode: 'agent', replies: [] };
     chats = [currentChat, ...chats];
+    persistChats();
     await showAgent();
     agent?.postMessage({ type: 'chats', ...chatState(), focusPrompt: true });
   }
@@ -1219,6 +1250,7 @@ function activate(context) {
     } else {
       currentChat = chat;
     }
+    persistChats();
     agent?.postMessage({ type: 'chats', ...chatState() });
   }
 
@@ -1303,6 +1335,7 @@ function render(webview, base, screen, initial) {
     </header>
     <section id="conversation" class="conversation" hidden aria-label="Agent output">
       <div id="messages"></div>
+      <p id="task" class="agent-message request" hidden></p>
       <div id="patch" class="patch" hidden>
         <div id="patch-files"></div>
       </div>

@@ -47,6 +47,7 @@ if (document.body.dataset.screen === 'welcome') {
   const review = document.querySelector('#review');
   const conversation = document.querySelector('#conversation');
   const messages = document.querySelector('#messages');
+  const task = document.querySelector('#task');
   const patchBox = document.querySelector('#patch');
   const patchFiles = document.querySelector('#patch-files');
   const checksBox = document.querySelector('#checks');
@@ -121,11 +122,15 @@ if (document.body.dataset.screen === 'welcome') {
       button.disabled = Boolean(patch);
     }
     if (!patch) {
+      task.hidden = true;
+      task.textContent = '';
       checksBox.replaceChildren();
       patchFiles.replaceChildren();
       conversation.hidden = !messages.children.length;
       return;
     }
+    task.textContent = patch.request;
+    task.hidden = false;
     document.querySelector('#file-count').textContent =
       `${patch.files.length} file${patch.files.length === 1 ? '' : 's'}`;
     patchFiles.replaceChildren(...patch.files.map(file => {
