@@ -59,7 +59,7 @@ button.link {
   padding: 0;
 }
 button.link:hover:not(:disabled) { color: var(--vscode-textLink-activeForeground); background: transparent; text-decoration: underline; }
-.project-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.project-actions { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
 .project-actions button {
   background: var(--vscode-sideBar-background);
   color: var(--vscode-foreground);

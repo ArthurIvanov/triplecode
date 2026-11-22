@@ -2,7 +2,258 @@
 
 const vscode = require('vscode');
 const { randomUUID } = require('node:crypto');
+const { readFile, access, readdir } = require('node:fs/promises');
+const { join } = require('node:path');
+const { homedir } = require('node:os');
 const { proposePatch } = require('./patch');
+
+// VS Code paths on macOS
+const VS_CODE_PATHS = [
+  '/Applications/Visual Studio Code.app',
+  join(homedir(), 'Applications/Visual Studio Code.app')
+];
+
+const VS_CODE_USER_PATH = join(homedir(), 'Library/Application Support/Code/User');
+
+async function findVSCodeInstallation() {
+  for (const path of VS_CODE_PATHS) {
+    try {
+      await access(path);
+      return path;
+    } catch {
+      continue;
+    }
+  }
+  return null;
+}
+
+async function readVSCodeSettings() {
+  try {
+    const settingsPath = join(VS_CODE_USER_PATH, 'settings.json');
+    const content = await readFile(settingsPath, 'utf-8');
+    return JSON.parse(content);
+  } catch {
+    return null;
+  }
+}
+
+async function readVSCodeKeybindings() {
+  try {
+    const keybindingsPath = join(VS_CODE_USER_PATH, 'keybindings.json');
+    const content = await readFile(keybindingsPath, 'utf-8');
+    return JSON.parse(content);
+  } catch {
+    return null;
+  }
+}
+
+async function readVSCodeSnippets() {
+  try {
+    const snippetsPath = join(VS_CODE_USER_PATH, 'snippets');
+    const entries = await readdir(snippetsPath, { withFileTypes: true });
+    const snippets = {};
+    for (const entry of entries) {
+      if (entry.isFile() && entry.name.endsWith('.json')) {
+        const content = await readFile(join(snippetsPath, entry.name), 'utf-8');
+        snippets[entry.name] = JSON.parse(content);
+      }
+    }
+    return snippets;
+  } catch {
+    return null;
+  }
+}
+
+async function readVSCodeExtensions() {
+  try {
+    const extensionsPath = join(homedir(), '.vscode/extensions');
+    const entries = await readdir(extensionsPath, { withFileTypes: true });
+    const extensions = [];
+    for (const entry of entries) {
+      if (entry.isDirectory()) {
+        const match = entry.name.match(/^([^.]+)\.([^.]+)-/);
+        if (match) {
+          extensions.push({
+            id: `${match[1]}.${match[2]}`,
+            path: entry.name
+          });
+        }
+      }
+    }
+    return extensions;
+  } catch {
+    return null;
+  }
+}
+
+async function showImportPreview() {
+  const vsCodePath = await findVSCodeInstallation();
+  if (!vsCodePath) {
+    const action = await vscode.window.showWarningMessage(
+      'Visual Studio Code not found on this machine.',
+      'Import from File',
+      'Cancel'
+    );
+    if (action === 'Import from File') {
+      await vscode.commands.executeCommand('workbench.action.profiles.import');
+    }
+    return;
+  }
+
+  const [settings, keybindings, snippets, extensions] = await Promise.all([
+    readVSCodeSettings(),
+    readVSCodeKeybindings(),
+    readVSCodeSnippets(),
+    readVSCodeExtensions()
+  ]);
+
+  const previewPanel = vscode.window.createWebviewPanel(
+    'triplecodeImportPreview',
+    'Import from VS Code',
+    vscode.ViewColumn.One,
+    { enableScripts: true }
+  );
+
+  const previewData = {
+    vsCodePath,
+    settings: settings ? Object.keys(settings).length : 0,
+    keybindings: keybindings ? keybindings.length : 0,
+    snippets: snippets ? Object.keys(snippets).length : 0,
+    extensions: extensions ? extensions.length : 0,
+    extensionIds: extensions ? extensions.map(e => e.id) : []
+  };
+
+  previewPanel.webview.html = getImportPreviewHtml(previewData, previewPanel.webview);
+
+  previewPanel.webview.onDidReceiveMessage(async message => {
+    if (message.type === 'import') {
+      await performImport(message.selectedCategories, { settings, keybindings, snippets, extensions });
+      previewPanel.dispose();
+    } else if (message.type === 'cancel') {
+      previewPanel.dispose();
+    }
+  });
+}
+
+function getImportPreviewHtml(data, webview) {
+  const extensionIdsJson = JSON.stringify(data.extensionIds);
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Import from VS Code</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; padding: 20px; color: var(--vscode-foreground); background: var(--vscode-editor-background); }
+    h1 { margin-top: 0; }
+    .section { margin: 20px 0; padding: 15px; border: 1px solid var(--vscode-panel-border); border-radius: 4px; }
+    .section h2 { margin-top: 0; font-size: 16px; }
+    .count { font-size: 24px; font-weight: bold; color: var(--vscode-textLink-foreground); }
+    .checkbox { margin: 8px 0; }
+    .checkbox label { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+    .actions { margin-top: 20px; display: flex; gap: 10px; }
+    button { padding: 8px 16px; cursor: pointer; border: none; border-radius: 4px; }
+    .primary { background: var(--vscode-button-background); color: var(--vscode-button-foreground); }
+    .secondary { background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); }
+  </style>
+</head>
+<body>
+  <h1>Import from VS Code</h1>
+  <p>Found VS Code at: <code>${data.vsCodePath}</code></p>
+
+  <div class="section">
+    <h2>Settings</h2>
+    <div class="count">${data.settings} items</div>
+    <div class="checkbox">
+      <label><input type="checkbox" id="settings" checked> Import settings</label>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>Keyboard Shortcuts</h2>
+    <div class="count">${data.keybindings} items</div>
+    <div class="checkbox">
+      <label><input type="checkbox" id="keybindings" checked> Import keyboard shortcuts</label>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>User Snippets</h2>
+    <div class="count">${data.snippets} files</div>
+    <div class="checkbox">
+      <label><input type="checkbox" id="snippets" checked> Import snippets</label>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>Extensions</h2>
+    <div class="count">${data.extensions} extensions</div>
+    <div class="checkbox">
+      <label><input type="checkbox" id="extensions" checked> Import extensions (from Open VSX)</label>
+    </div>
+    <p style="font-size: 12px; color: var(--vscode-descriptionForeground);">
+      Note: Not all extensions may be available in Open VSX. You may need to install some manually.
+    </p>
+  </div>
+
+  <div class="actions">
+    <button class="primary" id="import">Import</button>
+    <button class="secondary" id="cancel">Cancel</button>
+  </div>
+
+  <script>
+    const vscode = acquireVsCodeApi();
+    const extensionIds = ${extensionIdsJson};
+
+    document.getElementById('import').addEventListener('click', () => {
+      const selectedCategories = {
+        settings: document.getElementById('settings').checked,
+        keybindings: document.getElementById('keybindings').checked,
+        snippets: document.getElementById('snippets').checked,
+        extensions: document.getElementById('extensions').checked
+      };
+      vscode.postMessage({ type: 'import', selectedCategories });
+    });
+
+    document.getElementById('cancel').addEventListener('click', () => {
+      vscode.postMessage({ type: 'cancel' });
+    });
+  </script>
+</body>
+</html>`;
+}
+
+async function performImport(selectedCategories, data) {
+  const { settings, keybindings, snippets, extensions } = data;
+
+  if (selectedCategories.settings && settings) {
+    const config = vscode.workspace.getConfiguration();
+    for (const [key, value] of Object.entries(settings)) {
+      if (key.startsWith('workbench.') || key.startsWith('editor.')) {
+        await config.update(key, value, vscode.ConfigurationTarget.Global);
+      }
+    }
+  }
+
+  if (selectedCategories.extensions && extensions) {
+    for (const ext of extensions) {
+      try {
+        await vscode.commands.executeCommand('workbench.extensions.install', ext.id);
+      } catch (error) {
+        console.error(`Failed to install extension ${ext.id}:`, error);
+      }
+    }
+  }
+
+  vscode.window.showInformationMessage(
+    'Import completed. Please restart TripleCode to apply all changes.',
+    'Restart'
+  ).then(selection => {
+    if (selection === 'Restart') {
+      vscode.commands.executeCommand('workbench.action.reloadWindow');
+    }
+  });
+}
 
 function activate(context) {
   const patches = new Map();
@@ -57,6 +308,8 @@ function activate(context) {
           await openFolder(vscode.Uri.file(recent[message.index]));
         } else if (message.type === 'clone') {
           await vscode.commands.executeCommand('git.clone');
+        } else if (message.type === 'import') {
+          await vscode.commands.executeCommand('triplecode.importFromVSCode');
         } else if (message.type === 'settings') {
           await vscode.commands.executeCommand('workbench.action.openSettings');
         }
@@ -264,6 +517,7 @@ function activate(context) {
       ? vscode.commands.executeCommand('workbench.action.closeAuxiliaryBar')
       : showAgent()),
     vscode.commands.registerCommand('triplecode.newChat', newChat),
+    vscode.commands.registerCommand('triplecode.importFromVSCode', showImportPreview),
     vscode.window.registerWebviewViewProvider('triplecode.agentView', { resolveWebviewView: resolveAgent }, {
       webviewOptions: { retainContextWhenHidden: true }
     })
@@ -297,6 +551,7 @@ function render(webview, base, screen, initial) {
     <div class="project-actions">
       <button data-action="open"><img src="${uri('imgFolder.svg')}" alt="">Open project</button>
       <button data-action="clone"><img src="${uri('imgFolderGit2.svg')}" alt="">Clone repo</button>
+      <button data-action="import"><img src="${uri('imgFolderGit2.svg')}" alt="">Import from VS Code</button>
       <button disabled><img src="${uri('imgSquareTerminal.svg')}" alt="">Connect via SSH</button>
     </div>
     <div id="recent"></div>

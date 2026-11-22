@@ -33,6 +33,10 @@
           "light": "media/imgPlus1.svg",
           "dark": "media/imgPlus1.svg"
         }
+      },
+      {
+        "command": "triplecode.importFromVSCode",
+        "title": "TripleCode: Import from VS Code"
       }
     ],
     "menus": {
