@@ -49,33 +49,58 @@ function planMessages(document, request) {
   ];
 }
 
-function editMessages(document, request) {
+function rewriteMessages(document, request) {
   return [
-    { role: 'system', content: 'You edit source files inside an IDE. Reply with the edit block only.' },
+    { role: 'system', content: 'You are a coding assistant inside an IDE. Output only the requested file content.' },
     {
       role: 'user',
       content: `${fileContext(document)}\n\nRequest: ${request}\n\n` +
-        'Reply in exactly this format:\n' +
-        'FILE: <same path>\n' +
-        'ANCHOR: <exact existing line to insert after, or TOP>\n' +
-        'INSERT:\n' +
-        '<lines to insert>\n' +
-        'If the request cannot be satisfied, reply NOCHANGE.'
+        'Reply with the COMPLETE updated file content inside a single code fence ' +
+        '(``` followed by the language id). Change only what the request needs and ' +
+        'keep every other line identical. If no change is needed, reply NOCHANGE.'
     }
   ];
 }
 
-function parseEdit(text) {
-  const anchor = /^ANCHOR:\s*(.+?)\s*$/m.exec(text)?.[1];
-  const insert = /^INSERT:\s*\n([\s\S]*)$/m.exec(text)?.[1];
-  if (!anchor || insert === undefined) return null;
-  const insertion = insert
-    .split(/^FILE:/m)[0]
-    .replace(/```[a-z]*\s*$/i, '')
-    .replace(/```[\s\S]*$/, '')
-    .trimEnd();
-  if (!insertion.trim() || /^NOCHANGE\b/i.test(insertion.trim())) return { noChange: true };
-  return { anchor, insertion };
+function parseRewrite(text) {
+  const trimmed = text.trim();
+  if (/^NO\s*CHANGE\b/i.test(trimmed)) return { noChange: true };
+  const fence = /```[a-z]*\s*\r?\n([\s\S]*?)```/i.exec(text);
+  if (!fence) return null;
+  const content = fence[1].replace(/\s+$/, '');
+  if (!content.trim()) return null;
+  return { content };
 }
 
-module.exports = { probe, chat, askMessages, planMessages, editMessages, parseEdit };
+function lineOffset(text, index) {
+  if (index === 0) return 0;
+  let pos = -1;
+  for (let i = 0; i < index; i++) {
+    pos = text.indexOf('\n', pos + 1);
+    if (pos === -1) return text.length;
+  }
+  return pos + 1;
+}
+
+function diffEdit(before, after, eol = '\n') {
+  const bLines = before.split('\n');
+  const aLines = after.split('\n');
+  let start = 0;
+  const maxStart = Math.min(bLines.length, aLines.length);
+  while (start < maxStart && bLines[start] === aLines[start]) start++;
+  let endB = bLines.length;
+  let endA = aLines.length;
+  while (endB > start && endA > start && bLines[endB - 1] === aLines[endA - 1]) {
+    endB--;
+    endA--;
+  }
+  const offset = lineOffset(before, start);
+  const deleteEnd = endB === bLines.length ? before.length : lineOffset(before, endB);
+  const insertEnd = endA === aLines.length ? after.length : lineOffset(after, endA);
+  const insertion = after.slice(offset, insertEnd).replace(/\r?\n/g, eol);
+  const deleteLength = deleteEnd - offset;
+  if (!insertion.trim() && deleteLength === 0) return null;
+  return { offset, deleteLength, insertion };
+}
+
+module.exports = { probe, chat, askMessages, planMessages, rewriteMessages, parseRewrite, diffEdit };

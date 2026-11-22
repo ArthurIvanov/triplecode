@@ -1059,41 +1059,6 @@ function activate(context) {
     }
   }
 
-  function resolveEdit(document, parsed) {
-    const eol = document.eol === vscode.EndOfLine.CRLF ? '\r\n' : '\n';
-    const text = document.getText();
-    const anchor = parsed.anchor.trim();
-    const body = parsed.insertion.replace(/\s+$/, '');
-    if (/^TOP$/i.test(anchor)) {
-      if (text.startsWith('#!')) {
-        const newline = text.indexOf('\n');
-        if (newline === -1) return { offset: text.length, insertion: eol + body };
-        return { offset: newline + 1, insertion: `${body}${eol}` };
-      }
-      return { offset: 0, insertion: `${body}${eol}` };
-    }
-    const lines = text.split('\n');
-    const matches = [];
-    let offset = 0;
-    const lineOffsets = [];
-    for (const line of lines) {
-      lineOffsets.push(offset);
-      offset += line.length + 1;
-    }
-    lines.forEach((line, index) => {
-      const clean = line.endsWith('\r') ? line.slice(0, -1) : line;
-      if (clean === anchor || clean.trim() === anchor.trim()) matches.push(index);
-    });
-    if (matches.length !== 1) {
-      throw new Error(matches.length ? 'The model anchor matches several lines.' : 'The model anchor was not found in the file.');
-    }
-    const index = matches[0];
-    const lineStart = lineOffsets[index];
-    const lineEnd = text.indexOf('\n', lineStart);
-    const end = lineEnd === -1 ? text.length : (text[lineEnd - 1] === '\r' ? lineEnd - 1 : lineEnd);
-    return { offset: end, insertion: `${eol}${body}` };
-  }
-
   function recordHistory(kind, summary, detail = '') {
     const history = context.globalState.get('triplecode.history', []);
     history.unshift({ ts: Date.now(), kind, summary, detail });
@@ -1158,14 +1123,23 @@ function activate(context) {
     let specs;
     if (useAi) {
       if (!activeDocument || activeDocument.isClosed) throw new Error('Open a source file first.');
-      const reply = await aiChat(provider.editMessages(activeDocument, trimmed));
-      const parsed = provider.parseEdit(reply);
-      if (!parsed) throw new Error('The model response could not be parsed. Try rephrasing the request.');
+      const reply = await aiChat(provider.rewriteMessages(activeDocument, trimmed));
+      const parsed = provider.parseRewrite(reply);
+      if (!parsed) {
+        const preview = reply.length > 300 ? `${reply.slice(0, 300)}…` : reply;
+        throw new Error(`The model response could not be parsed. Try rephrasing the request.\n\nModel said:\n${preview}`);
+      }
       if (parsed.noChange) {
         pushReply('The model did not propose a change.');
         return;
       }
-      specs = [{ document: activeDocument, edit: resolveEdit(activeDocument, parsed) }];
+      const eol = activeDocument.eol === vscode.EndOfLine.CRLF ? '\r\n' : '\n';
+      const edit = provider.diffEdit(activeDocument.getText(), parsed.content, eol);
+      if (!edit) {
+        pushReply('The model did not propose a change.');
+        return;
+      }
+      specs = [{ document: activeDocument, edit }];
     } else {
       const all = /^comment all:\s*(.+)$/i.exec(trimmed);
       const single = /^add a comment:\s*(.+)$/i.exec(trimmed);
@@ -1200,7 +1174,8 @@ function activate(context) {
       const original = base.with({ path: base.path.replace(`/${id}/`, `/${id}/original/`) });
       const modified = original.with({ path: original.path.replace('/original/', '/proposed/') });
       patches.set(original.toString(), before);
-      patches.set(modified.toString(), before.slice(0, spec.edit.offset) + spec.edit.insertion + before.slice(spec.edit.offset));
+      const deleteLength = spec.edit.deleteLength || 0;
+      patches.set(modified.toString(), before.slice(0, spec.edit.offset) + spec.edit.insertion + before.slice(spec.edit.offset + deleteLength));
       return { document, before, edit: spec.edit, original, modified, column: vscode.window.activeTextEditor?.viewColumn };
     });
     currentChat.draft = request;
@@ -1215,11 +1190,18 @@ function activate(context) {
     return {
       request: patch.request,
       checks: patch.checks,
-      files: patch.files.map(file => ({
-        name: fileName(file.document),
-        lines: file.edit.insertion.replace(/\r/g, '').trimEnd().split('\n'),
-        start: file.document.positionAt(file.edit.offset).line + 1
-      }))
+      files: patch.files.map(file => {
+        const removed = file.edit.deleteLength
+          ? file.before.slice(file.edit.offset, file.edit.offset + file.edit.deleteLength).replace(/\n$/, '').split('\n').length
+          : 0;
+        const lines = file.edit.insertion.replace(/\r/g, '').trimEnd().split('\n');
+        return {
+          name: fileName(file.document),
+          lines: lines.length > 300 ? [...lines.slice(0, 300), '…'] : lines,
+          removed,
+          start: file.document.positionAt(file.edit.offset).line + 1
+        };
+      })
     };
   }
 
@@ -1239,7 +1221,9 @@ function activate(context) {
       if (document.getText() !== file.before) {
         throw new Error(`${fileName(file.document)} changed after review. Discard this patch and try again.`);
       }
-      workspaceEdit.insert(file.document.uri, document.positionAt(file.edit.offset), file.edit.insertion);
+      const start = document.positionAt(file.edit.offset);
+      const end = document.positionAt(file.edit.offset + (file.edit.deleteLength || 0));
+      workspaceEdit.replace(file.document.uri, new vscode.Range(start, end), file.edit.insertion);
     }
     if (pending !== patch) return;
     if (!await vscode.workspace.applyEdit(workspaceEdit)) throw new Error('The editor could not apply the patch.');

@@ -16,9 +16,9 @@ function commentEdit(text, language, lineEnd, body) {
   const comment = `// ${body}${lineEnd}`;
   const offset = text.startsWith('#!') ? text.indexOf('\n') + 1 : 0;
   if (text.startsWith('#!') && !offset) {
-    return { offset: text.length, insertion: lineEnd + comment };
+    return { offset: text.length, deleteLength: 0, insertion: lineEnd + comment };
   }
-  return { offset, insertion: comment };
+  return { offset, deleteLength: 0, insertion: comment };
 }
 
 function proposePatch(text, language, request, lineEnd) {

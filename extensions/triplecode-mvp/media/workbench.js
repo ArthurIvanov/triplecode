@@ -141,7 +141,7 @@ if (document.body.dataset.screen === 'welcome') {
       const name = document.createElement('span');
       name.textContent = file.name;
       const additions = document.createElement('span');
-      additions.textContent = `+${file.lines.length}`;
+      additions.textContent = `+${file.lines.length}${file.removed ? ` -${file.removed}` : ''}`;
       head.append(name, additions);
       const pre = document.createElement('pre');
       pre.className = 'patch-lines';
