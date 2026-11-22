@@ -426,13 +426,13 @@ function getDesignSystemHtml(webview, context) {
       <div class="component-preview">
         <main class="welcome" style="width: 362px; margin: 0;">
           <img class="logo" src="${uri('imgLogo1.png')}" alt="TripleCode">
-          <div class="welcome-meta"><span>Free</span><button class="link">Settings</button></div>
-          <div class="project-actions">
-            <button><img src="${uri('imgFolder.svg')}" alt="">Open project</button>
-            <button><img src="${uri('imgFolderGit2.svg')}" alt="">Clone repo</button>
-            <button><img src="${uri('imgFolderGit2.svg')}" alt="">Import from VS Code</button>
-            <button disabled><img src="${uri('imgSquareTerminal.svg')}" alt="">Connect via SSH</button>
+          <div class="welcome-meta"><span class="tag">Free</span><button class="link">Settings</button></div>
+          <div class="card-grid">
+            <button class="card"><img src="${uri('imgFolder.svg')}" alt=""><span>Open project</span></button>
+            <button class="card"><img src="${uri('imgFolderGit2.svg')}" alt=""><span>Clone repo</span></button>
+            <button class="card"><img src="${uri('imgSquareTerminal.svg')}" alt=""><span>Connect via SSH</span></button>
           </div>
+          <div class="stack"><div class="stack-center"><p>Projects you open will appear here.</p></div></div>
         </main>
       </div>
     </div>
