@@ -482,8 +482,8 @@ function getDesignSystemHtml(webview, context) {
               </div>
               <button type="button" class="pill model-pill" id="model-pill" data-action="select-model" title="Select model">Model</button>
               <span id="target" class="muted">src/index.ts</span>
-              <span class="context-icon"><img src="${uri('figma-assets/imgShape.svg')}" alt=""></span>
-              <button type="button" class="icon-button attachment" disabled><img src="${uri('imgPaperclip.svg')}" alt=""></button>
+              <button type="button" class="icon-button context-btn" disabled aria-label="Attach context"><img src="${uri('figma-assets/imgShape.svg')}" alt=""></button>
+              <button type="button" class="icon-button attachment" disabled aria-label="Attach context"><img src="${uri('imgPaperclip.svg')}" alt=""></button>
               <button type="button" class="send" disabled><img src="${uri('imgPlay.svg')}" alt=""></button>
             </footer>
           </form>
@@ -871,7 +871,14 @@ function activate(context) {
     void context.workspaceState.update('triplecode.chats', {
       nextId: nextChatId,
       current: currentChat.id,
-      chats: chats.map(chat => ({ id: chat.id, draft: chat.draft, mode: chat.mode, replies: chat.replies.slice(-50), plan: chat.plan || null }))
+      chats: chats.map(chat => ({
+        id: chat.id, draft: chat.draft, mode: chat.mode, replies: chat.replies.slice(-50),
+        plan: chat.plan || null,
+        attachments: (chat.attachments || []).slice(0, 5).map(attachment =>
+          attachment.kind === 'selection'
+            ? { kind: 'selection', label: String(attachment.label || 'selection').slice(0, 120), text: String(attachment.text || '').slice(0, 4000) }
+            : { kind: 'file', path: String(attachment.path || '') })
+      }))
     });
   }
 
@@ -887,7 +894,10 @@ function activate(context) {
         replies: Array.isArray(chat.replies) ? chat.replies.filter(reply => typeof reply === 'string').slice(-50) : [],
         plan: chat.plan && typeof chat.plan.task === 'string' && typeof chat.plan.plan === 'string'
           ? { task: chat.plan.task.slice(0, 500), plan: chat.plan.plan.slice(0, 8000) }
-          : null
+          : null,
+        attachments: Array.isArray(chat.attachments)
+          ? chat.attachments.filter(a => a && (a.kind === 'file' ? typeof a.path === 'string' : a.kind === 'selection' && typeof a.text === 'string')).slice(0, 5)
+          : []
       }));
     if (!chats.length) return;
     nextChatId = Math.max(nextChatId, saved.nextId || 0, ...chats.map(chat => chat.id));
@@ -1032,6 +1042,17 @@ function activate(context) {
             await selectModel();
             agent?.postMessage({ type: 'chats', ...chatState() });
             break;
+          case 'attach-menu':
+            await showAttachMenu();
+            agent?.postMessage({ type: 'chats', ...chatState() });
+            break;
+          case 'detach-context':
+            if (currentChat.attachments && Number.isInteger(message.index)) {
+              currentChat.attachments.splice(message.index, 1);
+              persistChats();
+              agent?.postMessage({ type: 'chats', ...chatState() });
+            }
+            break;
           case 'review':
             if (pending) await showDiff(pending);
             break;
@@ -1142,8 +1163,24 @@ function activate(context) {
     return new Error(`The model response could not be parsed. Try rephrasing the request.\n\nModel said:\n${preview}`);
   }
 
-  async function aiSpecs(request) {
-    const documents = aiContextDocuments();
+  function attachmentSuffix(attachments) {
+    if (!attachments.length) return '';
+    const parts = attachments.map(attachment => attachment.kind === 'selection'
+      ? `- selection from ${attachment.label}:\n\`\`\`\n${attachment.text}\n\`\`\``
+      : `- file: ${attachment.path}`);
+    return `\n\nAttached context:\n${parts.join('\n')}`;
+  }
+
+  async function aiSpecs(request, extraDocuments = []) {
+    const documents = [];
+    const seenDocs = new Set();
+    for (const document of [...extraDocuments, ...aiContextDocuments()]) {
+      if (document && !document.isClosed && !seenDocs.has(document.uri.toString())) {
+        seenDocs.add(document.uri.toString());
+        documents.push(document);
+      }
+    }
+    documents.splice(6);
     if (!documents.length) throw new Error('Open a source file first.');
     const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
     const options = { numPredict: 8192, numCtx: 16384 };
@@ -1177,6 +1214,7 @@ function activate(context) {
 
     if (parsed.noChange) {
       currentChat.draft = '';
+      currentChat.attachments = [];
       pushReply(`The model did not propose a change.${parsed.reason ? ` ${parsed.reason}` : ''}`);
       return null;
     }
@@ -1203,6 +1241,7 @@ function activate(context) {
     }
     if (!specs.length) {
       currentChat.draft = '';
+      currentChat.attachments = [];
       pushReply('The model did not propose a change.');
       return null;
     }
@@ -1263,19 +1302,23 @@ function activate(context) {
       throw new Error('Enter a request of up to 500 characters.');
     }
     const trimmed = request.trim();
+    const attachments = currentChat.attachments || [];
     currentChat.plan = null;
     const useAi = await aiAvailable();
+    const aiRequest = trimmed + attachmentSuffix(attachments);
     if (mode === 'ask') {
       currentChat.draft = '';
+      currentChat.attachments = [];
       pushReply(useAi
-        ? await aiOrFallback(() => aiChat(provider.askMessages(activeDocument, trimmed)), () => answerAsk(activeDocument, trimmed))
+        ? await aiOrFallback(() => aiChat(provider.askMessages(activeDocument, aiRequest)), () => answerAsk(activeDocument, trimmed))
         : answerAsk(activeDocument, trimmed));
       return;
     }
     if (mode === 'plan') {
       currentChat.draft = '';
+      currentChat.attachments = [];
       const planText = useAi
-        ? await aiOrFallback(() => aiChat(provider.planMessages(activeDocument, trimmed)), () => planRequest(trimmed))
+        ? await aiOrFallback(() => aiChat(provider.planMessages(activeDocument, aiRequest)), () => planRequest(trimmed))
         : planRequest(trimmed);
       if (useAi) currentChat.plan = { task: trimmed, plan: planText.slice(0, 8000) };
       pushReply(planText);
@@ -1285,7 +1328,17 @@ function activate(context) {
     const id = randomUUID();
     let specs;
     if (useAi) {
-      const result = await aiSpecs(trimmed);
+      const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+      const extraDocuments = [];
+      for (const attachment of attachments.filter(a => a.kind === 'file')) {
+        try {
+          extraDocuments.push(await openModelFile(attachment.path, root));
+        } catch { /* skip attachments that are not accessible files */ }
+      }
+      const selectionSuffix = attachments.filter(a => a.kind === 'selection')
+        .map(a => `\`\`\`\n${a.text}\n\`\`\``).join('\n');
+      const agentRequest = trimmed + (selectionSuffix ? `\n\nAttached selection:\n${selectionSuffix}` : '');
+      const result = await aiSpecs(agentRequest, extraDocuments);
       if (!result) return;
       specs = result;
     } else {
@@ -1327,6 +1380,7 @@ function activate(context) {
       return { document, before, edit: spec.edit, original, modified, column: vscode.window.activeTextEditor?.viewColumn };
     });
     currentChat.draft = '';
+    currentChat.attachments = [];
     pending = { request: trimmed, files, checks: [] };
     persistChats();
     recordHistory('propose', `${trimmed} — ${files.length} file${files.length === 1 ? '' : 's'}`);
@@ -1446,10 +1500,14 @@ function activate(context) {
 
   function chatState() {
     return {
-      chats: chats.map(chat => ({ id: chat.id, mode: chat.mode, replies: chat.replies, plan: chat.plan || null })),
+      chats: chats.map(chat => ({
+        id: chat.id, mode: chat.mode, replies: chat.replies,
+        plan: chat.plan || null, attachments: chat.attachments || []
+      })),
       selected: currentChat.id,
       draft: currentChat.draft,
       plan: currentChat.plan || null,
+      attachments: currentChat.attachments || [],
       model: currentModelLabel()
     };
   }
@@ -1531,6 +1589,65 @@ function activate(context) {
       : picked;
     if (model?.trim()) {
       await config.update('ai.model', model.trim(), vscode.ConfigurationTarget.Global);
+    }
+  }
+
+  async function showAttachMenu() {
+    if (pending) {
+      await vscode.window.showInformationMessage('Apply or discard the current patch first.');
+      return;
+    }
+    const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || '';
+    const items = [];
+    if (activeDocument && !activeDocument.isClosed && activeDocument.uri.scheme === 'file') {
+      items.push({
+        label: '$(file) Active file', description: fileName(activeDocument),
+        attachment: { kind: 'file', path: activeDocument.uri.fsPath }
+      });
+    }
+    const editor = vscode.window.activeTextEditor;
+    if (editor && !editor.selection.isEmpty) {
+      const text = editor.document.getText(editor.selection).slice(0, 4000);
+      items.push({
+        label: '$(selection) Current selection',
+        description: `${fileName(editor.document)} · lines ${editor.selection.start.line + 1}–${editor.selection.end.line + 1}`,
+        attachment: {
+          kind: 'selection',
+          label: `selection · ${fileName(editor.document)}`,
+          text
+        }
+      });
+    }
+    try {
+      const files = await vscode.workspace.findFiles(
+        '**/*.{ts,tsx,js,jsx,mjs,cjs}',
+        ['**/node_modules/**', '**/.git/**', '**/dist/**', '**/out/**'],
+        50
+      );
+      for (const file of files) {
+        items.push({
+          label: '$(file) ' + (root && file.fsPath.startsWith(root) ? file.fsPath.slice(root.length + 1) : file.fsPath),
+          description: file.fsPath,
+          attachment: { kind: 'file', path: file.fsPath }
+        });
+      }
+    } catch { /* workspace search unavailable */ }
+    if (!items.length) {
+      await vscode.window.showInformationMessage('Nothing to attach — open a source file or workspace folder first.');
+      return;
+    }
+    const picked = await vscode.window.showQuickPick(items, {
+      placeHolder: `Attach context to the next request (${currentChat.attachments?.length || 0}/5)`
+    });
+    if (!picked?.attachment) return;
+    currentChat.attachments = currentChat.attachments || [];
+    const attachment = picked.attachment;
+    const exists = currentChat.attachments.some(existing =>
+      existing.kind === attachment.kind &&
+      (attachment.kind === 'file' ? existing.path === attachment.path : existing.text === attachment.text));
+    if (!exists && currentChat.attachments.length < 5) {
+      currentChat.attachments.push(attachment);
+      persistChats();
     }
   }
 
@@ -1663,6 +1780,7 @@ function render(webview, base, screen, initial) {
           </div>
         </div>
       </div>
+      <div id="attachments" class="attachments" hidden></div>
       <label class="sr-only" for="prompt">Agent task</label>
       <textarea id="prompt" maxlength="500" aria-describedby="target" placeholder="Press / for skills, @ for context" required></textarea>
       <footer class="chat-actions">
@@ -1676,8 +1794,8 @@ function render(webview, base, screen, initial) {
         </div>
         <button type="button" class="pill model-pill" id="model-pill" data-action="select-model" title="Select model">Model</button>
         <span id="target" class="muted"></span>
-        <span class="context-icon"><img src="${uri('figma-assets/imgShape.svg')}" alt=""></span>
-        <button type="button" class="icon-button attachment" disabled aria-label="Attach context" title="Context attachments are unavailable"><img src="${uri('imgPaperclip.svg')}" alt=""></button>
+        <button type="button" class="icon-button context-btn" data-action="attach-menu" aria-label="Attach context" title="Attach context"><img src="${uri('figma-assets/imgShape.svg')}" alt=""></button>
+        <button type="button" class="icon-button attachment" data-action="attach-menu" aria-label="Attach context" title="Attach context"><img src="${uri('imgPaperclip.svg')}" alt=""></button>
         <button aria-label="Send" title="Send" type="submit" class="send"><img src="${uri('imgPlay.svg')}" alt=""></button>
       </footer>
     </form>

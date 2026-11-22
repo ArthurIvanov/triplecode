@@ -393,15 +393,63 @@ body[data-screen="agent"] { height: 100vh; overflow: hidden; }
   font-size: 11px;
   text-align: right;
 }
-.agent .context-icon {
+.agent .context-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 20px;
   height: 20px;
   flex: 0 0 auto;
+  padding: 2px;
+  border: 0;
+  border-radius: var(--triplecode-s, 4px);
+  background: transparent;
+  cursor: pointer;
 }
-.agent .context-icon img { width: 16px; height: 16px; }
+.agent .context-btn:hover, .agent .context-btn:focus-visible {
+  background: var(--vscode-toolbar-hoverBackground, rgba(128, 128, 128, 0.2));
+}
+.agent .context-btn img, .agent .attachment img { width: 16px; height: 16px; display: block; }
+.agent .attachment { opacity: 0.6; }
+.attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 4px 2px;
+}
+.attachment-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  padding: 2px 4px 2px 8px;
+  border-radius: 999px;
+  background: var(--vscode-badge-background, rgba(128, 128, 128, 0.25));
+  color: var(--vscode-badge-foreground, inherit);
+  font-size: 11px;
+  line-height: 1.4;
+}
+.attachment-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 180px;
+}
+.chip-remove {
+  display: inline-grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: inherit;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+}
+.chip-remove:hover { background: rgba(128, 128, 128, 0.35); }
 .agent .send, .agent .review-btn {
   border: 0;
   background: var(--vscode-button-secondaryForeground);

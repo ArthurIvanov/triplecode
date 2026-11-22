@@ -55,6 +55,7 @@ if (document.body.dataset.screen === 'welcome') {
   const prompt = document.querySelector('#prompt');
   const planBar = document.querySelector('#plan-bar');
   const planLabel = document.querySelector('#plan-label');
+  const attachmentsBox = document.querySelector('#attachments');
   const modelPill = document.querySelector('#model-pill');
   const send = request.querySelector('button[type="submit"]');
   const chats = document.querySelector('#chats');
@@ -98,6 +99,27 @@ if (document.body.dataset.screen === 'welcome') {
       planLabel.textContent = task.length > 60 ? `${task.slice(0, 60)}…` : task;
       planLabel.title = task;
     }
+    const attachments = selected?.attachments || [];
+    attachmentsBox.hidden = !attachments.length;
+    attachmentsBox.replaceChildren(...attachments.map((attachment, index) => {
+      const chip = document.createElement('span');
+      chip.className = 'attachment-chip';
+      const label = document.createElement('span');
+      label.className = 'attachment-label';
+      label.textContent = attachment.kind === 'selection'
+        ? attachment.label || 'selection'
+        : (attachment.path || '').split('/').pop() || attachment.path;
+      label.title = attachment.kind === 'selection' ? attachment.text : attachment.path;
+      const remove = document.createElement('button');
+      remove.type = 'button';
+      remove.className = 'chip-remove';
+      remove.dataset.action = 'detach-context';
+      remove.dataset.index = index;
+      remove.setAttribute('aria-label', 'Remove attachment');
+      remove.textContent = '×';
+      chip.append(label, remove);
+      return chip;
+    }));
     if (modelPill && state.model) modelPill.textContent = state.model;
     const tabs = state.chats.map(chat => {
       const tab = document.createElement('div');
