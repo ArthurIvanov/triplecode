@@ -480,7 +480,7 @@ function getDesignSystemHtml(webview, context) {
                   <button type="button" role="option" aria-selected="true">Agent</button>
                 </div>
               </div>
-              <span class="pill">Model</span>
+              <button type="button" class="pill model-pill" id="model-pill" data-action="select-model" title="Select model">Model</button>
               <span id="target" class="muted">src/index.ts</span>
               <span class="context-icon"><img src="${uri('figma-assets/imgShape.svg')}" alt=""></span>
               <button type="button" class="icon-button attachment" disabled><img src="${uri('imgPaperclip.svg')}" alt=""></button>
@@ -1028,6 +1028,10 @@ function activate(context) {
               agent?.postMessage({ type: 'chats', ...chatState() });
             }
             break;
+          case 'select-model':
+            await selectModel();
+            agent?.postMessage({ type: 'chats', ...chatState() });
+            break;
           case 'review':
             if (pending) await showDiff(pending);
             break;
@@ -1430,12 +1434,23 @@ function activate(context) {
     agent?.postMessage({ type: 'chats', ...chatState(), focusPrompt: true });
   }
 
+  function currentModelLabel() {
+    const config = vscode.workspace.getConfiguration('triplecode');
+    const providerMode = config.get('ai.provider', 'auto');
+    if (providerMode === 'openrouter') {
+      return config.get('ai.openrouterModel', 'openai/gpt-4o-mini').split('/').pop();
+    }
+    if (providerMode === 'stub') return 'Stub';
+    return config.get('ai.model', 'qwen2.5-coder:7b');
+  }
+
   function chatState() {
     return {
       chats: chats.map(chat => ({ id: chat.id, mode: chat.mode, replies: chat.replies, plan: chat.plan || null })),
       selected: currentChat.id,
       draft: currentChat.draft,
-      plan: currentChat.plan || null
+      plan: currentChat.plan || null,
+      model: currentModelLabel()
     };
   }
 
@@ -1659,7 +1674,7 @@ function render(webview, base, screen, initial) {
             <button type="button" role="option" data-mode="agent" aria-selected="true">Agent</button>
           </div>
         </div>
-        <span class="pill">Model</span>
+        <button type="button" class="pill model-pill" id="model-pill" data-action="select-model" title="Select model">Model</button>
         <span id="target" class="muted"></span>
         <span class="context-icon"><img src="${uri('figma-assets/imgShape.svg')}" alt=""></span>
         <button type="button" class="icon-button attachment" disabled aria-label="Attach context" title="Context attachments are unavailable"><img src="${uri('imgPaperclip.svg')}" alt=""></button>

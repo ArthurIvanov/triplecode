@@ -55,6 +55,7 @@ if (document.body.dataset.screen === 'welcome') {
   const prompt = document.querySelector('#prompt');
   const planBar = document.querySelector('#plan-bar');
   const planLabel = document.querySelector('#plan-label');
+  const modelPill = document.querySelector('#model-pill');
   const send = request.querySelector('button[type="submit"]');
   const chats = document.querySelector('#chats');
   const modeButton = document.querySelector('#mode-button');
@@ -97,6 +98,7 @@ if (document.body.dataset.screen === 'welcome') {
       planLabel.textContent = task.length > 60 ? `${task.slice(0, 60)}…` : task;
       planLabel.title = task;
     }
+    if (modelPill && state.model) modelPill.textContent = state.model;
     const tabs = state.chats.map(chat => {
       const tab = document.createElement('div');
       tab.className = 'chat-tab';

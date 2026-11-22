@@ -327,6 +327,15 @@ body[data-screen="agent"] { height: 100vh; overflow: hidden; }
   color: var(--vscode-button-secondaryForeground);
   white-space: nowrap;
 }
+.agent footer .pill.model-pill {
+  border: 0;
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+}
+.agent footer .pill.model-pill:hover {
+  background: var(--vscode-list-hoverBackground, rgba(255, 255, 255, .08));
+}
 .agent footer .pill.mode {
   border: 0;
   background: transparent;
