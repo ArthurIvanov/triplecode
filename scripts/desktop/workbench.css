@@ -39,21 +39,34 @@
   box-shadow: none;
 }
 
-.monaco-workbench .titlebar-right .action-label:is([aria-label="Agents"], [aria-label^="Agents ("]) {
+/* Keep the ActionButton box independent of Workbench's titlebar icon padding. */
+.monaco-workbench .part.titlebar .titlebar-right .monaco-action-bar:not(.monaco-menu .monaco-action-bar)
+.action-item > .action-label.codicon {
+  box-sizing: border-box;
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  width: auto;
-  min-width: 64px;
-  padding: 0 8px;
+  justify-content: center;
+  inline-size: var(--action-height);
+  block-size: var(--action-height);
+  padding: 0 var(--action-icon-padding);
+  border-radius: var(--triplecode-xs, 2px);
+}
+
+.monaco-workbench .part.titlebar .titlebar-right .monaco-action-bar:not(.monaco-menu .monaco-action-bar)
+.action-item > .action-label[aria-label^="Agents window"] {
+  inline-size: auto;
+  padding-inline: var(--triplecode-padding-sm, 6px);
+  border-radius: var(--triplecode-full, 999px);
   white-space: nowrap;
 }
 
-.monaco-workbench .titlebar-right .action-label:is([aria-label="Agents"], [aria-label^="Agents ("])::after {
-  content: "Agents";
-  font-size: 13px;
-  font-weight: 500;
-  line-height: 20px;
+.monaco-workbench .titlebar-right .action-label[aria-label^="Agents window"]::before {
+  content: none;
+}
+
+.monaco-workbench .titlebar-right .action-label[aria-label^="Agents window"]::after {
+  content: "Agents window";
+  font: 500 14px/20px var(--triplecode-theme-font-family);
 }
 
 .monaco-workbench .titlebar-right .action-item:has(> .action-label:is([aria-label^="Back"], [aria-label^="Forward"])) {
@@ -62,18 +75,18 @@
   z-index: 1;
 }
 .monaco-workbench .titlebar-right .action-item:has(> .action-label[aria-label^="Back"]) { left: 71px; }
-.monaco-workbench .titlebar-right .action-item:has(> .action-label[aria-label^="Forward"]) { left: 94px; }
-.monaco-workbench .titlebar-right .action-label[aria-label^="Back"] { --triplecode-glyph: url("./triplecode-icons/imgChevronLeft.svg"); }
-.monaco-workbench .titlebar-right .action-label[aria-label^="Forward"] { --triplecode-glyph: url("./triplecode-icons/imgChevronRight.svg"); }
+.monaco-workbench .titlebar-right .action-item:has(> .action-label[aria-label^="Forward"]) { left: 95px; }
+.monaco-workbench .titlebar-right .action-label[aria-label^="Back"] { --triplecode-glyph: url("./triplecode-icons/top-bar/imgChevronLeft.svg"); }
+.monaco-workbench .titlebar-right .action-label[aria-label^="Forward"] { --triplecode-glyph: url("./triplecode-icons/top-bar/imgChevronRight.svg"); }
 
-.monaco-workbench .titlebar-right .codicon-panel-left,
-.monaco-workbench .titlebar-right .codicon-panel-left-off-layout-icon { --triplecode-glyph: url("./triplecode-icons/imgPanelLeft.svg"); }
-.monaco-workbench .titlebar-right .codicon-panel-layout-icon,
-.monaco-workbench .titlebar-right .codicon-panel-off-layout-icon { --triplecode-glyph: url("./triplecode-icons/imgPanelBottomDashed.svg"); }
-.monaco-workbench .titlebar-right .codicon-auxiliarybar-right-off-layout-icon,
-.monaco-workbench .titlebar-right .codicon-auxiliarybar-right-layout-icon { --triplecode-glyph: url("./triplecode-icons/imgMessageSquareDashed.svg"); }
-.monaco-workbench .titlebar-right .action-label[aria-label^="Settings"] { --triplecode-glyph: url("./triplecode-icons/imgCog.svg"); }
-.monaco-workbench .titlebar-right .action-label:is([aria-label="Agents"], [aria-label^="Agents ("]) { --triplecode-glyph: url("./triplecode-icons/imgListTree.svg"); }
+/* Labels include the keybinding and remain stable when Workbench swaps toggle glyphs. */
+.monaco-workbench .titlebar-right .action-label[aria-label^="Toggle Primary Side Bar"] { --triplecode-glyph: url("./triplecode-icons/top-bar/imgPanelLeft.svg"); }
+.monaco-workbench .titlebar-right .action-label[aria-label^="Toggle Panel"] { --triplecode-glyph: url("./triplecode-icons/imgPanelBottomDashed.svg"); }
+.monaco-workbench .titlebar-right .action-label[aria-label^="Toggle Panel"]:is(.checked, [aria-pressed="true"]) { --triplecode-glyph: url("./triplecode-icons/top-bar/imgPanelBottom.svg"); }
+.monaco-workbench .titlebar-right .action-label[aria-label^="Toggle Secondary Side Bar"] { --triplecode-glyph: url("./triplecode-icons/imgMessageSquareDashed.svg"); }
+.monaco-workbench .titlebar-right .action-label[aria-label^="Toggle Secondary Side Bar"]:is(.checked, [aria-pressed="true"]) { --triplecode-glyph: url("./triplecode-icons/top-bar/imgMessageSquare.svg"); }
+.monaco-workbench .titlebar-right .action-label[aria-label^="Settings"] { --triplecode-glyph: url("./triplecode-icons/top-bar/imgCog.svg"); }
+.monaco-workbench .titlebar-right .action-label[aria-label^="New chat"] { --triplecode-glyph: url("./triplecode-icons/top-bar/imgPlus.svg"); }
 
 .monaco-workbench .part.activitybar .codicon-explorer-view-icon { --activity-bar-glyph: url("./triplecode-activity-bar/imgFiles.svg"); }
 .monaco-workbench .part.activitybar .codicon-search-view-icon { --activity-bar-glyph: url("./triplecode-activity-bar/imgSearch.svg"); }
@@ -91,7 +104,7 @@
 .monaco-workbench .part.statusbar .codicon-warning { --triplecode-glyph: url("./triplecode-icons/imgTriangleAlert.svg"); }
 
 .monaco-workbench :is(.titlebar-right, .part.statusbar, .part.editor .editor-actions, .part.auxiliarybar .title-actions)
-.codicon:is([aria-label^="Back"], [aria-label^="Forward"], [aria-label^="Settings"], :is([aria-label="Agents"], [aria-label^="Agents ("]), .codicon-panel-left, .codicon-panel-left-off-layout-icon, .codicon-panel-layout-icon, .codicon-panel-off-layout-icon, .codicon-auxiliarybar-right-off-layout-icon, .codicon-auxiliarybar-right-layout-icon, .codicon-split-horizontal, .codicon-toolbar-more, .codicon-remote, .codicon-git-branch, .codicon-sync, .codicon-error, .codicon-warning)::before {
+.codicon:is([aria-label^="Back"], [aria-label^="Forward"], [aria-label^="Settings"], [aria-label^="New chat"], [aria-label^="Toggle Primary Side Bar"], [aria-label^="Toggle Panel"], [aria-label^="Toggle Secondary Side Bar"], .codicon-split-horizontal, .codicon-toolbar-more, .codicon-remote, .codicon-git-branch, .codicon-sync, .codicon-error, .codicon-warning)::before {
   content: "";
   display: inline-block;
   flex-shrink: 0;

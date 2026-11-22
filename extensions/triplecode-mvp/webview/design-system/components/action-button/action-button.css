@@ -1,9 +1,6 @@
 /* Triplecode-app · ActionButton · 138:6194 */
 :is(.tc-action-button, :where(.monaco-workbench :is(
-  .titlebar-right .action-label:is([aria-label^="Back"], [aria-label^="Forward"], [aria-label^="Settings"], [aria-label="Agents"], [aria-label^="Agents ("],
-    [aria-label^="Toggle Primary Side Bar"], [aria-label^="Toggle Panel"], [aria-label^="Toggle Secondary Side Bar"],
-    .codicon-panel-left, .codicon-panel-left-off-layout-icon, .codicon-panel-layout-icon, .codicon-panel-off-layout-icon,
-    .codicon-auxiliarybar-right-off-layout-icon, .codicon-auxiliarybar-right-layout-icon),
+  .titlebar-right .monaco-action-bar:not(.monaco-menu .monaco-action-bar) .action-item > .action-label,
   .part.activitybar .monaco-action-bar:not(.monaco-menu .monaco-action-bar) .action-item > .action-label.codicon,
   .part.editor .editor-actions .monaco-action-bar:not(.monaco-menu .monaco-action-bar) .action-item .action-label
 ))) {
@@ -45,12 +42,16 @@
     --action-ring: 0 0 0 2px var(--action-focus);
   }
 
-  &:where([data-variant="filled"], .titlebar-right :is([aria-label="Agents"], [aria-label^="Agents ("]):is(.checked, [aria-pressed="true"], [aria-checked="true"], .checked > .action-label)) {
+  &:where(.titlebar-right .action-label.checked:not(:hover, :active, :focus-visible)) {
+    --action-bg: transparent;
+  }
+
+  &:where([data-variant="filled"], .titlebar-right .action-label[aria-label^="Agents window"]) {
     --action-bg: var(--action-fg);
     --action-color: var(--action-secondary);
   }
 
-  &[data-variant="filled"]:where([data-state="hover"], :not([data-state]):hover:not(:active, :focus-visible, [aria-pressed="true"])) {
+  &:is([data-variant="filled"], .titlebar-right .action-label[aria-label^="Agents window"]):where([data-state="hover"], :not([data-state]):hover:not(:disabled, .disabled, [aria-disabled="true"], :active, :focus-visible, [aria-pressed="true"])) {
     --action-color: var(--action-hover);
   }
 
@@ -75,7 +76,7 @@
       min-block-size: var(--action-height);
     }
 
-    &:where(.titlebar-right :is([aria-label="Agents"], [aria-label^="Agents ("])) {
+    &:where(.titlebar-right [aria-label^="Agents window"]) {
       border-radius: var(--triplecode-full, 999px);
     }
   }

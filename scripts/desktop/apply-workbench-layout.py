@@ -23,7 +23,7 @@ title_actions = (
     ("workbench.action.navigateBack", "Back", "arrowLeft", "D.has(\"canNavigateBack\")", None),
     ("workbench.action.navigateForward", "Forward", "arrowRight", "D.has(\"canNavigateForward\")", None),
     ("triplecode.newChat", "New chat", "plus", None, 'D.has("triplecode.agentVisible")'),
-    ("triplecode.focusAgent", "Agents", "commentDiscussion", None, 'D.notEquals("workbenchState","empty")'),
+    ("triplecode.focusAgent", "Agents window", "commentDiscussion", None, 'D.notEquals("workbenchState","empty")'),
     ("workbench.action.openSettings", "Settings", "gear", None, 'D.notEquals("workbenchState","empty")'),
 )
 title_items = ""
