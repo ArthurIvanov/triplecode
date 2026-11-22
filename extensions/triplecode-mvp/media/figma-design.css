@@ -1,0 +1,333 @@
+/* TripleCode Figma Design System — synced from Figma tokens */
+
+/* Import tokens */
+@import url("./tokens.css");
+
+/* Base reset for webview */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--triplecode-font-family-body);
+  font-size: var(--triplecode-font-size-medium);
+  line-height: var(--triplecode-line-height-medium);
+  color: var(--triplecode-foreground);
+  background: var(--triplecode-editor-background);
+}
+
+/* Top Bar */
+.top-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 32px;
+  padding: 5px 10px;
+  background: var(--triplecode-config-background);
+  border-bottom: 1px solid var(--triplecode-titlebar-border);
+}
+
+.top-bar-left {
+  display: flex;
+  gap: var(--triplecode-gap-related);
+  align-items: center;
+}
+
+.top-bar-center {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  gap: var(--triplecode-gap-related);
+  align-items: center;
+}
+
+.top-bar-right {
+  display: flex;
+  gap: var(--triplecode-gap-related);
+  align-items: center;
+  width: 85px;
+}
+
+/* Window Buttons (macOS) */
+.window-buttons {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.window-buttons img {
+  width: 12px;
+  height: 12px;
+}
+
+/* Action Buttons */
+.action-button {
+  display: flex;
+  gap: var(--triplecode-gap-dependent);
+  align-items: center;
+  justify-content: center;
+  height: 20px;
+  padding: 0 var(--triplecode-padding-xs);
+  border-radius: var(--triplecode-xs);
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  color: var(--triplecode-foreground);
+}
+
+.action-button:hover {
+  background: var(--triplecode-list-hoverBackground, rgba(255, 255, 255, 0.1));
+}
+
+.action-button img {
+  width: 16px;
+  height: 16px;
+}
+
+.action-button-text {
+  font-family: var(--triplecode-font-family-text);
+  font-weight: var(--triplecode-font-weight-medium);
+  font-size: var(--triplecode-font-size-medium);
+  line-height: var(--triplecode-line-height-medium);
+  color: var(--triplecode-foreground);
+}
+
+/* Welcome Content */
+.welcome-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: var(--triplecode-editor-background);
+  overflow: hidden;
+}
+
+.welcome-container {
+  display: flex;
+  flex-direction: column;
+  gap: var(--triplecode-gap-section);
+  align-items: center;
+  width: 362px;
+}
+
+.welcome-logo {
+  width: 230px;
+  height: 160px;
+  object-fit: cover;
+}
+
+/* Tag Component */
+.tag {
+  display: inline-flex;
+  gap: var(--triplecode-gap-dependent);
+  align-items: center;
+  padding: var(--triplecode-padding-s) var(--triplecode-padding-sm);
+  background: var(--triplecode-chat-request-background);
+  border: 1px solid var(--triplecode-transparent);
+  border-radius: var(--triplecode-s);
+  overflow: hidden;
+}
+
+.tag-text {
+  font-family: var(--triplecode-font-family-body);
+  font-weight: var(--triplecode-font-weight-medium);
+  font-size: var(--triplecode-font-size-small);
+  line-height: var(--triplecode-line-height-small);
+  color: var(--triplecode-config-text-4);
+}
+
+/* Link Component */
+.link {
+  font-family: var(--triplecode-font-family-text);
+  font-weight: var(--triplecode-font-weight-medium);
+  font-size: var(--triplecode-font-size-medium);
+  line-height: var(--triplecode-line-height-medium);
+  color: var(--triplecode-text-link-foreground);
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.link:hover {
+  text-decoration: underline;
+}
+
+/* Card Grid */
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+  width: 100%;
+  height: 148px;
+}
+
+.card {
+  background: var(--triplecode-editor-widget-background);
+  border: 1px solid var(--triplecode-editor-widget-border);
+  border-radius: var(--triplecode-sm);
+  padding: var(--triplecode-padding-m);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+
+.card:hover {
+  border-color: var(--triplecode-text-link-foreground);
+}
+
+.card-content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--triplecode-gap-related);
+  align-items: flex-start;
+  overflow: hidden;
+  width: 100%;
+}
+
+.card-icon {
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+}
+
+.card-text {
+  font-family: var(--triplecode-font-family-text);
+  font-weight: var(--triplecode-font-weight-medium);
+  font-size: var(--triplecode-font-size-medium);
+  line-height: var(--triplecode-line-height-medium);
+  color: var(--triplecode-button-secondary-foreground);
+  white-space: nowrap;
+}
+
+/* Stack Components */
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--triplecode-gap-grouped);
+  align-items: flex-start;
+  width: 362px;
+}
+
+.stack-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+}
+
+.stack-center p {
+  font-family: var(--triplecode-font-family-text);
+  font-weight: var(--triplecode-font-weight-regular);
+  font-size: var(--triplecode-font-size-medium);
+  line-height: var(--triplecode-line-height-medium);
+  color: var(--triplecode-description-foreground);
+  text-align: center;
+}
+
+/* Bottom Bar */
+.bottom-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 32px;
+  padding: 0 var(--triplecode-padding-ml);
+  background: var(--triplecode-editor-background);
+  border-top: 1px solid var(--triplecode-titlebar-border);
+}
+
+.bottom-bar-left {
+  display: flex;
+  align-items: center;
+}
+
+.bottom-bar-right {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.icon-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 24px;
+  padding: var(--triplecode-padding-s);
+  border-radius: var(--triplecode-s);
+  cursor: pointer;
+  border: none;
+  background: transparent;
+}
+
+.icon-button:hover {
+  background: var(--triplecode-list-hoverBackground, rgba(255, 255, 255, 0.1));
+}
+
+.icon-button img {
+  width: 16px;
+  height: 16px;
+}
+
+.button {
+  display: flex;
+  gap: var(--triplecode-gap-dependent);
+  align-items: center;
+  justify-content: center;
+  min-height: 24px;
+  padding: 0 var(--triplecode-padding-m);
+  border-radius: var(--triplecode-s);
+  cursor: pointer;
+  border: none;
+  background: transparent;
+}
+
+.button:hover {
+  background: var(--triplecode-list-hoverBackground, rgba(255, 255, 255, 0.1));
+}
+
+.button img {
+  width: 16px;
+  height: 16px;
+}
+
+.button-text {
+  font-family: var(--triplecode-font-family-text);
+  font-weight: var(--triplecode-font-weight-medium);
+  font-size: var(--triplecode-font-size-xsmall);
+  line-height: var(--triplecode-line-height-xsmall);
+  color: var(--triplecode-button-secondary-foreground);
+  text-align: center;
+}
+
+/* Status Bar */
+.status-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 32px;
+  padding: 0 var(--triplecode-padding-ml);
+  background: var(--triplecode-config-background);
+  border-top: 1px solid var(--triplecode-titlebar-border);
+}
+
+.status-bar-left,
+.status-bar-right {
+  display: flex;
+  align-items: center;
+  gap: var(--triplecode-gap-dependent);
+}
+
+.status-text {
+  font-family: var(--triplecode-font-family-text);
+  font-weight: var(--triplecode-font-weight-medium);
+  font-size: var(--triplecode-font-size-xsmall);
+  line-height: var(--triplecode-line-height-xsmall);
+  color: var(--triplecode-editor-foreground);
+  text-align: center;
+}

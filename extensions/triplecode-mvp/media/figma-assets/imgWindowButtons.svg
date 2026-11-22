@@ -1,0 +1,7 @@
+<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="50" height="12" viewBox="0 0 50 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="WindowButtons">
+<circle id="MacRedCloseButton" cx="6" cy="6" r="6" fill="#FF6057"/>
+<circle id="MacYellowMinimizeButton" cx="25" cy="6" r="6" fill="#FFBB30"/>
+<circle id="MacGreenExpandButton" cx="44" cy="6" r="6" fill="#28C840"/>
+</g>
+</svg>

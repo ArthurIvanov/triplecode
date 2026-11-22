@@ -1,0 +1,75 @@
+/* TripleCode Design Tokens — synced from Figma */
+:root {
+  /* Colors */
+  --triplecode-foreground: #f3f4f6;
+  --triplecode-description-foreground: #9097a2;
+  --triplecode-text-link-foreground: #266cf7;
+  --triplecode-button-secondary-foreground: #f3f4f6;
+  --triplecode-editor-widget-background: #1d1e20;
+  --triplecode-editor-widget-border: #303236;
+  --triplecode-config-background: #131416;
+  --triplecode-titlebar-border: #2b2d31;
+  --triplecode-editor-background: #131416;
+  --triplecode-editor-foreground: #f3f4f6;
+  --triplecode-chat-request-background: #2b2d31;
+  --triplecode-fg-grey-loud-enabled: #7c828d;
+  --triplecode-transparent: #ffffff00;
+
+  /* Title Bar (macOS) */
+  --triplecode-top-bar-close-button: #FF6057;
+  --triplecode-top-bar-minimize-button: #FFBB30;
+  --triplecode-top-bar-max-button: #28C840;
+
+  /* Typography */
+  --triplecode-font-family-text: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --triplecode-font-family-body: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  
+  --triplecode-font-size-xsmall: 10px;
+  --triplecode-font-size-small: 12px;
+  --triplecode-font-size-medium: 14px;
+  
+  --triplecode-line-height-xsmall: 14px;
+  --triplecode-line-height-small: 16px;
+  --triplecode-line-height-medium: 20px;
+  
+  --triplecode-font-weight-regular: 400;
+  --triplecode-font-weight-medium: 500;
+
+  /* Spacing */
+  --triplecode-spacing-xs: 2px;
+  --triplecode-spacing-sm: 4px;
+  --triplecode-spacing-md: 6px;
+  --triplecode-spacing-lg: 8px;
+  --triplecode-spacing-xl: 10px;
+  --triplecode-spacing-2xl: 16px;
+
+  /* Gaps */
+  --triplecode-gap-dependant: 4px;
+  --triplecode-gap-related: 8px;
+  --triplecode-gap-grouped: 16px;
+  --triplecode-gap-section: 32px;
+}
+
+/* Map to VS Code theme variables */
+.monaco-workbench {
+  --vscode-foreground: var(--triplecode-foreground);
+  --vscode-descriptionForeground: var(--triplecode-description-foreground);
+  --vscode-textLink-foreground: var(--triplecode-text-link-foreground);
+  --vscode-button-secondaryForeground: var(--triplecode-button-secondary-foreground);
+  --vscode-editorWidget-background: var(--triplecode-editor-widget-background);
+  --vscode-editorWidget-border: var(--triplecode-editor-widget-border);
+  --vscode-editor-background: var(--triplecode-editor-background);
+  --vscode-editor-foreground: var(--triplecode-editor-foreground);
+  
+  --vscode-font-family: var(--triplecode-font-family-body);
+  --vscode-font-size: var(--triplecode-font-size-medium);
+  --vscode-font-weight: var(--triplecode-font-weight-regular);
+}
+
+/* Light theme adjustments */
+.vscode-light .monaco-workbench {
+  --vscode-foreground: #1f1f1f;
+  --vscode-descriptionForeground: #616161;
+  --vscode-editor-background: #ffffff;
+  --vscode-editor-foreground: #1f1f1f;
+}

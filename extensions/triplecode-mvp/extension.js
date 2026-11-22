@@ -256,6 +256,7 @@ function getDesignSystemHtml(webview, context) {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>TripleCode Design System</title>
   <link rel="stylesheet" href="${uri('workbench.css')}">
+  <link rel="stylesheet" href="${uri('figma-design.css')}">
   <style>
     body { padding: 40px; max-width: 1200px; margin: 0 auto; }
     h1 { margin-bottom: 30px; }
@@ -274,7 +275,8 @@ function getDesignSystemHtml(webview, context) {
   <h1>TripleCode Design System</h1>
   
   <nav class="nav">
-    <button class="active" data-component="welcome">Welcome Screen</button>
+    <button class="active" data-component="figma-welcome">Figma Welcome</button>
+    <button data-component="welcome">Legacy Welcome</button>
     <button data-component="agent">Agent Panel</button>
     <button data-component="buttons">Buttons</button>
     <button data-component="forms">Forms</button>
@@ -282,8 +284,85 @@ function getDesignSystemHtml(webview, context) {
   </nav>
 
   <div id="components">
-    <div class="section" data-section="welcome">
-      <h2>Welcome Screen</h2>
+    <div class="section" data-section="figma-welcome">
+      <h2>Figma Welcome Screen (Synced)</h2>
+      <div class="component-preview" style="padding: 0; overflow: hidden;">
+        <div class="top-bar">
+          <div class="top-bar-left">
+            <div class="window-buttons">
+              <img src="${uri('figma-assets/imgWindowButtons.svg')}" alt="Window controls">
+            </div>
+            <div style="display: flex; gap: var(--triplecode-gap-dependent); align-items: center;">
+              <button class="action-button">
+                <img src="${uri('figma-assets/imgChevronLeft.svg')}" alt="Back">
+              </button>
+              <button class="action-button">
+                <img src="${uri('figma-assets/imgChevronRight.svg')}" alt="Forward">
+              </button>
+            </div>
+          </div>
+          <div class="top-bar-center">
+            <button class="action-button" style="padding: 0 var(--triplecode-padding-s);">
+              <span class="action-button-text">TripleCode</span>
+            </button>
+          </div>
+          <div class="top-bar-right">
+            <!-- Sidebar icons placeholder -->
+          </div>
+        </div>
+        <div class="welcome-content" style="height: 600px;">
+          <div class="welcome-container">
+            <img class="welcome-logo" src="${uri('imgLogo1.png')}" alt="TripleCode">
+            <div style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
+              <span class="tag"><span class="tag-text">Free</span></span>
+              <a href="#" class="link">Settings</a>
+            </div>
+            <div class="card-grid">
+              <button class="card">
+                <div class="card-content">
+                  <img class="card-icon" src="${uri('figma-assets/imgFolder.svg')}" alt="Folder">
+                  <span class="card-text">Open project</span>
+                </div>
+              </button>
+              <button class="card">
+                <div class="card-content">
+                  <img class="card-icon" src="${uri('figma-assets/imgFolderGit2.svg')}" alt="Folder Git">
+                  <span class="card-text">Clone repo</span>
+                </div>
+              </button>
+              <button class="card" style="grid-column: 1 / -1;">
+                <div class="card-content">
+                  <img class="card-icon" src="${uri('figma-assets/imgSquareTerminal.svg')}" alt="Terminal">
+                  <span class="card-text">Connect via SSH</span>
+                </div>
+              </button>
+            </div>
+            <div class="stack">
+              <div class="stack-center">
+                <p>Projects you open will appear here.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="bottom-bar">
+          <div class="bottom-bar-left">
+            <button class="icon-button">
+              <img src="${uri('figma-assets/imgChevronsRightLeftAngle.svg')}" alt="Layout">
+            </button>
+            <button class="button">
+              <img src="${uri('figma-assets/imgGitBranch.svg')}" alt="Git">
+              <span class="button-text">Local workspace</span>
+            </button>
+          </div>
+          <div class="bottom-bar-right">
+            <span class="status-text">TripleCode IDE</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" data-section="welcome" style="display: none;">
+      <h2>Welcome Screen (Legacy)</h2>
       <div class="component-preview">
         <main class="welcome" style="width: 362px; margin: 0;">
           <img class="logo" src="${uri('imgLogo1.png')}" alt="TripleCode">
