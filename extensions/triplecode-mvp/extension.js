@@ -9,6 +9,7 @@ const { exec } = require('node:child_process');
 const { writeFile, mkdir, unlink } = require('node:fs/promises');
 const { dirname } = require('node:path');
 const { commentEdit, supportsComments } = require('./patch');
+const provider = require('./provider');
 
 // VS Code paths on macOS
 const VS_CODE_PATHS = [
@@ -1029,6 +1030,70 @@ function activate(context) {
     });
   }
 
+  let aiProbe;
+  async function aiSetting(key, fallback) {
+    return vscode.workspace.getConfiguration('triplecode').get(key, fallback);
+  }
+  async function aiAvailable() {
+    const mode = await aiSetting('ai.provider', 'auto');
+    if (mode === 'stub') return false;
+    if (mode === 'ollama') return true;
+    if (!aiProbe) {
+      aiProbe = provider.probe(await aiSetting('ai.endpoint', 'http://localhost:11434')).catch(() => false);
+    }
+    return aiProbe;
+  }
+  async function aiChat(messages) {
+    return provider.chat({
+      endpoint: await aiSetting('ai.endpoint', 'http://localhost:11434'),
+      model: await aiSetting('ai.model', 'qwen2.5-coder:7b'),
+      messages,
+      timeoutMs: await aiSetting('ai.timeoutMs', 120000)
+    });
+  }
+  async function aiOrFallback(primary, fallback) {
+    try {
+      return await primary();
+    } catch {
+      return fallback();
+    }
+  }
+
+  function resolveEdit(document, parsed) {
+    const eol = document.eol === vscode.EndOfLine.CRLF ? '\r\n' : '\n';
+    const text = document.getText();
+    const anchor = parsed.anchor.trim();
+    const body = parsed.insertion.replace(/\s+$/, '');
+    if (/^TOP$/i.test(anchor)) {
+      if (text.startsWith('#!')) {
+        const newline = text.indexOf('\n');
+        if (newline === -1) return { offset: text.length, insertion: eol + body };
+        return { offset: newline + 1, insertion: `${body}${eol}` };
+      }
+      return { offset: 0, insertion: `${body}${eol}` };
+    }
+    const lines = text.split('\n');
+    const matches = [];
+    let offset = 0;
+    const lineOffsets = [];
+    for (const line of lines) {
+      lineOffsets.push(offset);
+      offset += line.length + 1;
+    }
+    lines.forEach((line, index) => {
+      const clean = line.endsWith('\r') ? line.slice(0, -1) : line;
+      if (clean === anchor || clean.trim() === anchor.trim()) matches.push(index);
+    });
+    if (matches.length !== 1) {
+      throw new Error(matches.length ? 'The model anchor matches several lines.' : 'The model anchor was not found in the file.');
+    }
+    const index = matches[0];
+    const lineStart = lineOffsets[index];
+    const lineEnd = text.indexOf('\n', lineStart);
+    const end = lineEnd === -1 ? text.length : (text[lineEnd - 1] === '\r' ? lineEnd - 1 : lineEnd);
+    return { offset: end, insertion: `${eol}${body}` };
+  }
+
   function recordHistory(kind, summary, detail = '') {
     const history = context.globalState.get('triplecode.history', []);
     history.unshift({ ts: Date.now(), kind, summary, detail });
@@ -1075,43 +1140,68 @@ function activate(context) {
       throw new Error('Enter a request of up to 500 characters.');
     }
     const trimmed = request.trim();
+    const useAi = await aiAvailable();
     if (mode === 'ask') {
-      pushReply(answerAsk(activeDocument, trimmed));
+      pushReply(useAi
+        ? await aiOrFallback(() => aiChat(provider.askMessages(activeDocument, trimmed)), () => answerAsk(activeDocument, trimmed))
+        : answerAsk(activeDocument, trimmed));
       return;
     }
     if (mode === 'plan') {
-      pushReply(planRequest(trimmed));
+      pushReply(useAi
+        ? await aiOrFallback(() => aiChat(provider.planMessages(activeDocument, trimmed)), () => planRequest(trimmed))
+        : planRequest(trimmed));
       return;
     }
 
-    const all = /^comment all:\s*(.+)$/i.exec(trimmed);
-    const single = /^add a comment:\s*(.+)$/i.exec(trimmed);
-    let documents;
-    let body;
-    if (all) {
-      documents = candidateDocuments().filter(document => supportsComments(document.languageId)).slice(0, 12);
-      body = all[1];
-      if (!documents.length) throw new Error('No open source files support // comments.');
-    } else if (single) {
+    const id = randomUUID();
+    let specs;
+    if (useAi) {
       if (!activeDocument || activeDocument.isClosed) throw new Error('Open a source file first.');
-      if (!supportsComments(activeDocument.languageId)) throw new Error('Open a source file that supports // comments.');
-      documents = [activeDocument];
-      body = single[1];
+      const reply = await aiChat(provider.editMessages(activeDocument, trimmed));
+      const parsed = provider.parseEdit(reply);
+      if (!parsed) throw new Error('The model response could not be parsed. Try rephrasing the request.');
+      if (parsed.noChange) {
+        pushReply('The model did not propose a change.');
+        return;
+      }
+      specs = [{ document: activeDocument, edit: resolveEdit(activeDocument, parsed) }];
     } else {
-      throw new Error('Try “add a comment: text” for one file or “comment all: text” for every open source file.');
+      const all = /^comment all:\s*(.+)$/i.exec(trimmed);
+      const single = /^add a comment:\s*(.+)$/i.exec(trimmed);
+      let documents;
+      let body;
+      if (all) {
+        documents = candidateDocuments().filter(document => supportsComments(document.languageId)).slice(0, 12);
+        body = all[1];
+        if (!documents.length) throw new Error('No open source files support // comments.');
+      } else if (single) {
+        if (!activeDocument || activeDocument.isClosed) throw new Error('Open a source file first.');
+        if (!supportsComments(activeDocument.languageId)) throw new Error('Open a source file that supports // comments.');
+        documents = [activeDocument];
+        body = single[1];
+      } else {
+        throw new Error('Try “add a comment: text” for one file or “comment all: text” for every open source file.');
+      }
+      specs = documents.map(document => {
+        const before = document.getText();
+        return {
+          document,
+          edit: commentEdit(before, document.languageId,
+            document.eol === vscode.EndOfLine.CRLF ? '\r\n' : '\n', body)
+        };
+      });
     }
 
-    const id = randomUUID();
-    const files = documents.map((document, index) => {
+    const files = specs.map((spec, index) => {
+      const document = spec.document;
       const before = document.getText();
-      const edit = commentEdit(before, document.languageId,
-        document.eol === vscode.EndOfLine.CRLF ? '\r\n' : '\n', body);
       const base = vscode.Uri.from({ scheme: 'triplecode-review', path: `/${id}/${index}/${document.uri.path.split('/').pop()}` });
       const original = base.with({ path: base.path.replace(`/${id}/`, `/${id}/original/`) });
       const modified = original.with({ path: original.path.replace('/original/', '/proposed/') });
       patches.set(original.toString(), before);
-      patches.set(modified.toString(), before.slice(0, edit.offset) + edit.insertion + before.slice(edit.offset));
-      return { document, before, edit, original, modified, column: vscode.window.activeTextEditor?.viewColumn };
+      patches.set(modified.toString(), before.slice(0, spec.edit.offset) + spec.edit.insertion + before.slice(spec.edit.offset));
+      return { document, before, edit: spec.edit, original, modified, column: vscode.window.activeTextEditor?.viewColumn };
     });
     currentChat.draft = request;
     pending = { request: trimmed, files, checks: [] };

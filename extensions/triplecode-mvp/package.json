@@ -62,6 +62,31 @@
           "type": "string",
           "default": "npm test",
           "description": "Command run by the agent “Run checks” action in the workspace root."
+        },
+        "triplecode.ai.provider": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "ollama",
+            "stub"
+          ],
+          "default": "auto",
+          "description": "AI provider for the agent chat: auto (probe Ollama, fall back to stub), ollama (require Ollama), stub (deterministic local responses)."
+        },
+        "triplecode.ai.endpoint": {
+          "type": "string",
+          "default": "http://localhost:11434",
+          "description": "Base URL of the Ollama server."
+        },
+        "triplecode.ai.model": {
+          "type": "string",
+          "default": "qwen2.5-coder:3b",
+          "description": "Ollama model used for chat, plans and edits."
+        },
+        "triplecode.ai.timeoutMs": {
+          "type": "number",
+          "default": 120000,
+          "description": "Timeout for a single model request in milliseconds."
         }
       }
     },
