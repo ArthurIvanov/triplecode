@@ -1,2 +1,5 @@
 .triplecode-dev/
 /dist/
+/extensions/triplecode-mvp/node_modules/
+/extensions/triplecode-mvp/media/agent.js
+/extensions/triplecode-mvp/media/import-preview.js

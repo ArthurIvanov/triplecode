@@ -9,6 +9,8 @@ if [[ ! -x "$host" ]]; then
   exit 1
 fi
 
+npm --prefix "$root/extensions/triplecode-mvp" run build:webview
+
 mkdir -p "$data/user/User"
 if [[ ! -e "$data/user/User/settings.json" ]]; then
   cat > "$data/user/User/settings.json" <<'SETTINGS'

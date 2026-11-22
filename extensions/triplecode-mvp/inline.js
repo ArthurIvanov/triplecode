@@ -95,7 +95,7 @@ function registerInlineAI(context) {
     {
       async provideInlineCompletionItems(document, position, _trigger, token) {
         const config = vscode.workspace.getConfiguration('triplecode');
-        if (!config.get('ai.inlineEnabled', true)) return { items: [] };
+        if (!config.get('ai.inlineEnabled', false)) return { items: [] };
         if (token.isCancellationRequested || inFlight >= MAX_IN_FLIGHT) return { items: [] };
         await new Promise(resolve => setTimeout(resolve, DEBOUNCE_MS));
         if (token.isCancellationRequested) return { items: [] };

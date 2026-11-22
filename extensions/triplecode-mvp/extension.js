@@ -9,6 +9,7 @@ const { exec } = require('node:child_process');
 const { writeFile, mkdir, unlink } = require('node:fs/promises');
 const { dirname, normalize, isAbsolute, relative } = require('node:path');
 const { commentEdit, supportsComments } = require('./patch');
+const { registerInlineAI } = require('./inline');
 const provider = require('./provider');
 
 // VS Code paths on macOS
@@ -152,11 +153,12 @@ async function showFileImport(context) {
 function presentImportPreview(data, context) {
   const { settings, keybindings, snippets, extensions } = data;
 
+  const media = vscode.Uri.joinPath(context.extensionUri, 'media');
   const previewPanel = vscode.window.createWebviewPanel(
     'triplecodeImportPreview',
     'Import Profile',
     vscode.ViewColumn.One,
-    { enableScripts: true }
+    { enableScripts: true, localResourceRoots: [media] }
   );
 
   const previewData = {
@@ -165,12 +167,11 @@ function presentImportPreview(data, context) {
     keybindings: Array.isArray(keybindings) ? keybindings.length : 0,
     snippets: snippets ? Object.keys(snippets).length : 0,
     extensions: extensions ? extensions.length : 0,
-    extensionIds: extensions ? extensions.map(e => e.id) : [],
     hasBackup: context.globalState.get('triplecode.importBackup') !== undefined ||
       context.globalState.get('triplecode.importFileBackup') !== undefined
   };
 
-  previewPanel.webview.html = getImportPreviewHtml(previewData, previewPanel.webview);
+  previewPanel.webview.html = getImportPreviewHtml(previewData, previewPanel.webview, media);
 
   previewPanel.webview.onDidReceiveMessage(async message => {
     if (message.type === 'import') {
@@ -195,104 +196,22 @@ function presentImportPreview(data, context) {
   });
 }
 
-function getImportPreviewHtml(data, webview) {
-  const extensionIdsJson = JSON.stringify(data.extensionIds);
-  const rollbackButton = data.hasBackup ? '<button class="secondary" id="rollback">Rollback Last Import</button>' : '';
+function getImportPreviewHtml(data, webview, media) {
+  const uri = name => webview.asWebviewUri(vscode.Uri.joinPath(media, name));
+  const initial = JSON.stringify(data).replaceAll('<', '\\u003c');
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource}; script-src ${webview.cspSource}">
   <title>Import from VS Code</title>
-  <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; padding: 20px; color: var(--vscode-foreground); background: var(--vscode-editor-background); }
-    h1 { margin-top: 0; }
-    .section { margin: 20px 0; padding: 15px; border: 1px solid var(--vscode-panel-border); border-radius: 4px; }
-    .section h2 { margin-top: 0; font-size: 16px; }
-    .count { font-size: 24px; font-weight: bold; color: var(--vscode-textLink-foreground); }
-    .checkbox { margin: 8px 0; }
-    .checkbox label { display: flex; align-items: center; gap: 8px; cursor: pointer; }
-    .actions { margin-top: 20px; display: flex; gap: 10px; }
-    button { padding: 8px 16px; cursor: pointer; border: none; border-radius: 4px; }
-    .primary { background: var(--vscode-button-background); color: var(--vscode-button-foreground); }
-    .secondary { background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); }
-    .warning { color: var(--vscode-errorForeground); font-size: 12px; margin-top: 10px; }
-  </style>
+  <link rel="stylesheet" href="${uri('import-preview.css')}">
 </head>
 <body>
-  <h1>Import Profile</h1>
-  <p>Source: <code>${data.source}</code></p>
-
-  <div class="section">
-    <h2>Settings</h2>
-    <div class="count">${data.settings} items</div>
-    <div class="checkbox">
-      <label><input type="checkbox" id="settings" checked> Import settings</label>
-    </div>
-  </div>
-
-  <div class="section">
-    <h2>Keyboard Shortcuts</h2>
-    <div class="count">${data.keybindings} items</div>
-    <div class="checkbox">
-      <label><input type="checkbox" id="keybindings" checked> Import keyboard shortcuts</label>
-    </div>
-  </div>
-
-  <div class="section">
-    <h2>User Snippets</h2>
-    <div class="count">${data.snippets} files</div>
-    <div class="checkbox">
-      <label><input type="checkbox" id="snippets" checked> Import snippets</label>
-    </div>
-  </div>
-
-  <div class="section">
-    <h2>Extensions</h2>
-    <div class="count">${data.extensions} extensions</div>
-    <div class="checkbox">
-      <label><input type="checkbox" id="extensions" checked> Import extensions (from Open VSX)</label>
-    </div>
-    <p style="font-size: 12px; color: var(--vscode-descriptionForeground);">
-      Note: Not all extensions may be available in Open VSX. You may need to install some manually.
-    </p>
-  </div>
-
-  <div class="actions">
-    <button class="primary" id="import">Import</button>
-    <button class="secondary" id="import-file">Import from File…</button>
-    ${rollbackButton}
-    <button class="secondary" id="cancel">Cancel</button>
-  </div>
-
-  <script>
-    const vscode = acquireVsCodeApi();
-    const extensionIds = ${extensionIdsJson};
-
-    document.getElementById('import').addEventListener('click', () => {
-      const selectedCategories = {
-        settings: document.getElementById('settings').checked,
-        keybindings: document.getElementById('keybindings').checked,
-        snippets: document.getElementById('snippets').checked,
-        extensions: document.getElementById('extensions').checked
-      };
-      vscode.postMessage({ type: 'import', selectedCategories });
-    });
-
-    document.getElementById('cancel').addEventListener('click', () => {
-      vscode.postMessage({ type: 'cancel' });
-    });
-
-    document.getElementById('import-file').addEventListener('click', () => {
-      vscode.postMessage({ type: 'import-file' });
-    });
-
-    ${data.hasBackup ? `
-    document.getElementById('rollback').addEventListener('click', () => {
-      vscode.postMessage({ type: 'rollback' });
-    });
-    ` : ''}
-  </script>
+  <div id="import-preview-root"></div>
+  <script type="application/json" id="initial">${initial}</script>
+  <script src="${uri('import-preview.js')}" defer></script>
 </body>
 </html>`;
 }
@@ -856,6 +775,7 @@ async function rollbackImport(context) {
 }
 
 function activate(context) {
+  registerInlineAI(context);
   const patches = new Map();
   let activeDocument;
   let pending;
@@ -1741,66 +1661,21 @@ function render(webview, base, screen, initial) {
     <div id="recent"></div>
     <button data-action="import" class="link import-link">Import from VS Code</button>
   </main>`;
-  const agent = `<main class="agent">
-    <header class="chat-header">
-      <div id="chats" role="group" aria-label="Chats"></div>
-      <button type="button" class="icon-button" data-action="new-chat" aria-label="New chat"><img src="${uri('imgPlus1.svg')}" alt=""></button>
-      <button type="button" class="icon-button" data-action="chat-actions" aria-label="Agent actions"><img src="${uri('imgEllipsis.svg')}" alt=""></button>
-    </header>
-    <section id="conversation" class="conversation" hidden aria-label="Agent output">
-      <div id="messages"></div>
-      <p id="task" class="agent-message request" hidden></p>
-      <div id="patch" class="patch" hidden>
-        <div id="patch-files"></div>
-      </div>
-    </section>
-    <p id="status" role="status" hidden></p>
-    <form id="request" class="composer">
-      <div id="review" class="composer-header" hidden>
-        <div class="review-row">
-          <button type="button" class="files-toggle" data-action="toggle-files" aria-expanded="true">
-            <img src="${uri('figma-assets/imgChevronRight.svg')}" alt="">
-            <span id="file-count">1 file</span>
-          </button>
-          <div class="review-actions">
-            <button type="button" data-action="check" class="pill-action">Run checks</button>
-            <button type="button" data-action="discard" class="pill-action">Undo all</button>
-            <button type="button" data-action="apply" class="pill-action">Keep all</button>
-            <button type="button" data-action="review" class="review-btn">Review</button>
-          </div>
-        </div>
-        <div id="checks" class="checks"></div>
-      </div>
-      <div id="plan-bar" class="composer-header plan-bar" hidden>
-        <div class="review-row">
-          <span class="plan-label" id="plan-label">Plan ready</span>
-          <div class="review-actions">
-            <button type="button" data-action="discard-plan" class="pill-action">Discard</button>
-            <button type="button" data-action="execute-plan" class="review-btn">Execute plan</button>
-          </div>
-        </div>
-      </div>
-      <div id="attachments" class="attachments" hidden></div>
-      <label class="sr-only" for="prompt">Agent task</label>
-      <textarea id="prompt" maxlength="500" aria-describedby="target" placeholder="Press / for skills, @ for context" required></textarea>
-      <footer class="chat-actions">
-        <div class="mode-picker">
-          <button type="button" class="pill mode" id="mode-button" aria-haspopup="listbox" aria-expanded="false">Agent</button>
-          <div class="mode-menu" id="mode-menu" role="listbox" hidden>
-            <button type="button" role="option" data-mode="ask">Ask</button>
-            <button type="button" role="option" data-mode="plan">Plan</button>
-            <button type="button" role="option" data-mode="agent" aria-selected="true">Agent</button>
-          </div>
-        </div>
-        <button type="button" class="pill model-pill" id="model-pill" data-action="select-model" title="Select model">Model</button>
-        <span id="target" class="muted"></span>
-        <button type="button" class="icon-button context-btn" data-action="attach-menu" aria-label="Attach context" title="Attach context"><img src="${uri('figma-assets/imgShape.svg')}" alt=""></button>
-        <button type="button" class="icon-button attachment" data-action="attach-menu" aria-label="Attach context" title="Attach context"><img src="${uri('imgPaperclip.svg')}" alt=""></button>
-        <button aria-label="Send" title="Send" type="submit" class="send"><img src="${uri('imgPlay.svg')}" alt=""></button>
-      </footer>
-    </form>
-  </main>`;
-  const payload = screen === 'agent' ? { ...initial, assets: { x: uri('figma-assets/imgX.svg') } } : initial;
+  const agent = '<div id="agent-root"></div>';
+  const assets = {
+    close: 'figma-assets/imgX.svg',
+    plus: 'imgPlus1.svg',
+    actions: 'imgEllipsis.svg',
+    chevron: 'figma-assets/imgChevronRight.svg',
+    context: 'figma-assets/imgShape.svg',
+    attach: 'imgPaperclip.svg',
+    send: 'imgPlay.svg'
+  };
+  const payload = screen === 'agent' ? {
+    ...initial,
+    assets: Object.fromEntries(Object.entries(assets).map(([key, name]) => [key, uri(name).toString()]))
+  } : initial;
+  const script = screen === 'agent' ? 'agent.js' : 'workbench.js';
   const data = JSON.stringify(payload).replaceAll('<', '\\u003c');
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
@@ -1808,7 +1683,7 @@ function render(webview, base, screen, initial) {
 <link rel="stylesheet" href="${uri('tokens.css')}"><link rel="stylesheet" href="${uri('workbench.css')}"><title>TripleCode</title></head>
 <body data-screen="${screen}">${screen === 'welcome' ? welcome : agent}
 <script type="application/json" id="initial">${data}</script>
-<script src="${uri('workbench.js')}" defer></script></body></html>`;
+<script src="${uri(script)}" defer></script></body></html>`;
 }
 
 module.exports = { activate };

@@ -111,6 +111,7 @@ button.link:hover:not(:disabled) { color: var(--vscode-textLink-activeForeground
 }
 
 body[data-screen="agent"] { height: 100vh; overflow: hidden; }
+#agent-root { height: 100%; }
 .agent {
   display: flex;
   flex-direction: column;
