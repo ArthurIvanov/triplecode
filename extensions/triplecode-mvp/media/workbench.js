@@ -195,6 +195,12 @@ if (document.body.dataset.screen === 'welcome') {
   updateTarget(initial.target);
   updateReview(initial.pending);
   prompt.addEventListener('input', () => vscode.postMessage({ type: 'draft', id: selectedChat, value: prompt.value }));
+  prompt.addEventListener('keydown', event => {
+    if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
+      event.preventDefault();
+      request.requestSubmit();
+    }
+  });
   request.addEventListener('submit', event => {
     event.preventDefault();
     if (send.disabled) return;
