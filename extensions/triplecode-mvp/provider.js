@@ -9,7 +9,7 @@ async function probe(endpoint, timeoutMs = 2000) {
   }
 }
 
-async function chat({ endpoint, model, messages, timeoutMs = 120000, numPredict = 2048 }) {
+async function chat({ endpoint, model, messages, timeoutMs = 120000, numPredict = 2048, numCtx = 8192 }) {
   const response = await fetch(`${endpoint}/api/chat`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
@@ -17,7 +17,7 @@ async function chat({ endpoint, model, messages, timeoutMs = 120000, numPredict 
       model,
       messages,
       stream: false,
-      options: { temperature: 0.2, num_predict: numPredict }
+      options: { temperature: 0.2, num_predict: numPredict, num_ctx: numCtx }
     }),
     signal: AbortSignal.timeout(timeoutMs)
   });
@@ -72,6 +72,43 @@ function rewriteMessages(document, request) {
   ];
 }
 
+function multiFileMessages(documents, request) {
+  const context = documents.map(document => {
+    let content = document.getText();
+    if (!content.trim()) content = '(empty file)';
+    if (content.length > 9000) content = `${content.slice(0, 9000)}\n// … truncated …`;
+    return `${document.uri.fsPath}\n\n${content}`;
+  }).join('\n\n');
+  return [
+    { role: 'system', content: 'You are a coding assistant inside an IDE. You rewrite files precisely.' },
+    {
+      role: 'user',
+      content: `Files:\n\n${context}\n\nTask: ${request}\n\n` +
+        'For each file that must change, output a line FILE: followed by its path, ' +
+        'then the COMPLETE updated file content inside one code fence. Keep every ' +
+        'untouched line identical. Only edit files listed above.'
+    }
+  ];
+}
+
+function parseMultiRewrite(text) {
+  const trimmed = text.trim();
+  if (/^NO\s*CHANGE\b/i.test(trimmed)) {
+    return { noChange: true, reason: trimmed.replace(/^NO\s*CHANGE\b[:\-–—]?\s*/i, '').slice(0, 300) };
+  }
+  const files = [];
+  const blockPattern = /^FILE:[ \t]*(.+?)[ \t]*\r?\n(?:[ \t]*\r?\n)*[ \t]*```[a-zA-Z]*[ \t]*\r?\n([\s\S]*?)```/gm;
+  let match;
+  while ((match = blockPattern.exec(text))) {
+    const content = match[2].replace(/\s+$/, '');
+    if (content.trim() && !/^NO\s*CHANGE\s*$/i.test(content.trim())) {
+      files.push({ path: match[1].trim(), content });
+    }
+  }
+  if (!files.length) return null;
+  return { files };
+}
+
 function parseRewrite(text) {
   const trimmed = text.trim();
   if (/^NO\s*CHANGE\b/i.test(trimmed)) {
@@ -116,4 +153,4 @@ function diffEdit(before, after, eol = '\n') {
   return { offset, deleteLength, insertion };
 }
 
-module.exports = { probe, chat, askMessages, planMessages, rewriteMessages, parseRewrite, diffEdit };
+module.exports = { probe, chat, askMessages, planMessages, rewriteMessages, multiFileMessages, parseRewrite, parseMultiRewrite, diffEdit };

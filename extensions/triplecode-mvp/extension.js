@@ -7,7 +7,7 @@ const { join } = require('node:path');
 const { homedir } = require('node:os');
 const { exec } = require('node:child_process');
 const { writeFile, mkdir, unlink } = require('node:fs/promises');
-const { dirname } = require('node:path');
+const { dirname, normalize, isAbsolute, relative } = require('node:path');
 const { commentEdit, supportsComments } = require('./patch');
 const provider = require('./provider');
 
@@ -1048,15 +1048,50 @@ function activate(context) {
     }
     return aiProbe;
   }
-  async function aiChat(messages, numPredict) {
+  async function aiChat(messages, options = {}) {
     return provider.chat({
       endpoint: await aiSetting('ai.endpoint', 'http://localhost:11434'),
       model: await aiSetting('ai.model', 'qwen2.5-coder:7b'),
       messages,
       timeoutMs: await aiSetting('ai.timeoutMs', 120000),
-      numPredict
+      ...options
     });
   }
+  function aiContextDocuments() {
+    const documents = [];
+    const seen = new Set();
+    const push = document => {
+      if (document && !document.isClosed && document.uri.scheme === 'file' &&
+          vscode.workspace.getWorkspaceFolder(document.uri) && !seen.has(document.uri.toString())) {
+        seen.add(document.uri.toString());
+        documents.push(document);
+      }
+    };
+    push(vscode.window.activeTextEditor?.document);
+    for (const document of candidateDocuments()) push(document);
+    return documents.slice(0, 4);
+  }
+
+  async function openModelFile(rawPath, root) {
+    let fsPath = rawPath.trim().replace(/^['"]+|['"]+$/g, '');
+    if (!isAbsolute(fsPath)) {
+      if (!root) throw new Error('No workspace folder is open for relative model paths.');
+      fsPath = join(root, fsPath);
+    }
+    const normalized = normalize(fsPath);
+    if (root) {
+      const rel = relative(root, normalized);
+      if (rel.startsWith('..') || isAbsolute(rel)) {
+        throw new Error(`The model tried to edit a file outside the workspace: ${rawPath}`);
+      }
+    }
+    try {
+      return await vscode.workspace.openTextDocument(vscode.Uri.file(normalized));
+    } catch {
+      throw new Error(`The model referenced a file that does not exist: ${rawPath}`);
+    }
+  }
+
   async function aiOrFallback(primary, fallback) {
     try {
       return await primary();
@@ -1130,9 +1165,10 @@ function activate(context) {
     const id = randomUUID();
     let specs;
     if (useAi) {
-      if (!activeDocument || activeDocument.isClosed) throw new Error('Open a source file first.');
-      const reply = await aiChat(provider.rewriteMessages(activeDocument, trimmed), 4096);
-      const parsed = provider.parseRewrite(reply);
+      const documents = aiContextDocuments();
+      if (!documents.length) throw new Error('Open a source file first.');
+      const reply = await aiChat(provider.multiFileMessages(documents, trimmed), { numPredict: 8192, numCtx: 16384 });
+      const parsed = provider.parseMultiRewrite(reply);
       if (!parsed) {
         const preview = reply.length > 300 ? `${reply.slice(0, 300)}…` : reply;
         throw new Error(`The model response could not be parsed. Try rephrasing the request.\n\nModel said:\n${preview}`);
@@ -1142,14 +1178,22 @@ function activate(context) {
         pushReply(`The model did not propose a change.${parsed.reason ? ` ${parsed.reason}` : ''}`);
         return;
       }
-      const eol = activeDocument.eol === vscode.EndOfLine.CRLF ? '\r\n' : '\n';
-      const edit = provider.diffEdit(activeDocument.getText(), parsed.content, eol);
-      if (!edit) {
+      const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+      specs = [];
+      const seenPaths = new Set();
+      for (const entry of parsed.files.slice(0, 6)) {
+        const document = await openModelFile(entry.path, root);
+        if (seenPaths.has(document.uri.toString())) continue;
+        seenPaths.add(document.uri.toString());
+        const eol = document.eol === vscode.EndOfLine.CRLF ? '\r\n' : '\n';
+        const edit = provider.diffEdit(document.getText(), entry.content, eol);
+        if (edit) specs.push({ document, edit });
+      }
+      if (!specs.length) {
         currentChat.draft = '';
         pushReply('The model did not propose a change.');
         return;
       }
-      specs = [{ document: activeDocument, edit }];
     } else {
       const all = /^comment all:\s*(.+)$/i.exec(trimmed);
       const single = /^add a comment:\s*(.+)$/i.exec(trimmed);
