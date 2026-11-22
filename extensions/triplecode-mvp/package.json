@@ -270,6 +270,6 @@
     "typescript": "5.9.3"
   },
   "scripts": {
-    "build:webview": "tsc --noEmit -p webview && esbuild webview/agent.tsx webview/import-preview.tsx --bundle --minify --jsx=automatic --define:process.env.NODE_ENV=\\\"production\\\" --outdir=media"
+    "build:webview": "tsc --noEmit -p webview && esbuild webview/agent.tsx webview/import-preview.tsx webview/design-system.tsx --bundle --minify --jsx=automatic --define:process.env.NODE_ENV=\\\"production\\\" --outdir=media"
   }
 }

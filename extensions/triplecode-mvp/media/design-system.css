@@ -1,0 +1,82 @@
+@import url("./tab-surface.css");
+
+body { padding: 40px; max-width: 1200px; margin: 0 auto; }
+h1 { margin-bottom: 30px; }
+.nav { display: flex; gap: 10px; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid var(--vscode-panel-border); }
+.nav button { padding: 8px 16px; }
+.nav button.active { background: var(--vscode-button-background); color: var(--vscode-button-foreground); }
+.section { margin-bottom: 60px; }
+.section h2 { margin-bottom: 20px; }
+.component-preview { padding: 20px; border: 1px solid var(--vscode-panel-border); border-radius: 8px; background: var(--vscode-sideBar-background); }
+.component-row { display: flex; gap: 20px; align-items: flex-start; flex-wrap: wrap; }
+.component-item { min-width: 200px; }
+.component-item h3 { font-size: 12px; margin: 10px 0 5px; color: var(--vscode-descriptionForeground); }
+
+.tc-design-tabs {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  height: 32px;
+  padding-inline: 2px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  background: var(--vscode-editorGroupHeader-tabsBackground);
+  border-bottom: 1px solid var(--vscode-sideBar-border);
+}
+.tc-design-tab {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 0 0 auto;
+  padding: 0 8px;
+  white-space: nowrap;
+}
+.tc-design-tab button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-size: 14px;
+  line-height: 20px;
+}
+.tc-design-tab button:hover:not(:disabled) { background: transparent; }
+.tc-design-tab img { display: block; width: 16px; height: 16px; }
+.tc-design-tab .tc-design-tab-close { width: 20px; justify-content: center; opacity: 0; }
+.tc-design-tab:is(:hover, :focus-within) .tc-design-tab-close { opacity: 1; }
+
+.nav { flex-wrap: wrap; }
+.catalog-toolbar {
+  display: flex;
+  align-items: end;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.catalog-toolbar label { display: grid; gap: 6px; width: min(360px, 100%); }
+.catalog-toolbar input {
+  font: inherit;
+  color: var(--vscode-input-foreground);
+  background: var(--vscode-input-background);
+  border: 1px solid var(--vscode-input-border, var(--vscode-editorWidget-border));
+  border-radius: 4px;
+  padding: 6px 8px;
+}
+.catalog-toolbar input:focus-visible { outline: 1px solid var(--vscode-focusBorder); }
+.catalog-toolbar [role="status"] { color: var(--vscode-descriptionForeground); }
+.catalog-group { margin-block: 28px; }
+.catalog-group h3 { margin-bottom: 4px; }
+.catalog-source { margin-top: 0; color: var(--vscode-descriptionForeground); overflow-wrap: anywhere; }
+.catalog-table { overflow-x: auto; }
+.catalog-table table { width: 100%; border-collapse: collapse; }
+.catalog-table :is(th, td) {
+  padding: 8px;
+  border-bottom: 1px solid var(--vscode-editorGroup-border);
+  text-align: left;
+  vertical-align: top;
+}
+.catalog-table thead th { color: var(--vscode-descriptionForeground); }
+.catalog-table tbody th { font-weight: 500; }
+.catalog-table code { overflow-wrap: anywhere; }
+.catalog-table a { color: var(--vscode-textLink-foreground); white-space: nowrap; }
