@@ -18,7 +18,7 @@ type Chat = {
   plan?: { task: string; plan?: string } | null;
   attachments?: Attachment[];
 };
-type ChatState = { chats: Chat[]; selected: number; draft: string; model: string; progress?: Progress | null; status?: string };
+type ChatState = { chats: Chat[]; selected: number; draft: string; model: string; provider?: string; rules?: boolean; progress?: Progress | null; status?: string };
 type Patch = {
   request: string;
   files: { name: string; lines: string[]; start: number; removed: number }[];
@@ -57,6 +57,8 @@ type State = ChatState & {
   submitting: boolean;
   progress: Progress | null;
   focusRequest: number;
+  provider: string;
+  rules: boolean;
 };
 type Action = HostMessage |
   { type: 'edit'; value: string } |
@@ -85,6 +87,7 @@ function update(state: State, action: Action): State {
       return {
         ...state, chats: action.chats, selected: action.selected, draft: action.draft,
         model: action.model || state.model, mode: selectedMode(action), status: action.status || '',
+        provider: action.provider || state.provider, rules: Boolean(action.rules),
         submitting: Boolean(action.progress), progress: action.progress ?? null,
         focusRequest: state.focusRequest + (action.focusPrompt ? 1 : 0)
       };
@@ -120,7 +123,8 @@ function Agent({ initial }: { initial: Initial }) {
     chats: initial.chats, selected: initial.selected, draft: initial.draft,
     model: initial.model || 'Model', target: initial.target, patch: initial.pending,
     mode: selectedMode(initial), status: initial.status || '',
-    submitting: Boolean(initial.progress), progress: initial.progress ?? null, focusRequest: 0
+    submitting: Boolean(initial.progress), progress: initial.progress ?? null, focusRequest: 0,
+    provider: initial.provider || 'Auto', rules: Boolean(initial.rules)
   });
   const [modeOpen, setModeOpen] = useState(false);
   const [filesOpen, setFilesOpen] = useState(true);
@@ -340,8 +344,10 @@ function Agent({ initial }: { initial: Initial }) {
               }}>{modes[option]}</button>)}
           </div>
         </div>
-        <button type="button" className="pill model-pill" id="model-pill" title="Select model"
+        <button type="button" className="pill model-pill" id="model-pill"
+          title={`${state.provider} · ${state.model}`}
           onClick={() => send({ type: 'select-model' })}>{state.model}</button>
+        {state.rules && <span className="rules-badge" title="Repository rules from .triplecode/rules.md are included in requests">Rules</span>}
         <span id="target" className="muted" title={target}>{target}</span>
         <button type="button" className="icon-button context-btn" aria-label="Attach context" title="Attach context" disabled={state.submitting}
           onClick={() => send({ type: 'attach-menu', id: selected })}><img src={assets.context} alt="" /></button>

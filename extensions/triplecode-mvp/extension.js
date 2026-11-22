@@ -6,6 +6,7 @@ const { readFile, access, readdir } = require('node:fs/promises');
 const { join } = require('node:path');
 const { homedir, tmpdir } = require('node:os');
 const { exec } = require('node:child_process');
+const { readFileSync } = require('node:fs');
 const { writeFile, mkdir, unlink, mkdtemp, cp, symlink, rm } = require('node:fs/promises');
 const { dirname, normalize, isAbsolute, relative, sep } = require('node:path');
 const { commentEdit, supportsComments } = require('./patch');
@@ -783,12 +784,29 @@ function activate(context) {
       numCtx: options.numCtx
     });
   }
+  const contextExcludePattern = /(^|[\\/])(\.env($|\.)|[^\\/]*\.(pem|key|p12|pfx)$|[^\\/]*(secret|credential)[^\\/]*|id_rsa)/i;
+
+  function isContextExcluded(document) {
+    return contextExcludePattern.test(document.uri.fsPath);
+  }
+
+  function repoRules() {
+    const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+    if (!root) return '';
+    try {
+      return readFileSync(join(root, '.triplecode', 'rules.md'), 'utf-8').trim().slice(0, 4000);
+    } catch {
+      return '';
+    }
+  }
+
   function aiContextDocuments() {
     const documents = [];
     const seen = new Set();
     const push = document => {
       if (document && !document.isClosed && document.uri.scheme === 'file' &&
-          vscode.workspace.getWorkspaceFolder(document.uri) && !seen.has(document.uri.toString())) {
+          vscode.workspace.getWorkspaceFolder(document.uri) && !seen.has(document.uri.toString()) &&
+          !isContextExcluded(document)) {
         seen.add(document.uri.toString());
         documents.push(document);
       }
@@ -1037,7 +1055,9 @@ function activate(context) {
     postProgress(run, 'Checking provider…');
     const useAi = await aiAvailable();
     signal.throwIfAborted();
-    const aiRequest = trimmed + attachmentSuffix(attachments);
+    const rules = repoRules();
+    const rulesSuffix = rules ? `\n\nRepository rules (.triplecode/rules.md):\n${rules}` : '';
+    const aiRequest = trimmed + attachmentSuffix(attachments) + rulesSuffix;
     if (mode === 'ask' || mode === 'plan') {
       const fallback = () => mode === 'ask' ? answerAsk(document, trimmed) : planRequest(trimmed, document);
       const messages = mode === 'ask' ? provider.askMessages : provider.planMessages;
@@ -1066,7 +1086,7 @@ function activate(context) {
       }
       const selectionSuffix = attachments.filter(a => a.kind === 'selection')
         .map(a => `\`\`\`\n${a.text}\n\`\`\``).join('\n');
-      const agentRequest = trimmed + (selectionSuffix ? `\n\nAttached selection:\n${selectionSuffix}` : '');
+      const agentRequest = trimmed + (selectionSuffix ? `\n\nAttached selection:\n${selectionSuffix}` : '') + rulesSuffix;
       signal.throwIfAborted();
       const result = await aiSpecs(agentRequest, extraDocuments, run);
       signal.throwIfAborted();
@@ -1383,6 +1403,11 @@ function activate(context) {
       plan: currentChat.plan || null,
       attachments: currentChat.attachments || [],
       model: currentModelLabel(),
+      provider: (() => {
+        const mode = vscode.workspace.getConfiguration('triplecode').get('ai.provider', 'auto');
+        return { openrouter: 'OpenRouter', ollama: 'Ollama', stub: 'Stub' }[mode] || 'Auto';
+      })(),
+      rules: Boolean(repoRules()),
       progress: activeRun?.chat === currentChat ? activeRun.progress : null,
       status: currentChat.status || ''
     };
