@@ -955,14 +955,14 @@ function render(webview, base, screen, initial) {
   const uri = name => webview.asWebviewUri(vscode.Uri.joinPath(base, 'media', name));
   const welcome = `<main class="welcome">
     <img class="logo" src="${uri('imgLogo1.png')}" alt="TripleCode">
-    <div class="welcome-meta"><span>Free</span><button data-action="settings" class="link">Settings</button></div>
-    <div class="project-actions">
-      <button data-action="open"><img src="${uri('imgFolder.svg')}" alt="">Open project</button>
-      <button data-action="clone"><img src="${uri('imgFolderGit2.svg')}" alt="">Clone repo</button>
-      <button data-action="import"><img src="${uri('imgFolderGit2.svg')}" alt="">Import from VS Code</button>
-      <button disabled><img src="${uri('imgSquareTerminal.svg')}" alt="">Connect via SSH</button>
+    <div class="welcome-meta"><span class="tag">Free</span><button data-action="settings" class="link">Settings</button></div>
+    <div class="card-grid">
+      <button class="card" data-action="open"><img src="${uri('imgFolder.svg')}" alt=""><span>Open project</span></button>
+      <button class="card" data-action="clone"><img src="${uri('imgFolderGit2.svg')}" alt=""><span>Clone repo</span></button>
+      <button class="card" data-action="ssh" disabled><img src="${uri('imgSquareTerminal.svg')}" alt=""><span>Connect via SSH</span></button>
     </div>
     <div id="recent"></div>
+    <button data-action="import" class="link import-link">Import from VS Code</button>
   </main>`;
   const agent = `<main class="agent">
     <header class="chat-header">

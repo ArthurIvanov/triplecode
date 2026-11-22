@@ -1,4 +1,77 @@
 /* TripleCode framing for the pinned desktop Workbench. Grid sizing stays native. */
+
+/* Figma palette mapped onto Workbench theme variables. */
+.monaco-workbench {
+  --vscode-foreground: #f3f4f6;
+  --vscode-descriptionForeground: #9097a2;
+  --vscode-textLink-foreground: #266cf7;
+  --vscode-textLink-activeForeground: #4d8dff;
+  --vscode-editor-background: #1d1e20;
+  --vscode-editor-foreground: #f3f4f6;
+  --vscode-editorLineNumber-foreground: #6b7280;
+  --vscode-editorLineNumber-activeForeground: #9097a2;
+  --vscode-editorCursor-foreground: #f3f4f6;
+  --vscode-editorGroupHeader-tabsBackground: #131416;
+  --vscode-editorGroup-border: #303236;
+  --vscode-tab-activeForeground: #f3f4f6;
+  --vscode-tab-inactiveForeground: #9097a2;
+  --vscode-tab-hoverBackground: rgba(255, 255, 255, .06);
+  --vscode-sideBar-background: #1d1e20;
+  --vscode-sideBar-border: #303236;
+  --vscode-sideBar-foreground: #f3f4f6;
+  --vscode-sideBarTitle-foreground: #f3f4f6;
+  --vscode-sideBarSectionHeader-foreground: #9097a2;
+  --vscode-panel-background: #131416;
+  --vscode-panel-border: #303236;
+  --vscode-panelTitle-activeForeground: #9097a2;
+  --vscode-panelTitle-inactiveForeground: #6b7280;
+  --vscode-terminal-background: #131416;
+  --vscode-terminal-foreground: #e4e7ec;
+  --vscode-terminalCursor-foreground: #e4e7ec;
+  --vscode-titleBar-activeBackground: #131416;
+  --vscode-titleBar-inactiveBackground: #131416;
+  --vscode-titleBar-border: #2b2d31;
+  --vscode-titleBar-activeForeground: #f3f4f6;
+  --vscode-statusBar-background: #131416;
+  --vscode-statusBar-foreground: #e4e7ec;
+  --vscode-statusBar-border: #2b2d31;
+  --vscode-statusBar-noFolderBackground: #131416;
+  --vscode-activityBar-background: #131416;
+  --vscode-activityBar-foreground: #f3f4f6;
+  --vscode-activityBar-inactiveForeground: #9097a2;
+  --vscode-activityBar-border: transparent;
+  --vscode-button-secondaryBackground: #2b2d31;
+  --vscode-button-secondaryForeground: #f3f4f6;
+  --vscode-button-secondaryHoverBackground: #35373b;
+  --vscode-button-background: #266cf7;
+  --vscode-button-foreground: #ffffff;
+  --vscode-button-hoverBackground: #3b7bf6;
+  --vscode-editorWidget-background: #1d1e20;
+  --vscode-editorWidget-border: #303236;
+  --vscode-input-background: #2b2d31;
+  --vscode-input-border: #35373b;
+  --vscode-input-foreground: #f3f4f6;
+  --vscode-input-placeholderForeground: #9097a2;
+  --vscode-list-activeSelectionBackground: #2b2d31;
+  --vscode-list-inactiveSelectionBackground: #2b2d31;
+  --vscode-list-hoverBackground: rgba(255, 255, 255, .06);
+  --vscode-list-focusBackground: rgba(255, 255, 255, .08);
+  --vscode-focusBorder: #266cf7;
+  --vscode-font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+.monaco-workbench .part.activitybar .action-item.checked .action-label,
+.monaco-workbench .part.activitybar .action-item:focus .action-label {
+  background: #303236;
+  color: #f3f4f6;
+}
+.monaco-workbench .part.sidebar .pane-header { height: 34px; }
+.monaco-workbench .part.sidebar .pane-header .title,
+.monaco-workbench .part.sidebar .pane-header .title-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #9097a2;
+}
+
 .monaco-workbench .part.editor,
 .monaco-workbench .part.sidebar,
 .monaco-workbench .part.auxiliarybar,
