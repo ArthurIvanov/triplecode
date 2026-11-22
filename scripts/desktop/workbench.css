@@ -294,67 +294,38 @@
 .monaco-workbench .part.activitybar:not(.compact) .action-item .action-label {
   width: 44px;
 }
-/* Radius only where a part corner faces two gutters. Side parts are
-   interior while their outward neighbour is visible. */
-.monaco-workbench .part.activitybar,
-.monaco-workbench .part.sidebar,
-.monaco-workbench .part.auxiliarybar {
-  overflow: hidden;
+/* Figma mainContent surrounds the visible grid parts after the Activity Bar.
+   Paint the corners above the Webview overlay without changing native bounds. */
+.monaco-workbench:has(.triplecode-gutter):not(.floating-panels) {
+  anchor-scope: --tc-editor, --tc-sidebar, --tc-agents, --tc-panel;
+
+  .part.sidebar { anchor-name: --tc-sidebar; }
+  .part.editor { anchor-name: --tc-editor; }
+  .part.auxiliarybar { anchor-name: --tc-agents; }
+  .part.panel { anchor-name: --tc-panel; }
+
+  :is(.part.editor, .part.sidebar, .part.auxiliarybar, .part.panel) {
+    box-shadow: none;
+  }
+
+  &::after {
+    content: "";
+    position: absolute;
+    top: min(anchor(--tc-sidebar top, 100%), anchor(--tc-editor top, 100%), anchor(--tc-agents top, 100%), anchor(--tc-panel top, 100%));
+    right: min(anchor(--tc-sidebar right, 100%), anchor(--tc-editor right, 100%), anchor(--tc-agents right, 100%), anchor(--tc-panel right, 100%));
+    bottom: min(anchor(--tc-sidebar bottom, 100%), anchor(--tc-editor bottom, 100%), anchor(--tc-agents bottom, 100%), anchor(--tc-panel bottom, 100%));
+    left: min(anchor(--tc-sidebar left, 100%), anchor(--tc-editor left, 100%), anchor(--tc-agents left, 100%), anchor(--tc-panel left, 100%));
+    box-sizing: border-box;
+    border: 1px solid var(--triplecode-theme-titleBar-border, var(--vscode-titleBar-border));
+    border-radius: var(--triplecode-m, 8px);
+    box-shadow: 0 0 0 8px var(--triplecode-theme-titleBar-activeBackground, var(--vscode-titleBar-activeBackground));
+    clip-path: inset(0);
+    pointer-events: none;
+    z-index: 50;
+  }
 }
-.monaco-workbench .part.activitybar.left {
-  border-start-start-radius: 8px;
-  border-end-start-radius: 8px;
-}
-.monaco-workbench .part.activitybar.right {
-  border-start-end-radius: 8px;
-  border-end-end-radius: 8px;
-}
-.monaco-workbench.noactivitybar .part.sidebar.left {
-  border-start-start-radius: 8px;
-  border-end-start-radius: 8px;
-}
-.monaco-workbench.noactivitybar .part.sidebar.right {
-  border-start-end-radius: 8px;
-  border-end-end-radius: 8px;
-}
-.monaco-workbench .part.auxiliarybar.left {
-  border-start-start-radius: 8px;
-  border-end-start-radius: 8px;
-}
-.monaco-workbench .part.auxiliarybar.right {
-  border-start-end-radius: 8px;
-  border-end-end-radius: 8px;
-}
-.monaco-workbench.noauxiliarybar .part.editor {
-  border-start-end-radius: 8px;
-}
-.monaco-workbench.noauxiliarybar .part.panel.bottom {
-  border-end-end-radius: 8px;
-}
-.monaco-workbench.noauxiliarybar.nopanel .part.editor {
-  border-end-end-radius: 8px;
-}
-.monaco-workbench.panel-position-top.noauxiliarybar .part.editor {
-  border-end-end-radius: 8px;
-}
-.monaco-workbench.noactivitybar.nosidebar .part.editor {
-  border-start-start-radius: 8px;
-}
-.monaco-workbench.noactivitybar.nosidebar.nopanel .part.editor,
-.monaco-workbench.panel-position-top.noactivitybar.nosidebar .part.editor {
-  border-end-start-radius: 8px;
-}
-.monaco-workbench.noactivitybar.nosidebar .part.panel.bottom {
-  border-end-start-radius: 8px;
-}
-.monaco-workbench.noactivitybar.nosidebar .part.panel.top {
-  border-start-start-radius: 8px;
-}
-.monaco-workbench.noauxiliarybar .part.panel.top {
-  border-start-end-radius: 8px;
-}
-.monaco-workbench .part.editor,
-.monaco-workbench .part.panel {
+
+.monaco-workbench :is(.part.editor, .part.sidebar, .part.auxiliarybar, .part.panel, .part.activitybar) {
   overflow: hidden;
 }
 .monaco-workbench .part.sidebar > .title {
