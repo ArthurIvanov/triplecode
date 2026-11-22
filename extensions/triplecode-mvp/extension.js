@@ -278,6 +278,7 @@ function getDesignSystemHtml(webview, context) {
     <button data-component="agent">Agent Panel</button>
     <button data-component="buttons">Buttons</button>
     <button data-component="forms">Forms</button>
+    <button data-component="tabs">Tabs</button>
   </nav>
 
   <div id="components">
@@ -381,6 +382,79 @@ function getDesignSystemHtml(webview, context) {
         <div class="component-row" style="margin-top: 20px;">
           <div class="component-item">
             <textarea style="width: 300px; min-height: 80px; padding: 8px; border: 1px solid var(--vscode-input-border); border-radius: 4px; background: var(--vscode-input-background); color: var(--vscode-input-foreground); resize: vertical;" placeholder="Textarea..."></textarea>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" data-section="tabs" style="display: none;">
+      <h2>Tabs</h2>
+      <div class="component-preview">
+        <div class="component-row">
+          <div class="component-item" style="width: 100%;">
+            <h3>Default Tabs</h3>
+            <div class="tabs-container">
+              <button class="tab active">
+                <span>index.ts</span>
+                <button class="tab-close" onclick="event.stopPropagation()">×</button>
+              </button>
+              <button class="tab">
+                <span>app.tsx</span>
+                <button class="tab-close" onclick="event.stopPropagation()">×</button>
+              </button>
+              <button class="tab">
+                <span>styles.css</span>
+                <button class="tab-close" onclick="event.stopPropagation()">×</button>
+              </button>
+            </div>
+          </div>
+        </div>
+        <div class="component-row" style="margin-top: 30px;">
+          <div class="component-item" style="width: 100%;">
+            <h3>Tabs with Icons</h3>
+            <div class="tabs-container">
+              <button class="tab active">
+                <img src="${uri('imgFiles.svg')}" style="width: 14px; height: 14px;" alt="">
+                <span>Explorer</span>
+                <button class="tab-close" onclick="event.stopPropagation()">×</button>
+              </button>
+              <button class="tab">
+                <img src="${uri('imgSearch.svg')}" style="width: 14px; height: 14px;" alt="">
+                <span>Search</span>
+                <button class="tab-close" onclick="event.stopPropagation()">×</button>
+              </button>
+              <button class="tab">
+                <img src="${uri('imgGitBranch.svg')}" style="width: 14px; height: 14px;" alt="">
+                <span>Git</span>
+                <button class="tab-close" onclick="event.stopPropagation()">×</button>
+              </button>
+            </div>
+          </div>
+        </div>
+        <div class="component-row" style="margin-top: 30px;">
+          <div class="component-item" style="width: 100%;">
+            <h3>Single Tab</h3>
+            <div class="tabs-container">
+              <button class="tab active">
+                <span>README.md</span>
+                <button class="tab-close" onclick="event.stopPropagation()">×</button>
+              </button>
+            </div>
+          </div>
+        </div>
+        <div class="component-row" style="margin-top: 30px;">
+          <div class="component-item" style="width: 100%;">
+            <h3>Many Tabs (scrollable)</h3>
+            <div class="tabs-container" style="overflow-x: auto;">
+              <button class="tab active"><span>index.ts</span><button class="tab-close" onclick="event.stopPropagation()">×</button></button>
+              <button class="tab"><span>app.tsx</span><button class="tab-close" onclick="event.stopPropagation()">×</button></button>
+              <button class="tab"><span>styles.css</span><button class="tab-close" onclick="event.stopPropagation()">×</button></button>
+              <button class="tab"><span>utils.ts</span><button class="tab-close" onclick="event.stopPropagation()">×</button></button>
+              <button class="tab"><span>config.json</span><button class="tab-close" onclick="event.stopPropagation()">×</button></button>
+              <button class="tab"><span>package.json</span><button class="tab-close" onclick="event.stopPropagation()">×</button></button>
+              <button class="tab"><span>README.md</span><button class="tab-close" onclick="event.stopPropagation()">×</button></button>
+              <button class="tab"><span>CHANGELOG.md</span><button class="tab-close" onclick="event.stopPropagation()">×</button></button>
+            </div>
           </div>
         </div>
       </div>

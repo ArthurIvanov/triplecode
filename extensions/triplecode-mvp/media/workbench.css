@@ -151,6 +151,56 @@ body[data-screen="agent"] { height: 100vh; overflow: hidden; }
   background: transparent;
 }
 .icon-button img, .send img { display: block; }
+
+/* Tabs component */
+.tabs-container {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  background: var(--vscode-editorGroupHeader-tabsBackground);
+  border-bottom: 1px solid var(--vscode-editorGroup-border);
+  padding: 0 8px;
+}
+.tabs-container .tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: transparent;
+  color: var(--vscode-tab-inactiveForeground, var(--vscode-foreground));
+  border: 1px solid transparent;
+  border-bottom: none;
+  border-radius: 4px 4px 0 0;
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 20px;
+  white-space: nowrap;
+}
+.tabs-container .tab:hover:not(.active) {
+  background: var(--vscode-tab-hoverBackground, var(--vscode-list-hoverBackground));
+}
+.tabs-container .tab.active {
+  background: var(--vscode-sideBar-background);
+  border-color: var(--vscode-editorGroup-border);
+  border-bottom-color: var(--vscode-sideBar-background);
+  color: var(--vscode-tab-activeForeground, var(--vscode-foreground));
+}
+.tabs-container .tab .tab-close {
+  display: none;
+  width: 16px;
+  height: 16px;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  opacity: 0.6;
+}
+.tabs-container .tab:hover .tab-close,
+.tabs-container .tab.active .tab-close {
+  display: block;
+}
+.tabs-container .tab .tab-close:hover {
+  opacity: 1;
+}
 .agent form {
   margin: 8px;
   border: 1px solid var(--vscode-input-border);
