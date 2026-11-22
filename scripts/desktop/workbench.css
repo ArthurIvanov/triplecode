@@ -2,6 +2,7 @@
 
 /* Figma palette mapped onto Workbench theme variables. */
 .monaco-workbench {
+  --triplecode-activitybar-active-background: #303236;
   --vscode-foreground: #f3f4f6;
   --vscode-descriptionForeground: #9097a2;
   --vscode-textLink-foreground: #266cf7;
@@ -61,15 +62,15 @@
 }
 .monaco-workbench .part.activitybar .action-item.checked .action-label,
 .monaco-workbench .part.activitybar .action-item:focus .action-label {
-  background: #303236;
-  color: #f3f4f6;
+  background: var(--triplecode-activitybar-active-background);
+  color: var(--vscode-foreground);
 }
 .monaco-workbench .part.sidebar .pane-header { height: 34px; }
 .monaco-workbench .part.sidebar .pane-header .title,
 .monaco-workbench .part.sidebar .pane-header .title-label {
   font-size: 11px;
   font-weight: 700;
-  color: #9097a2;
+  color: var(--vscode-descriptionForeground);
 }
 
 .monaco-workbench .part.editor,
