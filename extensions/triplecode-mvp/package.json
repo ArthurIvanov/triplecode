@@ -284,7 +284,7 @@
     "typescript": "5.9.3"
   },
   "scripts": {
-    "build:webview": "tsc --noEmit -p webview && esbuild webview/agent.tsx webview/import-preview.tsx webview/design-system.tsx --bundle --minify --jsx=automatic --define:process.env.NODE_ENV=\\\"production\\\" --outdir=media",
+    "build:webview": "tsc --noEmit -p webview && esbuild webview/agent.tsx webview/import-preview.tsx webview/design-system.tsx webview/design-system/design-system-components.css --bundle --minify --jsx=automatic --define:process.env.NODE_ENV=\\\"production\\\" --outdir=media",
     "storybook": "storybook dev -p 6006 --no-open",
     "build-storybook": "storybook build"
   }

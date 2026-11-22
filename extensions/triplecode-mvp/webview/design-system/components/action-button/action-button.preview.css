@@ -1,0 +1,17 @@
+.action-button-preview { margin-block: 16px 24px; }
+.action-button-preview > h3 { margin-block-end: 8px; }
+.action-button-preview a { color: var(--vscode-textLink-foreground, #79a5ff); }
+.action-button-matrix-scroll { overflow-x: auto; margin-block-start: 12px; }
+.action-button-matrix {
+  border-spacing: 0;
+  background: #1d1e20;
+  color: #f3f4f6;
+}
+.action-button-matrix caption { text-align: start; padding-block: 8px; }
+.action-button-matrix th, .action-button-matrix td { padding: 8px; }
+.action-button-matrix td { min-inline-size: 52px; text-align: start; }
+.action-button-matrix .tc-action-button {
+  --action-fg: var(--triplecode-button-secondary-foreground);
+  --action-secondary: var(--triplecode-button-secondary-background);
+  --action-hover: var(--triplecode-activitybar-active-background);
+}

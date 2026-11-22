@@ -1,5 +1,7 @@
 # Правила работы с Figma MCP — Tripleform UI / Cursor
 
+> Справочник Tripleform UI. Для работы в TripleCode действуют [правила проекта](README.md).
+
 Документ описывает правила и рабочий процесс взаимодействия агента Cursor с Figma Model Context Protocol (MCP) сервером при разработке компонентов дизайн-системы Tripleform UI.
 
 ---
