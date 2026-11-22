@@ -304,6 +304,11 @@
   .part.auxiliarybar { anchor-name: --tc-agents; }
   .part.panel { anchor-name: --tc-panel; }
 
+  /* The shared frame supplies the only stroke on the Activity Bar seam. */
+  .part.activitybar.bordered::before {
+    content: none;
+  }
+
   :is(.part.editor, .part.sidebar, .part.auxiliarybar, .part.panel) {
     box-shadow: none;
   }
