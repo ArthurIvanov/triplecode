@@ -4,10 +4,10 @@ const vscode = require('vscode');
 const { randomUUID } = require('node:crypto');
 const { readFile, access, readdir } = require('node:fs/promises');
 const { join } = require('node:path');
-const { homedir } = require('node:os');
+const { homedir, tmpdir } = require('node:os');
 const { exec } = require('node:child_process');
-const { writeFile, mkdir, unlink } = require('node:fs/promises');
-const { dirname, normalize, isAbsolute, relative } = require('node:path');
+const { writeFile, mkdir, unlink, mkdtemp, cp, symlink, rm } = require('node:fs/promises');
+const { dirname, normalize, isAbsolute, relative, sep } = require('node:path');
 const { commentEdit, supportsComments } = require('./patch');
 const { registerInlineAI } = require('./inline');
 const provider = require('./provider');
@@ -688,6 +688,9 @@ function activate(context) {
           case 'check':
             await runCheck();
             break;
+          case 'check-patch':
+            await runPatchCheck();
+            break;
           case 'apply-file':
           case 'discard-file': {
             const patch = pending;
@@ -906,9 +909,9 @@ function activate(context) {
 
   function checkHistoryScope(entry) {
     if (entry.kind !== 'check') return '';
-    return entry.checkTarget === 'working-tree'
-      ? 'Current working tree · Proposed patch not tested'
-      : 'Check target not recorded';
+    if (entry.checkTarget === 'working-tree') return 'Current working tree · Proposed patch not tested';
+    if (entry.checkTarget === 'proposed-patch') return 'Proposed patch in isolated copy';
+    return 'Check target not recorded';
   }
 
   function postProgress(run, text) {
@@ -1174,6 +1177,22 @@ function activate(context) {
     }
   }
 
+  function execCheck(command, cwd) {
+    return new Promise((resolve, reject) => {
+      exec(command, { cwd, timeout: 60000, maxBuffer: 512 * 1024 }, (error, out, err) => {
+        if (error && typeof error.code !== 'number') return reject(error);
+        resolve({ stdout: out, stderr: err, code: error ? error.code : 0 });
+      });
+    });
+  }
+
+  function recordCheck(patch, command, result, target) {
+    const output = `${result.stdout}\n${result.stderr}`.trim();
+    const tail = output.split('\n').slice(-8).join('\n');
+    patch.checks.push({ command, code: result.code, output: tail, target });
+    recordHistory('check', `${command} — exit ${result.code}`, tail.split('\n')[0] ?? '', target);
+  }
+
   async function runCheck() {
     const patch = pending;
     if (!patch || patch.checking) return;
@@ -1183,19 +1202,49 @@ function activate(context) {
     patch.checking = true;
     agent?.postMessage({ type: 'pending', patch: describePatch(patch) });
     try {
-      const { stdout, stderr, code } = await new Promise((resolve, reject) => {
-        exec(command, { cwd: folder.uri.fsPath, timeout: 60000, maxBuffer: 512 * 1024 }, (error, out, err) => {
-          if (error && typeof error.code !== 'number') return reject(error);
-          resolve({ stdout: out, stderr: err, code: error ? error.code : 0 });
-        });
-      });
-      const output = `${stdout}\n${stderr}`.trim();
-      const tail = output.split('\n').slice(-8).join('\n');
-      const target = 'working-tree';
-      patch.checks.push({ command, code, output: tail, target });
-      recordHistory('check', `${command} — exit ${code}`, tail.split('\n')[0] ?? '', target);
+      recordCheck(patch, command, await execCheck(command, folder.uri.fsPath), 'working-tree');
     } finally {
       patch.checking = false;
+      if (pending === patch) agent?.postMessage({ type: 'pending', patch: describePatch(patch) });
+    }
+  }
+
+  async function runPatchCheck() {
+    const patch = pending;
+    if (!patch || patch.checking) return;
+    const folder = vscode.workspace.workspaceFolders?.[0];
+    if (!folder) throw new Error('Open a project folder first.');
+    const command = vscode.workspace.getConfiguration('triplecode').get('checkCommand', 'npm test');
+    const root = folder.uri.fsPath;
+    const scratch = await mkdtemp(join(tmpdir(), 'triplecode-patch-'));
+    patch.checking = true;
+    agent?.postMessage({ type: 'pending', patch: describePatch(patch) });
+    try {
+      await cp(root, scratch, {
+        recursive: true,
+        filter: source => {
+          const name = source.slice(root.length).split(sep)[1];
+          return name !== 'node_modules' && name !== '.git';
+        }
+      });
+      const modules = join(root, 'node_modules');
+      try {
+        await symlink(modules, join(scratch, 'node_modules'), 'dir');
+      } catch { /* no dependencies to link */ }
+      for (const file of patch.files) {
+        const rel = relative(root, file.document.uri.fsPath);
+        if (rel.startsWith('..') || isAbsolute(rel)) continue;
+        const target = join(scratch, rel);
+        await mkdir(dirname(target), { recursive: true });
+        const deleteLength = file.edit.deleteLength || 0;
+        const content = file.before.slice(0, file.edit.offset) + file.edit.insertion +
+          file.before.slice(file.edit.offset + deleteLength);
+        await writeFile(target, content, 'utf-8');
+      }
+      recordCheck(patch, command, await execCheck(command, scratch), 'proposed-patch');
+    } finally {
+      patch.checking = false;
+      await rm(scratch, { recursive: true, force: true }).catch(() => {});
       if (pending === patch) agent?.postMessage({ type: 'pending', patch: describePatch(patch) });
     }
   }

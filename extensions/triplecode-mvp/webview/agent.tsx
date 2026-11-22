@@ -20,7 +20,7 @@ type Patch = {
   request: string;
   files: { name: string; lines: string[]; start: number; removed: number }[];
   checking?: boolean;
-  checks?: { command: string; code: number; output?: string; target: 'working-tree' }[];
+  checks?: { command: string; code: number; output?: string; target: 'working-tree' | 'proposed-patch' }[];
 };
 type Assets = Record<'close' | 'plus' | 'actions' | 'chevron' | 'context' | 'attach' | 'send', string>;
 type Initial = ChatState & { target: string; pending: Patch | null; assets: Assets };
@@ -38,7 +38,7 @@ type ViewMessage =
   | { type: 'mode'; id: number; mode: Mode }
   | { type: 'propose'; id: number; request: string; mode: Mode }
   | { type: 'detach-context'; index: number }
-  | { type: 'new-chat' | 'chat-actions' | 'check' | 'discard' | 'apply' | 'review' |
+  | { type: 'new-chat' | 'chat-actions' | 'check' | 'check-patch' | 'discard' | 'apply' | 'review' |
       'discard-plan' | 'execute-plan' | 'select-model' | 'ready' }
   | { type: 'apply-file' | 'discard-file'; id: number; index: number };
 
@@ -223,6 +223,9 @@ function Agent({ initial }: { initial: Initial }) {
             <button type="button" className="pill-action" disabled={patch.checking} aria-describedby="check-target"
               onClick={() => send({ type: 'check' })}>Run checks</button>
             <button type="button" className="pill-action" disabled={patch.checking}
+              title="Runs the check command on a temporary copy with the proposed patch applied"
+              onClick={() => send({ type: 'check-patch' })}>Check patch</button>
+            <button type="button" className="pill-action" disabled={patch.checking}
               onClick={() => send({ type: 'discard' })}>Undo all</button>
             <button type="button" className="pill-action" disabled={patch.checking}
               onClick={() => send({ type: 'apply' })}>Keep all</button>
@@ -231,11 +234,17 @@ function Agent({ initial }: { initial: Initial }) {
         </div>
         <div id="checks" className="checks" aria-live="polite">
           <p id="check-target" className="check-scope">
-            {patch.checking ? 'Checking current working tree.' : 'Run checks tests the current working tree.'} Proposed patch not tested.
+            {patch.checking
+              ? 'Running check…'
+              : patch.checks?.some(check => check.target === 'proposed-patch')
+                ? 'Check patch ran on an isolated copy with the proposal applied.'
+                : 'Run checks tests the current working tree. Check patch tests the proposal in an isolated copy.'}
           </p>
           {patch.checks?.map((check, index) => <div className="check-row" key={index}>
             <span title={check.output || ''}>
-              {check.target === 'working-tree' ? 'Current working tree' : 'Check target not recorded'}
+              {check.target === 'working-tree' ? 'Current working tree'
+                : check.target === 'proposed-patch' ? 'Proposed patch · isolated copy'
+                : 'Check target not recorded'}
               {' · '}{check.command} — exit {check.code}
             </span>
           </div>)}
