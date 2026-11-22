@@ -239,6 +239,7 @@ function showDesignSystem(context) {
   <link rel="stylesheet" href="${uri('workbench.css')}">
   <link rel="stylesheet" href="${uri('figma-design.css')}">
   <link rel="stylesheet" href="${uri('design-system.css')}">
+  <link rel="stylesheet" href="${uri('action-button.css')}">
 </head>
 <body>
   <div id="design-system-root"></div>

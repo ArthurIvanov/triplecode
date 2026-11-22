@@ -45,8 +45,9 @@ type ViewMessage =
       'discard-plan' | 'execute-plan' | 'select-model' | 'ready' }
   | { type: 'apply-file' | 'discard-file'; id: number; index: number };
 
-declare function acquireVsCodeApi(): { postMessage(message: ViewMessage): void };
-const vscode = acquireVsCodeApi();
+type VsCodeApi = { postMessage(message: ViewMessage): void };
+const vscode: VsCodeApi = (globalThis as { acquireVsCodeApi?: () => VsCodeApi }).acquireVsCodeApi?.()
+  ?? { postMessage: () => {} };
 const send = (message: ViewMessage) => vscode.postMessage(message);
 
 type State = ChatState & {
@@ -118,7 +119,8 @@ function ProgressIndicator({ progress }: { progress: Progress }) {
   </p>;
 }
 
-function Agent({ initial }: { initial: Initial }) {
+export type { Initial, ChatState, Chat, Patch, Progress };
+export function Agent({ initial }: { initial: Initial }) {
   const [state, dispatch] = useReducer(update, {
     chats: initial.chats, selected: initial.selected, draft: initial.draft,
     model: initial.model || 'Model', target: initial.target, patch: initial.pending,
@@ -363,6 +365,9 @@ function Agent({ initial }: { initial: Initial }) {
   </main>;
 }
 
-const initial: Initial = JSON.parse(document.getElementById('initial')!.textContent!);
-const root = createRoot(document.getElementById('agent-root')!);
-flushSync(() => root.render(<Agent initial={initial} />));
+const mount = document.getElementById('agent-root');
+if (mount) {
+  const initial: Initial = JSON.parse(document.getElementById('initial')!.textContent!);
+  const root = createRoot(mount);
+  flushSync(() => root.render(<Agent initial={initial} />));
+}

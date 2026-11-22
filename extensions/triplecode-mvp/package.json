@@ -274,14 +274,18 @@
     }
   },
   "devDependencies": {
+    "@storybook/react-vite": "^10.6.8",
     "@types/react": "19.2.2",
     "@types/react-dom": "19.2.2",
-    "esbuild": "0.25.12",
+    "esbuild": "^0.28.2",
     "react": "19.2.9",
     "react-dom": "19.2.9",
+    "storybook": "^10.6.8",
     "typescript": "5.9.3"
   },
   "scripts": {
-    "build:webview": "tsc --noEmit -p webview && esbuild webview/agent.tsx webview/import-preview.tsx webview/design-system.tsx --bundle --minify --jsx=automatic --define:process.env.NODE_ENV=\\\"production\\\" --outdir=media"
+    "build:webview": "tsc --noEmit -p webview && esbuild webview/agent.tsx webview/import-preview.tsx webview/design-system.tsx --bundle --minify --jsx=automatic --define:process.env.NODE_ENV=\\\"production\\\" --outdir=media",
+    "storybook": "storybook dev -p 6006 --no-open",
+    "build-storybook": "storybook build"
   }
 }
