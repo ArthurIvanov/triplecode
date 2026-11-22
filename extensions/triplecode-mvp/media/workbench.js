@@ -5,7 +5,15 @@ const initial = JSON.parse(document.querySelector('#initial').textContent);
 
 document.addEventListener('click', event => {
   const button = event.target.closest('button[data-action]');
-  if (button) vscode.postMessage({ type: button.dataset.action, index: Number(button.dataset.index), id: Number(button.dataset.id) });
+  if (!button) return;
+  if (button.dataset.action === 'toggle-files') {
+    const open = button.getAttribute('aria-expanded') === 'true';
+    button.setAttribute('aria-expanded', String(!open));
+    const patch = document.querySelector('.patch');
+    if (patch) patch.hidden = open;
+    return;
+  }
+  vscode.postMessage({ type: button.dataset.action, index: Number(button.dataset.index), id: Number(button.dataset.id) });
 });
 
 if (document.body.dataset.screen === 'welcome') {
@@ -60,7 +68,10 @@ if (document.body.dataset.screen === 'welcome') {
       close.dataset.action = 'close-chat';
       close.dataset.id = id;
       close.setAttribute('aria-label', `Close Chat ${id}`);
-      close.textContent = '×';
+      const closeIcon = document.createElement('img');
+      closeIcon.src = initial.assets?.x || '';
+      closeIcon.alt = '';
+      close.append(closeIcon);
       tab.append(select, close);
       return tab;
     });

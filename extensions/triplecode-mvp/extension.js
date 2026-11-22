@@ -391,16 +391,28 @@ function getDesignSystemHtml(webview, context) {
             <button class="icon-button"><img src="${uri('imgPlus1.svg')}" style="width: 16px; height: 16px;" alt=""></button>
             <button class="icon-button"><img src="${uri('imgEllipsis.svg')}" style="width: 16px; height: 16px;" alt=""></button>
           </header>
-          <section class="conversation" style="flex: 1; overflow: auto; padding: 8px;">
-            <p class="task" style="margin: 0; padding: 8px; background: var(--vscode-input-background); border: 1px solid var(--vscode-input-border); border-radius: 4px;">Add a comment: MVP preview</p>
+          <section class="conversation" style="flex: 1; overflow: auto;">
+            <p class="agent-message">Add a comment: MVP preview</p>
           </section>
-          <form style="margin: 8px; border: 1px solid var(--vscode-input-border); border-radius: 4px; background: var(--vscode-input-background); overflow: hidden;">
-            <textarea style="display: block; min-height: 67px; width: 100%; background: transparent; padding: 8px; border: 0; resize: none;" placeholder="Add a comment: Describe this module"></textarea>
-            <footer style="display: flex; align-items: center; gap: 10px; min-height: 32px; padding: 0 7px 7px;">
-              <span style="flex: 1; text-align: right; font-size: 11px; color: var(--vscode-descriptionForeground);">src/index.ts</span>
-              <button class="send" style="display: grid; place-items: center; padding: 2px; border: 0; background: var(--vscode-button-secondaryForeground); color: var(--vscode-button-secondaryBackground); border-radius: 4px; width: 24px; height: 24px;">
-                <img src="${uri('imgPlay.svg')}" style="display: block; width: 16px; height: 16px;" alt="">
+          <form class="composer">
+            <div class="composer-header">
+              <button type="button" class="files-toggle" aria-expanded="true">
+                <img src="${uri('figma-assets/imgChevronRight.svg')}" alt="">
+                <span>1 file</span>
               </button>
+              <div class="review-actions">
+                <button type="button" class="pill-action">Undo all</button>
+                <button type="button" class="pill-action">Keep all</button>
+                <button type="button" class="review-btn">Review</button>
+              </div>
+            </div>
+            <textarea placeholder="Press / for skills, @ for context" disabled style="min-height: 30px;"></textarea>
+            <footer class="chat-actions">
+              <span class="pill">Agent</span><span class="pill">Model</span>
+              <span id="target" class="muted">src/index.ts</span>
+              <span class="context-icon"><img src="${uri('figma-assets/imgShape.svg')}" alt=""></span>
+              <button type="button" class="icon-button attachment" disabled><img src="${uri('imgPaperclip.svg')}" alt=""></button>
+              <button type="button" class="send" disabled><img src="${uri('imgPlay.svg')}" alt=""></button>
             </footer>
           </form>
         </main>
@@ -941,7 +953,6 @@ function activate(context) {
 
 function render(webview, base, screen, initial) {
   const uri = name => webview.asWebviewUri(vscode.Uri.joinPath(base, 'media', name));
-  const data = JSON.stringify(initial).replaceAll('<', '\\u003c');
   const welcome = `<main class="welcome">
     <img class="logo" src="${uri('imgLogo1.png')}" alt="TripleCode">
     <div class="welcome-meta"><span>Free</span><button data-action="settings" class="link">Settings</button></div>
@@ -960,34 +971,42 @@ function render(webview, base, screen, initial) {
       <button type="button" class="icon-button" data-action="chat-actions" aria-label="Agent actions"><img src="${uri('imgEllipsis.svg')}" alt=""></button>
     </header>
     <section id="conversation" class="conversation" hidden aria-label="Proposed change">
-      <p id="task" class="task"></p>
+      <p id="task" class="agent-message"></p>
       <div class="patch">
         <div class="patch-file"><span id="change"></span><span id="additions"></span></div>
         <pre id="patch-lines"></pre>
       </div>
     </section>
     <p id="status" role="status" hidden></p>
-    <form id="request">
-      <div id="review" class="review-actions" hidden>
-        <span id="file-count">1 file</span>
-        <button type="button" data-action="discard">Discard</button>
-        <button type="button" data-action="apply">Apply</button>
-        <button type="button" data-action="review" class="review-diff">Review</button>
+    <form id="request" class="composer">
+      <div id="review" class="composer-header" hidden>
+        <button type="button" class="files-toggle" data-action="toggle-files" aria-expanded="true">
+          <img src="${uri('figma-assets/imgChevronRight.svg')}" alt="">
+          <span id="file-count">1 file</span>
+        </button>
+        <div class="review-actions">
+          <button type="button" data-action="discard" class="pill-action">Undo all</button>
+          <button type="button" data-action="apply" class="pill-action">Keep all</button>
+          <button type="button" data-action="review" class="review-btn">Review</button>
+        </div>
       </div>
       <label class="sr-only" for="prompt">Agent task</label>
-      <textarea id="prompt" maxlength="500" aria-describedby="target" placeholder="Add a comment: Describe this module" required></textarea>
-      <footer>
-        <span>Agent</span><span title="Deterministic patch preview">Model</span>
+      <textarea id="prompt" maxlength="500" aria-describedby="target" placeholder="Press / for skills, @ for context" required></textarea>
+      <footer class="chat-actions">
+        <span class="pill">Agent</span><span class="pill">Model</span>
         <span id="target" class="muted"></span>
+        <span class="context-icon"><img src="${uri('figma-assets/imgShape.svg')}" alt=""></span>
         <button type="button" class="icon-button attachment" disabled aria-label="Attach context" title="Context attachments are unavailable"><img src="${uri('imgPaperclip.svg')}" alt=""></button>
         <button aria-label="Send" title="Send" type="submit" class="send"><img src="${uri('imgPlay.svg')}" alt=""></button>
       </footer>
     </form>
   </main>`;
+  const payload = screen === 'agent' ? { ...initial, assets: { x: uri('figma-assets/imgX.svg') } } : initial;
+  const data = JSON.stringify(payload).replaceAll('<', '\\u003c');
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${webview.cspSource}; style-src ${webview.cspSource}; script-src ${webview.cspSource}">
-<link rel="stylesheet" href="${uri('workbench.css')}"><title>TripleCode</title></head>
+<link rel="stylesheet" href="${uri('tokens.css')}"><link rel="stylesheet" href="${uri('workbench.css')}"><title>TripleCode</title></head>
 <body data-screen="${screen}">${screen === 'welcome' ? welcome : agent}
 <script type="application/json" id="initial">${data}</script>
 <script src="${uri('workbench.js')}" defer></script></body></html>`;

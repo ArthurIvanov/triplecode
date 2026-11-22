@@ -18,6 +18,10 @@
   --triplecode-editor-background: #131416;
   --triplecode-editor-foreground: #f3f4f6;
   --triplecode-chat-request-background: #2b2d31;
+  --triplecode-chat-request-border: #35373b;
+  --triplecode-button-secondary-background: #2b2d31;
+  --triplecode-editor-group-header-tabs-background: #131416;
+  --triplecode-shadow-soft: rgba(25, 40, 67, 0.15);
   --triplecode-list-active-selection-background: #2b2d31;
   --triplecode-list-hoverBackground: rgba(255, 255, 255, 0.06);
   --triplecode-side-bar-background: #1d1e20;
