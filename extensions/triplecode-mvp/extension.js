@@ -688,6 +688,19 @@ function activate(context) {
           case 'check':
             await runCheck();
             break;
+          case 'apply-file':
+          case 'discard-file': {
+            const patch = pending;
+            if (!patch || patch.checking || !Number.isInteger(message.index)) break;
+            applying = true;
+            try {
+              if (message.type === 'apply-file') await apply([message.index]);
+              else await discardFile(message.index);
+            } finally {
+              applying = false;
+            }
+            break;
+          }
           case 'apply':
             applying = true;
             try {
@@ -1100,15 +1113,19 @@ function activate(context) {
     }
   }
 
-  async function apply() {
+  async function apply(indices) {
     const patch = pending;
     if (!patch) return;
     if (patch.checking) throw new Error('Wait for the current working tree check to finish.');
+    const targets = indices
+      ? indices.map(index => patch.files[index]).filter(Boolean)
+      : patch.files;
+    if (!targets.length) return;
     const workspaceEdit = new vscode.WorkspaceEdit();
-    for (const file of patch.files) {
+    for (const file of targets) {
       const document = await vscode.workspace.openTextDocument(file.document.uri);
       if (document.getText() !== file.before) {
-        throw new Error(`${fileName(file.document)} changed after review. Discard this patch and try again.`);
+        throw new Error(`${fileName(file.document)} changed after review. Discard that file from the patch and try again.`);
       }
       const start = document.positionAt(file.edit.offset);
       const end = document.positionAt(file.edit.offset + (file.edit.deleteLength || 0));
@@ -1116,11 +1133,45 @@ function activate(context) {
     }
     if (pending !== patch) return;
     if (!await vscode.workspace.applyEdit(workspaceEdit)) throw new Error('The editor could not apply the patch.');
-    recordHistory('apply', `${patch.request} — ${patch.files.length} file${patch.files.length === 1 ? '' : 's'}`);
-    await clearPatch('Changes applied in the editor. Save the files when ready.');
-    const first = patch.files[0];
+    const total = patch.files.length;
+    const applied = new Set(targets);
+    recordHistory('apply', `${patch.request} — ${targets.length} of ${total} file${total === 1 ? '' : 's'} applied`);
+    patch.files = patch.files.filter(file => !applied.has(file));
+    for (const file of targets) {
+      patches.delete(file.original.toString());
+      patches.delete(file.modified.toString());
+      const tabs = vscode.window.tabGroups.all.flatMap(group => group.tabs).filter(tab =>
+        tab.input instanceof vscode.TabInputTextDiff && tab.input.original.toString() === file.original.toString());
+      if (tabs.length) await vscode.window.tabGroups.close(tabs, true);
+    }
+    if (!patch.files.length) {
+      await clearPatch('Changes applied in the editor. Save the files when ready.');
+    } else {
+      agent?.postMessage({ type: 'pending', patch: describePatch(patch) });
+    }
+    const first = targets[0];
     const document = await vscode.workspace.openTextDocument(first.document.uri);
     await vscode.window.showTextDocument(document, { viewColumn: first.column ?? vscode.ViewColumn.One });
+  }
+
+  async function discardFile(index) {
+    const patch = pending;
+    if (!patch || !patch.files[index]) return;
+    const [file] = patch.files.splice(index, 1);
+    recordHistory('discard', `${patch.request} — dropped ${fileName(file.document)} from patch`);
+    patches.delete(file.original.toString());
+    patches.delete(file.modified.toString());
+    const tabs = vscode.window.tabGroups.all.flatMap(group => group.tabs).filter(tab =>
+      tab.input instanceof vscode.TabInputTextDiff && tab.input.original.toString() === file.original.toString());
+    try {
+      if (tabs.length) await vscode.window.tabGroups.close(tabs, true);
+    } finally {
+      if (!patch.files.length) {
+        await clearPatch('Patch discarded.');
+      } else {
+        agent?.postMessage({ type: 'pending', patch: describePatch(patch) });
+      }
+    }
   }
 
   async function runCheck() {

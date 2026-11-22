@@ -39,7 +39,8 @@ type ViewMessage =
   | { type: 'propose'; id: number; request: string; mode: Mode }
   | { type: 'detach-context'; index: number }
   | { type: 'new-chat' | 'chat-actions' | 'check' | 'discard' | 'apply' | 'review' |
-      'discard-plan' | 'execute-plan' | 'select-model' | 'ready' };
+      'discard-plan' | 'execute-plan' | 'select-model' | 'ready' }
+  | { type: 'apply-file' | 'discard-file'; id: number; index: number };
 
 declare function acquireVsCodeApi(): { postMessage(message: ViewMessage): void };
 const vscode = acquireVsCodeApi();
@@ -190,10 +191,18 @@ function Agent({ initial }: { initial: Initial }) {
         <p id="task" className="agent-message request">{patch.request}</p>
         <div id="patch" className="patch" hidden={!filesOpen}>
           <div id="patch-files">
-            {patch.files.map(file => <div className="patch" key={file.name}>
+            {patch.files.map((file, index) => <div className="patch" key={file.name}>
               <div className="patch-file">
                 <span>{file.name}</span>
-                <span>+{file.lines.length}{file.removed ? ` -${file.removed}` : ''}</span>
+                <span className="patch-file-actions">
+                  <span>+{file.lines.length}{file.removed ? ` -${file.removed}` : ''}</span>
+                  <button type="button" className="pill-action" disabled={patch.checking}
+                    title="Apply only this file"
+                    onClick={() => send({ type: 'apply-file', id: selected, index })}>Keep</button>
+                  <button type="button" className="pill-action" disabled={patch.checking}
+                    title="Drop this file from the patch"
+                    onClick={() => send({ type: 'discard-file', id: selected, index })}>Drop</button>
+                </span>
               </div>
               <pre className="patch-lines">{file.lines.map((line, index) => `${file.start + index}  +  ${line}`).join('\n')}</pre>
             </div>)}

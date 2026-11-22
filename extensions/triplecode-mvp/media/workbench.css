@@ -490,7 +490,9 @@ body[data-screen="agent"] { height: 100vh; overflow: hidden; }
   overflow-wrap: anywhere;
   font-size: 12px;
 }
-.patch-file span:last-child { margin-left: auto; color: var(--vscode-gitDecoration-addedResourceForeground); }
+.patch-file-actions { display: inline-flex; align-items: center; gap: 4px; margin-left: auto; }
+.patch-file-actions .pill-action { padding: 1px 8px; font-size: 11px; }
+.patch-file-actions > span { color: var(--vscode-gitDecoration-addedResourceForeground); }
 .patch-lines {
   margin: 0;
   padding: 6px 8px;
