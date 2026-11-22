@@ -11,7 +11,9 @@
 .action-button-matrix th, .action-button-matrix td { padding: 8px; }
 .action-button-matrix td { min-inline-size: 52px; text-align: start; }
 .action-button-matrix .tc-action-button {
-  --action-fg: var(--triplecode-button-secondary-foreground);
-  --action-secondary: var(--triplecode-button-secondary-background);
-  --action-hover: var(--triplecode-activitybar-active-background);
+  --action-fg: var(--button-secondaryForeground);
+  --action-secondary: var(--button-secondaryBackground);
+  --action-hover: var(--button-secondaryHoverBackground);
+  --action-disabled-fg: var(--descriptionForeground);
+  --action-disabled-bg: var(--config-text-2);
 }

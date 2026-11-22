@@ -1,7 +1,7 @@
 :root {
   color-scheme: light dark;
-  color: var(--vscode-foreground);
-  background: var(--vscode-editor-background);
+  color: var(--triplecode-theme-foreground);
+  background: var(--triplecode-theme-editor-background);
   font: 14px/1.45 var(--vscode-font-family);
 }
 
@@ -11,23 +11,23 @@ button, textarea { font: inherit; }
 button { cursor: pointer; }
 button:disabled { cursor: default; opacity: .55; }
 button:focus-visible, textarea:focus-visible {
-  outline: 1px solid var(--vscode-focusBorder);
+  outline: 1px solid var(--triplecode-theme-focusBorder);
   outline-offset: 2px;
 }
 button {
   border: 1px solid var(--vscode-widget-border, transparent);
   border-radius: 6px;
-  background: var(--vscode-button-secondaryBackground);
-  color: var(--vscode-button-secondaryForeground);
+  background: var(--triplecode-theme-button-secondaryBackground);
+  color: var(--triplecode-theme-button-secondaryForeground);
   padding: 4px 10px;
 }
-button:hover:not(:disabled) { background: var(--vscode-button-secondaryHoverBackground); }
+button:hover:not(:disabled) { background: var(--triplecode-theme-button-secondaryHoverBackground); }
 button.primary {
-  background: var(--vscode-button-background);
-  color: var(--vscode-button-foreground);
+  background: var(--triplecode-theme-button-background);
+  color: var(--triplecode-theme-button-foreground);
 }
-button.primary:hover { background: var(--vscode-button-hoverBackground); }
-.muted { color: var(--vscode-descriptionForeground); }
+button.primary:hover { background: var(--triplecode-theme-button-hoverBackground); }
+.muted { color: var(--triplecode-theme-descriptionForeground); }
 [hidden] { display: none !important; }
 
 body[data-screen="welcome"] {
@@ -35,7 +35,7 @@ body[data-screen="welcome"] {
   display: grid;
   place-items: center;
   padding: 24px;
-  background: var(--vscode-titleBar-activeBackground, var(--vscode-editor-background));
+  background: var(--triplecode-theme-titleBar-activeBackground, var(--triplecode-theme-editor-background));
 }
 .welcome {
   width: min(100%, 362px);
@@ -52,7 +52,7 @@ body[data-screen="welcome"] {
 }
 .welcome-meta .tag {
   background: var(--triplecode-chat-request-background, #2b2d31);
-  color: var(--triplecode-config-text-4, var(--vscode-descriptionForeground));
+  color: var(--triplecode-config-text-4, var(--triplecode-theme-descriptionForeground));
   border-radius: var(--triplecode-s, 4px);
   padding: 6px 4px;
   font-size: 12px;
@@ -60,7 +60,7 @@ body[data-screen="welcome"] {
   line-height: 16px;
 }
 button.link {
-  color: var(--vscode-textLink-foreground);
+  color: var(--triplecode-theme-textLink-foreground);
   background: transparent;
   border: 0;
   padding: 0;
@@ -68,7 +68,7 @@ button.link {
   font-weight: 500;
   line-height: 20px;
 }
-button.link:hover:not(:disabled) { color: var(--vscode-textLink-activeForeground); background: transparent; text-decoration: underline; }
+button.link:hover:not(:disabled) { color: var(--triplecode-theme-textLink-activeForeground); background: transparent; text-decoration: underline; }
 .import-link { align-self: center; }
 .card-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 .card {
@@ -79,10 +79,10 @@ button.link:hover:not(:disabled) { color: var(--vscode-textLink-activeForeground
   gap: 8px;
   min-height: 0;
   padding: 8px;
-  background: var(--vscode-editorWidget-background, var(--vscode-sideBar-background));
-  border: 1px solid var(--vscode-editorWidget-border, var(--vscode-panel-border));
+  background: var(--triplecode-theme-editorWidget-background, var(--triplecode-theme-sideBar-background));
+  border: 1px solid var(--triplecode-theme-editorWidget-border, var(--triplecode-theme-panel-border));
   border-radius: 6px;
-  color: var(--vscode-foreground);
+  color: var(--triplecode-theme-foreground);
   font-size: 14px;
   font-weight: 500;
   line-height: 20px;
@@ -116,7 +116,7 @@ body[data-screen="agent"] { height: 100vh; overflow: hidden; }
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: var(--triplecode-editor-widget-background, var(--vscode-sideBar-background));
+  background: var(--triplecode-editor-widget-background, var(--triplecode-theme-sideBar-background));
 }
 .chat-header, #chats, .chat-tab {
   display: flex;
@@ -127,8 +127,8 @@ body[data-screen="agent"] { height: 100vh; overflow: hidden; }
   flex: 0 0 32px;
   min-width: 0;
   padding-inline: 8px;
-  border-bottom: 1px solid var(--triplecode-side-bar-border, var(--vscode-editorGroup-border));
-  background: var(--triplecode-editor-group-header-tabs-background, var(--vscode-editorGroupHeader-tabsBackground));
+  border-bottom: 1px solid var(--triplecode-side-bar-border, var(--triplecode-theme-editorGroup-border));
+  background: var(--triplecode-editor-group-header-tabs-background, var(--triplecode-theme-editorGroupHeader-tabsBackground));
 }
 #chats {
   flex: 1;
@@ -142,12 +142,12 @@ body[data-screen="agent"] { height: 100vh; overflow: hidden; }
   padding-inline: 8px 4px;
   border: 1px solid transparent;
   border-radius: var(--triplecode-s, 4px);
-  color: var(--vscode-descriptionForeground);
+  color: var(--triplecode-theme-descriptionForeground);
 }
 .chat-tab:has([aria-pressed="true"]) {
-  border-color: var(--triplecode-side-bar-border, var(--vscode-editorGroup-border));
-  background: var(--triplecode-side-bar-background, var(--vscode-sideBar-background));
-  color: var(--vscode-foreground);
+  border-color: var(--triplecode-side-bar-border, var(--triplecode-theme-editorGroup-border));
+  background: var(--triplecode-side-bar-background, var(--triplecode-theme-sideBar-background));
+  color: var(--triplecode-theme-foreground);
 }
 .chat-tab button {
   padding: 0 2px;
@@ -161,8 +161,6 @@ body[data-screen="agent"] { height: 100vh; overflow: hidden; }
 .chat-tab:is(:hover, :focus-within, :has([aria-pressed="true"])) button:last-child {
   visibility: visible;
 }
-.chat-header .icon-button { flex: 0 0 20px; height: 20px; }
-.chat-header .icon-button img { width: 16px; height: 16px; }
 .icon-button {
   display: inline-grid;
   place-items: center;
@@ -176,10 +174,10 @@ body[data-screen="agent"] { height: 100vh; overflow: hidden; }
 
 .agent form {
   margin: 8px;
-  border: 1px solid var(--triplecode-chat-request-border, var(--vscode-input-border));
+  border: 1px solid var(--triplecode-chat-request-border, var(--triplecode-theme-input-border));
   border-radius: var(--triplecode-s, 4px);
-  background: var(--triplecode-chat-request-background, var(--vscode-input-background));
-  color: var(--vscode-input-foreground);
+  background: var(--triplecode-chat-request-background, var(--triplecode-theme-input-background));
+  color: var(--triplecode-theme-input-foreground);
   overflow: hidden;
 }
 .agent form:has(.mode-menu:not([hidden])) { overflow: visible; }
@@ -188,18 +186,18 @@ body[data-screen="agent"] { height: 100vh; overflow: hidden; }
   flex-direction: column;
   gap: 4px;
   padding: 8px;
-  border-bottom: 1px solid var(--triplecode-chat-request-border, var(--vscode-input-border));
+  border-bottom: 1px solid var(--triplecode-chat-request-border, var(--triplecode-theme-input-border));
 }
 .agent .plan-bar {
   border-bottom: 0;
-  border-top: 1px solid var(--triplecode-chat-request-border, var(--vscode-input-border));
+  border-top: 1px solid var(--triplecode-chat-request-border, var(--triplecode-theme-input-border));
 }
 .agent .plan-label {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: var(--vscode-descriptionForeground, #9097a2);
+  color: var(--triplecode-theme-descriptionForeground, #9097a2);
   font-size: 12px;
 }
 .agent .plan-toggle {
@@ -215,17 +213,17 @@ body[data-screen="agent"] { height: 100vh; overflow: hidden; }
   cursor: pointer;
 }
 .agent .plan-toggle:hover .plan-label {
-  color: var(--vscode-foreground);
+  color: var(--triplecode-theme-foreground);
 }
 .agent .plan-text {
   max-height: 220px;
   margin: 0;
   padding: 8px;
   overflow: auto;
-  border: 1px solid var(--triplecode-chat-request-border, var(--vscode-input-border));
+  border: 1px solid var(--triplecode-chat-request-border, var(--triplecode-theme-input-border));
   border-radius: 4px;
   background: var(--vscode-textCodeBlock-background, transparent);
-  color: var(--vscode-foreground);
+  color: var(--triplecode-theme-foreground);
   font-family: var(--vscode-editor-font-family, monospace);
   font-size: 12px;
   line-height: 1.45;
@@ -246,7 +244,7 @@ body[data-screen="agent"] { height: 100vh; overflow: hidden; }
   border: 0;
   border-radius: var(--triplecode-xs, 2px);
   background: transparent;
-  color: var(--vscode-button-secondaryForeground);
+  color: var(--triplecode-theme-button-secondaryForeground);
   font-size: 14px;
   font-weight: 500;
   line-height: 20px;
@@ -262,25 +260,6 @@ body[data-screen="agent"] { height: 100vh; overflow: hidden; }
   align-items: center;
   gap: 2px;
 }
-.agent .review-actions button {
-  padding: 4px;
-  border: 0;
-  border-radius: var(--triplecode-full, 999px);
-  background: transparent;
-  color: var(--vscode-button-secondaryForeground);
-  font-size: 14px;
-  font-weight: 500;
-  line-height: 20px;
-}
-.agent .review-actions button:hover:not(:disabled) {
-  background: var(--vscode-list-hoverBackground, rgba(255, 255, 255, .08));
-}
-.agent .review-actions .review-btn {
-  border-radius: var(--triplecode-xs, 2px);
-  background: var(--vscode-button-secondaryForeground);
-  color: var(--vscode-button-secondaryBackground);
-}
-.agent .review-actions .review-btn:hover:not(:disabled) { filter: brightness(.92); }
 .agent textarea {
   display: block;
   min-height: 67px;
@@ -291,7 +270,7 @@ body[data-screen="agent"] { height: 100vh; overflow: hidden; }
   padding: 8px;
   border: 0;
 }
-.agent textarea::placeholder { color: var(--vscode-input-placeholderForeground); }
+.agent textarea::placeholder { color: var(--triplecode-theme-input-placeholderForeground); }
 .agent textarea:focus-visible { outline-offset: -1px; }
 .has-patch textarea { min-height: 30px; resize: none; }
 .agent footer {
@@ -307,7 +286,7 @@ body[data-screen="agent"] { height: 100vh; overflow: hidden; }
   font-size: 14px;
   font-weight: 500;
   line-height: 20px;
-  color: var(--vscode-button-secondaryForeground);
+  color: var(--triplecode-theme-button-secondaryForeground);
   white-space: nowrap;
 }
 .agent footer .pill.model-pill {
@@ -317,7 +296,7 @@ body[data-screen="agent"] { height: 100vh; overflow: hidden; }
   cursor: pointer;
 }
 .agent footer .pill.model-pill:hover {
-  background: var(--vscode-list-hoverBackground, rgba(255, 255, 255, .08));
+  background: var(--triplecode-theme-list-hoverBackground, rgba(255, 255, 255, .08));
 }
 .agent footer .pill.mode {
   border: 0;
@@ -325,7 +304,7 @@ body[data-screen="agent"] { height: 100vh; overflow: hidden; }
 }
 .agent footer .pill.mode[aria-pressed="true"],
 .agent footer .pill.mode[aria-expanded="true"] {
-  background: var(--vscode-list-hoverBackground, rgba(255, 255, 255, .08));
+  background: var(--triplecode-theme-list-hoverBackground, rgba(255, 255, 255, .08));
 }
 .mode-picker {
   position: relative;
@@ -339,9 +318,9 @@ body[data-screen="agent"] { height: 100vh; overflow: hidden; }
   flex-direction: column;
   min-width: 96px;
   padding: 4px;
-  border: 1px solid var(--vscode-chat-requestBorder, #35373b);
+  border: 1px solid var(--triplecode-theme-chat-requestBorder, #35373b);
   border-radius: var(--triplecode-radius-sm, 6px);
-  background: var(--vscode-sideBar-background, #1d1e20);
+  background: var(--triplecode-theme-sideBar-background, #1d1e20);
   box-shadow: var(--triplecode-shadow-soft, 0 4px 16px rgba(0, 0, 0, .4));
 }
 .mode-menu button {
@@ -349,7 +328,7 @@ body[data-screen="agent"] { height: 100vh; overflow: hidden; }
   border: 0;
   border-radius: var(--triplecode-radius-xs, 4px);
   background: transparent;
-  color: var(--vscode-foreground, #f3f4f6);
+  color: var(--triplecode-theme-foreground, #f3f4f6);
   font: inherit;
   font-size: 13px;
   text-align: left;
@@ -357,14 +336,14 @@ body[data-screen="agent"] { height: 100vh; overflow: hidden; }
 }
 .mode-menu button:hover,
 .mode-menu button:focus-visible {
-  background: var(--vscode-list-hoverBackground, rgba(255, 255, 255, .08));
+  background: var(--triplecode-theme-list-hoverBackground, rgba(255, 255, 255, .08));
   outline: none;
 }
 .mode-menu[hidden] {
   display: none;
 }
 .mode-menu button[aria-selected="true"] {
-  color: var(--vscode-textLink-foreground, #266cf7);
+  color: var(--triplecode-theme-textLink-foreground, #266cf7);
 }
 .agent #target {
   flex: 0 1 auto;
@@ -376,29 +355,11 @@ body[data-screen="agent"] { height: 100vh; overflow: hidden; }
   font-size: 11px;
   text-align: right;
 }
-.agent .context-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 20px;
-  flex: 0 0 auto;
-  padding: 2px;
-  border: 0;
-  border-radius: var(--triplecode-s, 4px);
-  background: transparent;
-  cursor: pointer;
-}
-.agent .context-btn:hover, .agent .context-btn:focus-visible {
-  background: var(--vscode-toolbar-hoverBackground, rgba(128, 128, 128, 0.2));
-}
-.agent .context-btn img, .agent .attachment img { width: 16px; height: 16px; display: block; }
-.agent .attachment { opacity: 0.6; }
 .rules-badge {
   padding: 1px 6px;
-  border: 1px solid var(--vscode-input-border);
+  border: 1px solid var(--triplecode-theme-input-border);
   border-radius: 8px;
-  color: var(--vscode-descriptionForeground);
+  color: var(--triplecode-theme-descriptionForeground);
   font-size: 10px;
   white-space: nowrap;
 }
@@ -409,7 +370,7 @@ body[data-screen="agent"] { height: 100vh; overflow: hidden; }
   margin: 0;
   padding: 4px 8px;
   font-size: 11px;
-  color: var(--vscode-descriptionForeground);
+  color: var(--triplecode-theme-descriptionForeground);
 }
 .attachments {
   display: flex;
@@ -449,11 +410,11 @@ body[data-screen="agent"] { height: 100vh; overflow: hidden; }
   line-height: 1;
   cursor: pointer;
 }
-.chip-remove:hover { background: var(--vscode-list-hoverBackground, rgba(128, 128, 128, 0.35)); }
-.agent .send, .agent .review-btn {
+.chip-remove:hover { background: var(--triplecode-theme-list-hoverBackground, rgba(128, 128, 128, 0.35)); }
+.agent .send {
   border: 0;
-  background: var(--vscode-button-secondaryForeground);
-  color: var(--vscode-button-secondaryBackground);
+  background: var(--triplecode-theme-button-secondaryForeground);
+  color: var(--triplecode-theme-button-secondaryBackground);
 }
 .agent .send {
   display: grid;
@@ -466,8 +427,8 @@ body[data-screen="agent"] { height: 100vh; overflow: hidden; }
 }
 .agent .send img { width: 16px; height: 16px; }
 .agent .send .stop-glyph { width: 10px; height: 10px; border-radius: 1px; background: currentColor; }
-.agent .send:hover:not(:disabled), .agent .review-btn:hover:not(:disabled) {
-  background: var(--vscode-button-secondaryForeground);
+.agent .send:hover:not(:disabled) {
+  background: var(--triplecode-theme-button-secondaryForeground);
   filter: brightness(.88);
 }
 .conversation {
@@ -483,46 +444,45 @@ body[data-screen="agent"] { height: 100vh; overflow: hidden; }
   margin: 0;
   padding: 8px;
   overflow-wrap: anywhere;
-  background: var(--triplecode-chat-request-background, var(--vscode-input-background));
-  border: 1px solid var(--triplecode-chat-request-border, var(--vscode-input-border));
+  background: var(--triplecode-chat-request-background, var(--triplecode-theme-input-background));
+  border: 1px solid var(--triplecode-chat-request-border, var(--triplecode-theme-input-border));
   border-radius: var(--triplecode-s, 4px);
   box-shadow: var(--triplecode-shadow-soft, none);
-  color: var(--vscode-foreground);
+  color: var(--triplecode-theme-foreground);
   font-size: 14px;
   line-height: 20px;
 }
 .patch {
-  border: 1px solid var(--triplecode-chat-request-border, var(--vscode-input-border));
+  border: 1px solid var(--triplecode-chat-request-border, var(--triplecode-theme-input-border));
   border-radius: var(--triplecode-s, 4px);
   overflow: hidden;
-  background: var(--triplecode-chat-request-background, var(--vscode-input-background));
+  background: var(--triplecode-chat-request-background, var(--triplecode-theme-input-background));
 }
 #patch { display: grid; gap: 8px; background: transparent; border: 0; overflow: visible; }
-#patch .patch { background: var(--triplecode-chat-request-background, var(--vscode-input-background)); }
+#patch .patch { background: var(--triplecode-chat-request-background, var(--triplecode-theme-input-background)); }
 .patch-file {
   display: flex;
   gap: 8px;
   padding: 6px 8px;
-  border-bottom: 1px solid var(--triplecode-chat-request-border, var(--vscode-input-border));
+  border-bottom: 1px solid var(--triplecode-chat-request-border, var(--triplecode-theme-input-border));
   overflow-wrap: anywhere;
   font-size: 12px;
 }
 .patch-file-actions { display: inline-flex; align-items: center; gap: 4px; margin-left: auto; }
-.patch-file-actions .pill-action { padding: 1px 8px; font-size: 11px; }
 .patch-file-actions > span { color: var(--vscode-gitDecoration-addedResourceForeground); }
 .patch-lines {
   margin: 0;
   padding: 6px 8px;
-  color: var(--vscode-editor-foreground);
-  background: var(--vscode-diffEditor-insertedLineBackground);
+  color: var(--triplecode-theme-editor-foreground);
+  background: var(--triplecode-theme-diffEditor-insertedLineBackground);
   overflow: auto;
   font: var(--vscode-editor-font-size)/1.55 var(--vscode-editor-font-family);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
 .checks { display: grid; gap: 2px; padding: 0 8px 6px; }
-.check-scope { margin: 0; font-size: 11px; color: var(--vscode-descriptionForeground); }
-.check-row { display: flex; gap: 6px; align-items: baseline; font-size: 11px; color: var(--vscode-descriptionForeground); }
+.check-scope { margin: 0; font-size: 11px; color: var(--triplecode-theme-descriptionForeground); }
+.check-row { display: flex; gap: 6px; align-items: baseline; font-size: 11px; color: var(--triplecode-theme-descriptionForeground); }
 .check-ok { color: var(--vscode-gitDecoration-addedResourceForeground); }
 .check-fail { color: var(--vscode-errorForeground, #f14c4c); }
 .agent-message { white-space: pre-wrap; }
@@ -530,13 +490,13 @@ body[data-screen="agent"] { height: 100vh; overflow: hidden; }
   display: flex;
   align-items: center;
   gap: 8px;
-  color: var(--vscode-descriptionForeground);
+  color: var(--triplecode-theme-descriptionForeground);
 }
 .progress-spinner {
   flex: 0 0 auto;
   width: 12px;
   height: 12px;
-  border: 2px solid var(--vscode-descriptionForeground);
+  border: 2px solid var(--triplecode-theme-descriptionForeground);
   border-top-color: transparent;
   border-radius: 50%;
   animation: triplecode-spin 0.8s linear infinite;
@@ -544,5 +504,5 @@ body[data-screen="agent"] { height: 100vh; overflow: hidden; }
 @keyframes triplecode-spin { to { transform: rotate(360deg); } }
 .progress-text { flex: 1 1 auto; }
 .progress-time { flex: 0 0 auto; font-variant-numeric: tabular-nums; opacity: 0.7; }
-#status { margin: 4px 10px; color: var(--vscode-descriptionForeground); }
+#status { margin: 4px 10px; color: var(--triplecode-theme-descriptionForeground); }
 .sr-only { position: absolute; clip-path: inset(50%); width: 1px; height: 1px; overflow: hidden; }

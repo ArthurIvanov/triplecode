@@ -1,5 +1,12 @@
 /* Triplecode-app · ActionButton · 138:6194 */
-.tc-action-button {
+:is(.tc-action-button, :where(.monaco-workbench :is(
+  .titlebar-right .action-label:is([aria-label^="Back"], [aria-label^="Forward"], [aria-label^="Settings"], [aria-label="Agents"], [aria-label^="Agents ("],
+    [aria-label^="Toggle Primary Side Bar"], [aria-label^="Toggle Panel"], [aria-label^="Toggle Secondary Side Bar"],
+    .codicon-panel-left, .codicon-panel-left-off-layout-icon, .codicon-panel-layout-icon, .codicon-panel-off-layout-icon,
+    .codicon-auxiliarybar-right-off-layout-icon, .codicon-auxiliarybar-right-layout-icon),
+  .part.activitybar .monaco-action-bar:not(.monaco-menu .monaco-action-bar) .action-item > .action-label.codicon,
+  .part.editor .editor-actions .monaco-action-bar:not(.monaco-menu .monaco-action-bar) .action-item .action-label
+))) {
   --action-fg: var(--triplecode-button-secondary-foreground, #f3f4f6);
   --action-secondary: var(--triplecode-button-secondary-background, #2b2d31);
   --action-hover: var(--triplecode-activitybar-active-background, #303236);
@@ -16,6 +23,65 @@
   --action-padding: var(--triplecode-padding-s, 4px);
   --action-ring: none;
 
+  &:where(.monaco-workbench *, .agent *) {
+    --action-fg: var(--triplecode-theme-button-secondaryForeground, #f3f4f6);
+    --action-secondary: var(--triplecode-theme-button-secondaryBackground, #2b2d31);
+    --action-hover: var(--triplecode-theme-button-secondaryHoverBackground, #303236);
+    --action-disabled-fg: var(--vscode-disabledForeground, #9097a2);
+    --action-disabled-bg: var(--action-secondary);
+    --action-focus: var(--triplecode-theme-focusBorder, #bad0ff);
+  }
+
+  &:where([data-state="hover"], :not([data-state]):hover) {
+    --action-bg: var(--action-hover);
+  }
+
+  &:where([data-state="active"], :not([data-state]):is(:active, [aria-pressed="true"], [aria-checked="true"], .checked, .checked > .action-label)) {
+    --action-bg: var(--action-secondary);
+  }
+
+  &:where([data-state="focus"], :not([data-state]):focus-visible, .action-item:focus-visible > .action-label) {
+    --action-bg: transparent;
+    --action-ring: 0 0 0 2px var(--action-focus);
+  }
+
+  &:where([data-variant="filled"], .titlebar-right :is([aria-label="Agents"], [aria-label^="Agents ("]):is(.checked, [aria-pressed="true"], [aria-checked="true"], .checked > .action-label)) {
+    --action-bg: var(--action-fg);
+    --action-color: var(--action-secondary);
+  }
+
+  &[data-variant="filled"]:where([data-state="hover"], :not([data-state]):hover:not(:active, :focus-visible, [aria-pressed="true"])) {
+    --action-color: var(--action-hover);
+  }
+
+  &:where(:disabled, .disabled, [aria-disabled="true"], .disabled .action-label) {
+    --action-bg: transparent;
+    --action-color: var(--action-disabled-fg);
+    --action-ring: none;
+  }
+
+  &[data-variant="filled"]:disabled {
+    --action-bg: var(--action-disabled-bg);
+  }
+
+  /* Code OSS keeps ownership of layout, focus and command dispatch. */
+  &:not(.tc-action-button) {
+    background-color: var(--action-bg) !important;
+    color: var(--action-color) !important;
+    box-shadow: var(--action-ring);
+    border-radius: var(--triplecode-xs, 2px);
+
+    &:where(.titlebar-right *, .editor-actions *) {
+      min-block-size: var(--action-height);
+    }
+
+    &:where(.titlebar-right :is([aria-label="Agents"], [aria-label^="Agents ("])) {
+      border-radius: var(--triplecode-full, 999px);
+    }
+  }
+}
+
+.tc-action-button {
   appearance: none;
   display: inline-flex;
   align-items: center;
@@ -43,7 +109,7 @@
   background: var(--action-bg);
 }
 
-:is(.vscode-light, .vscode-high-contrast-light, .vs, .hc-light) .tc-action-button {
+:is(.vscode-light, .vscode-high-contrast-light, .vs, .hc-light) .tc-action-button:not(.agent *) {
   --action-fg: #35373b;
   --action-secondary: #f3f4f6;
   --action-hover: #edeff2;
@@ -82,41 +148,13 @@
   block-size: var(--action-icon-size);
 }
 
-.tc-action-button[data-variant="ghost"]:where([data-state="hover"], :not([data-state]):hover:not(:disabled)) {
-  --action-bg: var(--action-hover);
-}
-
-.tc-action-button[data-variant="ghost"]:where([data-state="active"], :not([data-state]):is(:active, [aria-pressed="true"])) {
-  --action-bg: var(--action-secondary);
-}
-
-.tc-action-button[data-variant="ghost"]:where([data-state="focus"], :not([data-state]):focus-visible) {
-  --action-bg: transparent;
-}
-
-.tc-action-button[data-variant="filled"] {
-  --action-bg: var(--action-fg);
-  --action-color: var(--action-secondary);
-}
-
-.tc-action-button[data-variant="filled"]:is([data-state="hover"], :not([data-state]):hover:not(:disabled, :active, :focus-visible, [aria-pressed="true"])) {
-  --action-color: var(--action-hover);
-}
-
-.tc-action-button:is([data-state="focus"], :focus-visible) {
-  --action-ring: 0 0 0 2px var(--action-focus);
-  outline: 2px solid transparent;
-}
-
 .tc-action-button:disabled {
-  --action-bg: transparent;
-  --action-color: var(--action-disabled-fg);
   opacity: 1;
   cursor: default;
 }
 
-.tc-action-button[data-variant="filled"]:disabled {
-  --action-bg: var(--action-disabled-bg);
+.tc-action-button:is([data-state="focus"], :focus-visible) {
+  outline: 2px solid transparent;
 }
 
 @media (forced-colors: active) {

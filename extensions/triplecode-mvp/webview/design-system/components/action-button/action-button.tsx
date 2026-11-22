@@ -1,4 +1,4 @@
-import type { ComponentPropsWithoutRef, ReactNode } from 'react';
+import type { ComponentPropsWithRef, ReactNode } from 'react';
 
 export type ActionButtonSize = 'small' | 'base' | 'large';
 export type ActionButtonState = 'enabled' | 'hover' | 'active' | 'focus' | 'disabled';
@@ -9,7 +9,7 @@ type ActionButtonContent =
   | { text: null; start: ReactNode; 'aria-label': string }
   | { text?: string; start?: ReactNode; 'aria-label'?: string };
 
-export type ActionButtonProps = Omit<ComponentPropsWithoutRef<'button'>, 'children' | 'aria-label'> &
+export type ActionButtonProps = Omit<ComponentPropsWithRef<'button'>, 'children' | 'aria-label'> &
   ActionButtonContent & {
     rounding?: ActionButtonRounding;
     size?: ActionButtonSize;

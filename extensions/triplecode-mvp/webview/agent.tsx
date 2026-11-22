@@ -2,6 +2,7 @@ import { useLayoutEffect, useReducer, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { flushSync } from 'react-dom';
 import { createRoot } from 'react-dom/client';
+import { ActionButton, ActionButtonIcon } from './design-system/components/action-button';
 
 const modes = { ask: 'Ask', plan: 'Plan', agent: 'Agent' } as const;
 type Mode = keyof typeof modes;
@@ -189,10 +190,10 @@ export function Agent({ initial }: { initial: Initial }) {
             onClick={() => send({ type: 'close-chat', id: item.id })}><img src={assets.close} alt="" /></button>
         </div>)}
       </div>
-      <button type="button" className="icon-button" aria-label="New chat" data-action="new-chat" disabled={!!patch}
-        onClick={() => send({ type: 'new-chat' })}><img src={assets.plus} alt="" /></button>
-      <button type="button" className="icon-button" aria-label="Agent actions" data-action="chat-actions"
-        onClick={() => send({ type: 'chat-actions' })}><img src={assets.actions} alt="" /></button>
+      <ActionButton text={null} start={<ActionButtonIcon href={assets.plus} />} aria-label="New chat" data-action="new-chat" disabled={!!patch}
+        onClick={() => send({ type: 'new-chat' })} />
+      <ActionButton text={null} start={<ActionButtonIcon href={assets.actions} />} aria-label="Agent actions" data-action="chat-actions"
+        onClick={() => send({ type: 'chat-actions' })} />
     </header>
     <section id="conversation" className="conversation" hidden={!replies.length && !patch && !progress} aria-label="Agent output">
       <div id="messages">
@@ -208,12 +209,12 @@ export function Agent({ initial }: { initial: Initial }) {
                 <span>{file.name}</span>
                 <span className="patch-file-actions">
                   <span>+{file.lines.length}{file.removed ? ` -${file.removed}` : ''}</span>
-                  <button type="button" className="pill-action" disabled={patch.checking}
+                  <ActionButton size="base" rounding="full" text="Keep" disabled={patch.checking}
                     title="Apply only this file"
-                    onClick={() => send({ type: 'apply-file', id: selected, index })}>Keep</button>
-                  <button type="button" className="pill-action" disabled={patch.checking}
+                    onClick={() => send({ type: 'apply-file', id: selected, index })} />
+                  <ActionButton size="base" rounding="full" text="Drop" disabled={patch.checking}
                     title="Drop this file from the patch"
-                    onClick={() => send({ type: 'discard-file', id: selected, index })}>Drop</button>
+                    onClick={() => send({ type: 'discard-file', id: selected, index })} />
                 </span>
               </div>
               <pre className="patch-lines">{file.lines.map((line, index) => `${file.start + index}  +  ${line}`).join('\n')}</pre>
@@ -232,16 +233,16 @@ export function Agent({ initial }: { initial: Initial }) {
             <span id="file-count">{patch.files.length} {patch.files.length === 1 ? 'file' : 'files'}</span>
           </button>
           <div className="review-actions">
-            <button type="button" className="pill-action" disabled={patch.checking} aria-describedby="check-target"
-              onClick={() => send({ type: 'check' })}>Run checks</button>
-            <button type="button" className="pill-action" disabled={patch.checking}
+            <ActionButton rounding="full" text="Run checks" disabled={patch.checking} aria-describedby="check-target"
+              onClick={() => send({ type: 'check' })} />
+            <ActionButton rounding="full" text="Check patch" disabled={patch.checking}
               title="Runs the check command on a temporary copy with the proposed patch applied"
-              onClick={() => send({ type: 'check-patch' })}>Check patch</button>
-            <button type="button" className="pill-action" disabled={patch.checking}
-              onClick={() => send({ type: 'discard' })}>Undo all</button>
-            <button type="button" className="pill-action" disabled={patch.checking}
-              onClick={() => send({ type: 'apply' })}>Keep all</button>
-            <button type="button" className="review-btn" ref={reviewButton} onClick={() => send({ type: 'review' })}>Review</button>
+              onClick={() => send({ type: 'check-patch' })} />
+            <ActionButton rounding="full" text="Undo all" disabled={patch.checking}
+              onClick={() => send({ type: 'discard' })} />
+            <ActionButton rounding="full" text="Keep all" disabled={patch.checking}
+              onClick={() => send({ type: 'apply' })} />
+            <ActionButton variant="filled" text="Review" ref={reviewButton} onClick={() => send({ type: 'review' })} />
           </div>
         </div>
         <div id="checks" className="checks" aria-live="polite">
@@ -272,11 +273,11 @@ export function Agent({ initial }: { initial: Initial }) {
             </span>
           </button>
           <div className="review-actions">
-            <button type="button" className="pill-action" disabled={state.submitting}
-              onClick={() => send({ type: 'discard-plan' })}>Discard</button>
-            <button type="button" className="review-btn" disabled={state.submitting}
+            <ActionButton rounding="full" text="Discard" disabled={state.submitting}
+              onClick={() => send({ type: 'discard-plan' })} />
+            <ActionButton variant="filled" text="Execute plan" disabled={state.submitting}
               title="Executes the plan shown above"
-              onClick={() => send({ type: 'execute-plan' })}>Execute plan</button>
+              onClick={() => send({ type: 'execute-plan' })} />
           </div>
         </div>
         {planOpen && (plan.plan
@@ -285,7 +286,7 @@ export function Agent({ initial }: { initial: Initial }) {
       </div>}
       {(chat?.queued ?? 0) > 0 && <p className="queue-note">
         {chat!.queued} request{chat!.queued === 1 ? '' : 's'} queued
-        <button type="button" className="pill-action" onClick={() => send({ type: 'clear-queue', id: selected })}>Cancel queue</button>
+        <ActionButton rounding="full" text="Cancel queue" onClick={() => send({ type: 'clear-queue', id: selected })} />
       </p>}
       <div id="attachments" className="attachments" hidden={!attachments.length}>
         {attachments.map((attachment, index) => {
@@ -353,10 +354,10 @@ export function Agent({ initial }: { initial: Initial }) {
           onClick={() => send({ type: 'select-model' })}>{state.model}</button>
         {state.rules && <span className="rules-badge" title="Repository rules from .triplecode/rules.md are included in requests">Rules</span>}
         <span id="target" className="muted" title={target}>{target}</span>
-        <button type="button" className="icon-button context-btn" aria-label="Attach context" title="Attach context" disabled={state.submitting}
-          onClick={() => send({ type: 'attach-menu', id: selected })}><img src={assets.context} alt="" /></button>
-        <button type="button" className="icon-button attachment" aria-label="Attach context" title="Attach context" disabled={state.submitting}
-          onClick={() => send({ type: 'attach-menu', id: selected })}><img src={assets.attach} alt="" /></button>
+        <ActionButton text={null} start={<ActionButtonIcon href={assets.context} />} aria-label="Attach context" title="Attach context" disabled={state.submitting}
+          onClick={() => send({ type: 'attach-menu', id: selected })} />
+        <ActionButton text={null} start={<ActionButtonIcon href={assets.attach} />} aria-label="Attach context" title="Attach context" disabled={state.submitting}
+          onClick={() => send({ type: 'attach-menu', id: selected })} />
         <button aria-label={state.submitting ? 'Stop' : 'Send'} title={state.submitting ? 'Stop' : 'Send'}
           type={state.submitting ? 'button' : 'submit'} className="send" disabled={!!patch}
           onClick={state.submitting ? () => send({ type: 'stop', id: selected }) : undefined}>

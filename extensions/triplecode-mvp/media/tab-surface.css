@@ -4,22 +4,22 @@
   height: 24px !important;
   border: 1px solid transparent;
   border-radius: 4px 4px 1px 1px;
-  background-color: var(--vscode-editorGroupHeader-tabsBackground, #131416) !important;
-  color: var(--vscode-descriptionForeground, #9097a2) !important;
+  background-color: var(--triplecode-theme-editorGroupHeader-tabsBackground, #131416) !important;
+  color: var(--triplecode-theme-descriptionForeground, #9097a2) !important;
 }
 :is(.tc-design-tab, .monaco-workbench .part.editor .tabs:not(.compact-height) .tabs-container .triplecode-editor-tab):is(:hover, .active) {
-  background-color: var(--vscode-sideBar-background, #1d1e20) !important;
-  border-color: var(--vscode-sideBar-border, #303236);
+  background-color: var(--triplecode-theme-sideBar-background, #1d1e20) !important;
+  border-color: var(--triplecode-theme-sideBar-border, #303236);
 }
 :is(.tc-design-tab, .monaco-workbench .part.editor .tabs:not(.compact-height) .tabs-container .triplecode-editor-tab).active {
   border-radius: 4px;
-  color: var(--vscode-foreground, #f3f4f6) !important;
+  color: var(--triplecode-theme-foreground, #f3f4f6) !important;
 }
 :is(.tc-design-tab, .monaco-workbench .part.editor .tabs:not(.compact-height) .tabs-container .triplecode-editor-tab).active:hover {
-  border-color: var(--vscode-chat-requestBorder, #35373b);
+  border-color: var(--triplecode-theme-chat-requestBorder, #35373b);
 }
 :is(.tc-design-tab, .monaco-workbench .part.editor .tabs:not(.compact-height) .tabs-container .triplecode-editor-tab):active {
-  background-color: var(--vscode-chat-requestBackground, #2b2d31) !important;
-  border-color: var(--vscode-chat-requestBorder, #35373b);
-  color: var(--vscode-foreground, #f3f4f6) !important;
+  background-color: var(--triplecode-theme-chat-requestBackground, #2b2d31) !important;
+  border-color: var(--triplecode-theme-chat-requestBorder, #35373b);
+  color: var(--triplecode-theme-foreground, #f3f4f6) !important;
 }

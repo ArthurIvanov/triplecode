@@ -1,5 +1,6 @@
-import { useId, useState } from 'react';
+import { useState } from 'react';
 import { ActionButton, type ActionButtonSize, type ActionButtonState, type ActionButtonVariant } from './action-button';
+import { ActionButtonIcon } from './action-button-icon';
 
 const actionButtonSizes = ['large', 'base', 'small'] as const;
 const actionButtonVariants = ['ghost', 'filled'] as const;
@@ -21,20 +22,6 @@ const actionButtonSampleIcons: Record<ActionButtonVariant, Record<ActionButtonSi
 
 const iconSizes: Record<ActionButtonSize, number> = { large: 16, base: 14, small: 12 };
 
-function SampleIcon({ href, size }: { href: string; size: ActionButtonSize }) {
-  const maskId = useId();
-  const dimension = iconSizes[size];
-
-  return (
-    <svg width={dimension} height={dimension} viewBox={`0 0 ${dimension} ${dimension}`} aria-hidden="true">
-      <mask id={maskId} mask-type="alpha">
-        <image href={href} width={dimension} height={dimension} />
-      </mask>
-      <rect width={dimension} height={dimension} fill="currentColor" mask={`url(#${maskId})`} />
-    </svg>
-  );
-}
-
 export function ActionButtonPreview({ media = '' }: { media?: string }) {
   const [pressed, setPressed] = useState(false);
 
@@ -43,7 +30,7 @@ export function ActionButtonPreview({ media = '' }: { media?: string }) {
     <ActionButton rounding="full" text="Toggle action" aria-pressed={pressed} onClick={() => setPressed(!pressed)} />
     {[false, true].map(iconOnly => (
       <div className="action-button-matrix-scroll" key={String(iconOnly)}>
-        <table className="action-button-matrix">
+        <table className="action-button-matrix" data-theme="Dark">
           <caption>{iconOnly ? 'Icon only' : 'Icon and label'}</caption>
           <thead>
             <tr>
@@ -59,7 +46,7 @@ export function ActionButtonPreview({ media = '' }: { media?: string }) {
               {(['default', 'full'] as const).flatMap(rounding =>
                 actionButtonVariants.flatMap(variant => actionButtonSizes.map(size => {
                   const reference = actionButtonSampleIcons[variant][size][state];
-                  const start = <SampleIcon href={`${media}/figma-assets/action-button/x${reference ? `-${reference}` : ''}.svg`} size={size} />;
+                  const start = <ActionButtonIcon href={`${media}/figma-assets/action-button/x${reference ? `-${reference}` : ''}.svg`} dimension={iconSizes[size]} />;
                   const props = { start, rounding, size, state, variant, tabIndex: -1 };
                   const label = `${variant}, ${rounding}, ${size}, ${state}`;
                   return <td key={`${rounding}-${variant}-${size}`}>

@@ -1715,7 +1715,8 @@ function render(webview, base, screen, initial) {
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${webview.cspSource}; style-src ${webview.cspSource}; script-src ${webview.cspSource}">
-<link rel="stylesheet" href="${uri('tokens.css')}"><link rel="stylesheet" href="${uri('workbench.css')}"><title>TripleCode</title></head>
+<link rel="stylesheet" href="${uri('tokens.css')}"><link rel="stylesheet" href="${uri('workbench.css')}">
+${screen === 'agent' ? `<link rel="stylesheet" href="${uri('design-system/design-system-components.css')}">` : ''}<title>TripleCode</title></head>
 <body data-screen="${screen}">${screen === 'welcome' ? welcome : agent}
 <script type="application/json" id="initial">${data}</script>
 <script src="${uri(script)}" defer></script></body></html>`;

@@ -1,0 +1,65 @@
+/* Triplecode-app · Activity Bar · 183:6531 */
+.tc-activity-bar {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--gap-dependent, 4px);
+  inline-size: 44px;
+  border-radius: var(--triplecode-sm, 6px);
+}
+
+:is(.tc-activity-bar__button, .monaco-workbench .part.activitybar .monaco-action-bar:not(.monaco-menu .monaco-action-bar) .action-item > .action-label.codicon) {
+  --action-fg: var(--triplecode-theme-activityBar-inactiveForeground, #9097a2);
+  --action-bg: transparent;
+  --action-icon-size: 20px;
+  border-radius: var(--triplecode-sm, 6px);
+
+  &:where(:hover, [aria-pressed="true"], .checked > .action-label) {
+    --action-bg: var(--triplecode-theme-activityBar-activeBackground, #1d1e20);
+  }
+
+  &:where([aria-pressed="true"], .checked > .action-label) {
+    --action-fg: var(--triplecode-theme-activityBar-foreground, #f3f4f6);
+  }
+
+  &:active {
+    --action-bg: var(--triplecode-theme-chat-requestBackground, #2b2d31);
+  }
+}
+
+.tc-activity-bar > .tc-activity-bar__button {
+  --action-height: 43px;
+  inline-size: 44px;
+}
+
+/* Workbench keeps native compact sizing, badges and keyboard navigation. */
+.monaco-workbench .part.activitybar:not(.compact) .action-item,
+.monaco-workbench .part.activitybar:not(.compact) .action-item > .action-label {
+  inline-size: 44px;
+}
+
+/* The shared button paints selection. Keep the native high-contrast marker. */
+.monaco-workbench:not(.hc-black, .hc-light) .part.activitybar > .content
+.monaco-action-bar:not(.monaco-menu .monaco-action-bar) .action-item:has(> .action-label.codicon) > .active-item-indicator {
+  background-color: transparent;
+
+  &::before {
+    content: none;
+  }
+}
+
+/* Code OSS applies this margin itself only in floating mode. */
+.monaco-workbench:not(.floating-panels) .part.activitybar:not(.compact) > .content
+.monaco-action-bar:not(.monaco-menu .monaco-action-bar) > .actions-container > .action-item + .action-item {
+  margin-block-start: var(--activity-bar-action-gap, var(--gap-dependent, 4px));
+}
+
+.monaco-workbench .part.activitybar .action-item > .action-label:is(.codicon-explorer-view-icon, .codicon-search-view-icon, .codicon-source-control-view-icon, .codicon-extensions-view-icon)::before {
+  content: "";
+  display: inline-block;
+  flex-shrink: 0;
+  inline-size: var(--action-icon-size);
+  block-size: var(--action-icon-size);
+  background: currentColor;
+  mask: var(--activity-bar-glyph) center / contain no-repeat;
+}

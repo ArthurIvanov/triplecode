@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { createRoot } from 'react-dom/client';
+import { ActionButton, ActionButtonIcon } from './design-system/components/action-button';
+import { ActivityBarPreview } from './design-system/components/activity-bar/activity-bar.preview';
 import { ActionButtonPreview } from './design-system/components/action-button/action-button.preview';
 import { componentCatalog, reactSupport, type ComponentPreview } from './component-catalog';
 
@@ -173,8 +175,8 @@ function AgentPreview() {
               <button style={{ padding: '0 2px', border: 0, background: 'transparent', color: 'inherit' }}>×</button>
             </div>
           </div>
-          <button className="icon-button"><img src={asset('imgPlus1.svg')} style={{ width: '16px', height: '16px' }} alt="" /></button>
-          <button className="icon-button"><img src={asset('imgEllipsis.svg')} style={{ width: '16px', height: '16px' }} alt="" /></button>
+          <ActionButton text={null} start={<ActionButtonIcon href={asset('imgPlus1.svg')} />} aria-label="New chat" />
+          <ActionButton text={null} start={<ActionButtonIcon href={asset('imgEllipsis.svg')} />} aria-label="Agent actions" />
         </header>
         <section className="conversation" style={{ flex: 1, overflow: 'auto' }}>
           <p className="agent-message">Add a comment: MVP preview</p>
@@ -187,10 +189,10 @@ function AgentPreview() {
                 <span>1 file</span>
               </button>
               <div className="review-actions">
-                <button type="button" className="pill-action">Run checks</button>
-                <button type="button" className="pill-action">Undo all</button>
-                <button type="button" className="pill-action">Keep all</button>
-                <button type="button" className="review-btn">Review</button>
+                <ActionButton rounding="full" text="Run checks" />
+                <ActionButton rounding="full" text="Undo all" />
+                <ActionButton rounding="full" text="Keep all" />
+                <ActionButton variant="filled" text="Review" />
               </div>
             </div>
           </div>
@@ -206,8 +208,8 @@ function AgentPreview() {
             </div>
             <button type="button" className="pill model-pill" id="model-pill" data-action="select-model" title="Select model">Model</button>
             <span id="target" className="muted">src/index.ts</span>
-            <button type="button" className="icon-button context-btn" disabled aria-label="Attach context"><img src={asset('figma-assets/imgShape.svg')} alt="" /></button>
-            <button type="button" className="icon-button attachment" disabled aria-label="Attach context"><img src={asset('imgPaperclip.svg')} alt="" /></button>
+            <ActionButton text={null} start={<ActionButtonIcon href={asset('figma-assets/imgShape.svg')} />} disabled aria-label="Attach context" />
+            <ActionButton text={null} start={<ActionButtonIcon href={asset('imgPaperclip.svg')} />} disabled aria-label="Attach context" />
             <button type="button" className="send" disabled><img src={asset('imgPlay.svg')} alt="" /></button>
           </footer>
         </form>
@@ -245,7 +247,7 @@ function ButtonsPreview() {
           <h3>Link</h3>
         </div>
         <div className="component-item">
-          <button className="icon-button"><img src={asset('imgCog.svg')} style={{ width: '16px', height: '16px' }} alt="" /></button>
+          <ActionButton text={null} start={<ActionButtonIcon href={asset('imgCog.svg')} />} aria-label="Settings" />
           <h3>Icon button</h3>
         </div>
       </div>
@@ -339,11 +341,21 @@ function TabsPreview() {
   </>;
 }
 
+function ActivityBarSection() {
+  return <>
+    <h2>Activity Bar</h2>
+    <div className="component-preview">
+      <ActivityBarPreview media={media} />
+    </div>
+  </>;
+}
+
 const sections = [
   { id: 'catalog', label: 'Catalog', Preview: Catalog },
   { id: 'figma-welcome', label: 'Figma Welcome', Preview: FigmaWelcome },
   { id: 'welcome', label: 'Legacy Welcome', Preview: LegacyWelcome },
   { id: 'agent', label: 'Agent Panel', Preview: AgentPreview },
+  { id: 'activity-bar', label: 'Activity Bar', Preview: ActivityBarSection },
   { id: 'buttons', label: 'Buttons', Preview: ButtonsPreview },
   { id: 'forms', label: 'Forms', Preview: FormsPreview },
   { id: 'tabs', label: 'Tabs', Preview: TabsPreview }

@@ -134,11 +134,21 @@ for before, after in (
 
 (out / js_name).write_text(js)
 shutil.copytree(Path(__file__).with_name("icons"), (out / css_name).parent / "triplecode-icons")
+extension = Path(__file__).parents[2] / "extensions/triplecode-mvp"
+shutil.copytree(extension / "media/figma-assets/activity-bar", (out / css_name).parent / "triplecode-activity-bar")
 with (out / css_name).open("ab") as css:
+    for name in ("figma-tokens.css", "theme-bridge.css"):
+        css.write(b"\n")
+        css.write((extension / "media" / name).read_bytes())
     css.write(b"\n")
     css.write(Path(__file__).with_name("workbench.css").read_bytes())
     css.write(b"\n")
-    css.write((Path(__file__).parents[2] / "extensions/triplecode-mvp/media/tab-surface.css").read_bytes())
+    css.write((extension / "media/tab-surface.css").read_bytes())
+    css.write(b"\n")
+    css.write((extension / "webview/design-system/components/action-button/action-button.css").read_bytes())
+
+    css.write(b"\n")
+    css.write((extension / "webview/design-system/components/activity-bar/activity-bar.css").read_bytes())
 
 for name in (js_name, css_name):
     digest = hashlib.sha256((out / name).read_bytes()).digest()

@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { Agent, type Initial, type Patch } from '../agent';
+import '../design-system/components/action-button/action-button.css';
 
 const assets = {
   close: '/figma-assets/imgX.svg',

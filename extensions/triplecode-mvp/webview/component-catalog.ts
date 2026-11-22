@@ -31,7 +31,7 @@ export const componentCatalog: readonly ComponentGroup[] = [
       ['Layout toggle buttons', 'Primary Side Bar, Terminal and Secondary Side Bar', '.titlebar-right', { kind: 'toolbar', content: '◧|▤|◨', react: 'hybrid' }],
       ['Agents button', 'Shows or hides the Agent panel', 'triplecode.focusAgent', { kind: 'pill', content: '☷ Agents', react: 'hybrid' }],
       ['Settings button', 'Opens Workbench Settings', 'workbench.action.openSettings', { kind: 'toolbar', content: '⚙', react: 'hybrid' }],
-      ['Activity Bar', 'Explorer, Search, Source Control and Extensions', '.part.activitybar', { kind: 'toolbar', content: '▤|⌕|⑂|◇', react: 'workbench' }],
+      ['Activity Bar', 'Explorer, Search, Source Control and Extensions', '.part.activitybar', { kind: 'toolbar', content: '▤|⌕|⑂|◇', react: 'workbench' }, '183:6531'],
       ['Primary Side Bar', 'Dockable container for workspace views', '.part.sidebar', { kind: 'tree', content: 'EXPLORER|⌄ src|　TS route.ts', react: 'workbench' }],
       ['Secondary Side Bar', 'Dockable container for Agent and other views', '.part.auxiliarybar', { kind: 'panel', content: 'Chat 1　＋|Ask anything…', react: 'workbench' }],
       ['Panel splitter and frame', 'Resizing and framing the Workbench parts', '.monaco-sash · .triplecode-gutter', { kind: 'split', content: 'Explorer|Editor', react: 'workbench' }],
@@ -79,7 +79,7 @@ export const componentCatalog: readonly ComponentGroup[] = [
     components: [
       ['Chat header', 'Chat strip, New chat and Agent actions', '.chat-header', { kind: 'tabs', content: 'Chat 1|＋|⋯', react: 'react' }],
       ['Chat tab', 'Select or close a chat', '.chat-tab', { kind: 'tabs', content: 'Chat 1　×', react: 'react' }],
-      ['Icon button', 'New chat, Agent actions and context controls', '.icon-button', { kind: 'toolbar', content: '＋|⋯', react: 'react' }],
+      ['Icon button', 'New chat, Agent actions and context controls', 'ActionButton · icon slot', { kind: 'toolbar', content: '＋|⋯', react: 'react' }],
       ['Conversation', 'Agent replies and user request', '.conversation · .agent-message', { kind: 'panel', content: 'Explain this file|It handles requests.', react: 'react' }],
       ['Status message', 'Submission progress, errors and results', '#status', { kind: 'status', content: 'Preparing changes…', react: 'react' }],
       ['Composer', 'Prompt field and send action', '.composer · #prompt · .send', { kind: 'field', content: 'Press / for skills, @ for context|Agent　Model　▷', react: 'react' }],
@@ -91,7 +91,7 @@ export const componentCatalog: readonly ComponentGroup[] = [
       ['Patch card', 'File path, change counters and line preview', '.patch-file · .patch-lines', { kind: 'diff', content: 'route.ts　+1|+ return result;', react: 'react' }],
       ['Check result row', 'Command outcome in review', '.check-row', { kind: 'status', content: '✓ npm test — exit 0', react: 'react' }],
       ['Plan summary', 'Task summary, Discard and Execute plan', '.plan-bar', { kind: 'panel', content: 'Update request route|Discard　Execute plan', react: 'react' }],
-      ['Pill action', 'Review and plan actions', '.pill-action · .review-btn', { kind: 'pill', content: 'Run checks', react: 'react' }]
+      ['Pill action', 'Review and plan actions', 'ActionButton · full / filled', { kind: 'pill', content: 'Run checks', react: 'react' }]
     ]
   },
   {
