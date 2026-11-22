@@ -55,9 +55,25 @@ if (document.body.dataset.screen === 'welcome') {
   const prompt = document.querySelector('#prompt');
   const send = request.querySelector('button[type="submit"]');
   const chats = document.querySelector('#chats');
-  const modeButtons = [...document.querySelectorAll('.pill.mode')];
+  const modeButton = document.querySelector('#mode-button');
+  const modeMenu = document.querySelector('#mode-menu');
+  const modeOptions = [...modeMenu.querySelectorAll('[data-mode]')];
   let selectedChat;
   let currentMode = 'agent';
+
+  function applyMode(mode, notify = false) {
+    currentMode = mode;
+    modeButton.textContent = mode[0].toUpperCase() + mode.slice(1);
+    for (const option of modeOptions) {
+      option.setAttribute('aria-selected', String(option.dataset.mode === mode));
+    }
+    if (notify) vscode.postMessage({ type: 'mode', id: selectedChat, mode });
+  }
+
+  function closeModeMenu() {
+    modeMenu.hidden = true;
+    modeButton.setAttribute('aria-expanded', 'false');
+  }
 
   function renderMessages(replies) {
     messages.replaceChildren(...(replies || []).map(text => {
@@ -72,10 +88,7 @@ if (document.body.dataset.screen === 'welcome') {
   function renderChats(state) {
     selectedChat = state.selected;
     const selected = state.chats.find(chat => chat.id === selectedChat);
-    currentMode = selected?.mode || 'agent';
-    for (const button of modeButtons) {
-      button.setAttribute('aria-pressed', String(button.dataset.mode === currentMode));
-    }
+    applyMode(selected?.mode || 'agent');
     const tabs = state.chats.map(chat => {
       const tab = document.createElement('div');
       tab.className = 'chat-tab';
@@ -164,15 +177,19 @@ if (document.body.dataset.screen === 'welcome') {
     conversation.hidden = false;
   }
 
-  for (const button of modeButtons) {
-    button.addEventListener('click', () => {
-      currentMode = button.dataset.mode;
-      for (const other of modeButtons) {
-        other.setAttribute('aria-pressed', String(other === button));
-      }
-      vscode.postMessage({ type: 'mode', id: selectedChat, mode: currentMode });
+  modeButton.addEventListener('click', () => {
+    modeMenu.hidden = !modeMenu.hidden;
+    modeButton.setAttribute('aria-expanded', String(!modeMenu.hidden));
+  });
+  for (const option of modeOptions) {
+    option.addEventListener('click', () => {
+      applyMode(option.dataset.mode, true);
+      closeModeMenu();
     });
   }
+  document.addEventListener('click', event => {
+    if (!event.target.closest('.mode-picker')) closeModeMenu();
+  });
 
   renderChats(initial);
   updateTarget(initial.target);
@@ -192,10 +209,12 @@ if (document.body.dataset.screen === 'welcome') {
         break;
       case 'pending':
         showStatus('');
+        prompt.value = '';
         updateReview(data.patch);
         break;
       case 'complete':
         updateReview(null);
+        prompt.value = '';
         showStatus(data.text);
         break;
       case 'chats':

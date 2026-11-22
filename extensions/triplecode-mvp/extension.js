@@ -472,9 +472,14 @@ function getDesignSystemHtml(webview, context) {
             </div>
             <textarea placeholder="Press / for skills, @ for context" disabled style="min-height: 30px;"></textarea>
             <footer class="chat-actions">
-              <button type="button" class="pill mode" aria-pressed="false">Ask</button>
-              <button type="button" class="pill mode" aria-pressed="false">Plan</button>
-              <button type="button" class="pill mode" aria-pressed="true">Agent</button>
+              <div class="mode-picker">
+                <button type="button" class="pill mode" aria-expanded="false">Agent</button>
+                <div class="mode-menu" role="listbox" hidden>
+                  <button type="button" role="option">Ask</button>
+                  <button type="button" role="option">Plan</button>
+                  <button type="button" role="option" aria-selected="true">Agent</button>
+                </div>
+              </div>
               <span class="pill">Model</span>
               <span id="target" class="muted">src/index.ts</span>
               <span class="context-icon"><img src="${uri('figma-assets/imgShape.svg')}" alt=""></span>
@@ -1107,12 +1112,14 @@ function activate(context) {
     const trimmed = request.trim();
     const useAi = await aiAvailable();
     if (mode === 'ask') {
+      currentChat.draft = '';
       pushReply(useAi
         ? await aiOrFallback(() => aiChat(provider.askMessages(activeDocument, trimmed)), () => answerAsk(activeDocument, trimmed))
         : answerAsk(activeDocument, trimmed));
       return;
     }
     if (mode === 'plan') {
+      currentChat.draft = '';
       pushReply(useAi
         ? await aiOrFallback(() => aiChat(provider.planMessages(activeDocument, trimmed)), () => planRequest(trimmed))
         : planRequest(trimmed));
@@ -1130,12 +1137,14 @@ function activate(context) {
         throw new Error(`The model response could not be parsed. Try rephrasing the request.\n\nModel said:\n${preview}`);
       }
       if (parsed.noChange) {
+        currentChat.draft = '';
         pushReply(`The model did not propose a change.${parsed.reason ? ` ${parsed.reason}` : ''}`);
         return;
       }
       const eol = activeDocument.eol === vscode.EndOfLine.CRLF ? '\r\n' : '\n';
       const edit = provider.diffEdit(activeDocument.getText(), parsed.content, eol);
       if (!edit) {
+        currentChat.draft = '';
         pushReply('The model did not propose a change.');
         return;
       }
@@ -1178,7 +1187,7 @@ function activate(context) {
       patches.set(modified.toString(), before.slice(0, spec.edit.offset) + spec.edit.insertion + before.slice(spec.edit.offset + deleteLength));
       return { document, before, edit: spec.edit, original, modified, column: vscode.window.activeTextEditor?.viewColumn };
     });
-    currentChat.draft = request;
+    currentChat.draft = '';
     pending = { request: trimmed, files, checks: [] };
     persistChats();
     recordHistory('propose', `${trimmed} — ${files.length} file${files.length === 1 ? '' : 's'}`);
@@ -1434,9 +1443,14 @@ function render(webview, base, screen, initial) {
       <label class="sr-only" for="prompt">Agent task</label>
       <textarea id="prompt" maxlength="500" aria-describedby="target" placeholder="Press / for skills, @ for context" required></textarea>
       <footer class="chat-actions">
-        <button type="button" class="pill mode" data-mode="ask" aria-pressed="false">Ask</button>
-        <button type="button" class="pill mode" data-mode="plan" aria-pressed="false">Plan</button>
-        <button type="button" class="pill mode" data-mode="agent" aria-pressed="true">Agent</button>
+        <div class="mode-picker">
+          <button type="button" class="pill mode" id="mode-button" aria-haspopup="listbox" aria-expanded="false">Agent</button>
+          <div class="mode-menu" id="mode-menu" role="listbox" hidden>
+            <button type="button" role="option" data-mode="ask">Ask</button>
+            <button type="button" role="option" data-mode="plan">Plan</button>
+            <button type="button" role="option" data-mode="agent" aria-selected="true">Agent</button>
+          </div>
+        </div>
         <span class="pill">Model</span>
         <span id="target" class="muted"></span>
         <span class="context-icon"><img src="${uri('figma-assets/imgShape.svg')}" alt=""></span>

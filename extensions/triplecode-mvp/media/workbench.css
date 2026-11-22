@@ -319,8 +319,48 @@ body[data-screen="agent"] { height: 100vh; overflow: hidden; }
   border: 0;
   background: transparent;
 }
-.agent footer .pill.mode[aria-pressed="true"] {
+.agent footer .pill.mode[aria-pressed="true"],
+.agent footer .pill.mode[aria-expanded="true"] {
   background: var(--vscode-list-hoverBackground, rgba(255, 255, 255, .08));
+}
+.mode-picker {
+  position: relative;
+}
+.mode-menu {
+  position: absolute;
+  bottom: calc(100% + 4px);
+  left: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  min-width: 96px;
+  padding: 4px;
+  border: 1px solid var(--vscode-chat-requestBorder, #35373b);
+  border-radius: var(--triplecode-radius-sm, 6px);
+  background: var(--vscode-sideBar-background, #1d1e20);
+  box-shadow: var(--triplecode-shadow-soft, 0 4px 16px rgba(0, 0, 0, .4));
+}
+.mode-menu button {
+  padding: 6px 10px;
+  border: 0;
+  border-radius: var(--triplecode-radius-xs, 4px);
+  background: transparent;
+  color: var(--vscode-foreground, #f3f4f6);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+.mode-menu button:hover,
+.mode-menu button:focus-visible {
+  background: var(--vscode-list-hoverBackground, rgba(255, 255, 255, .08));
+  outline: none;
+}
+.mode-menu[hidden] {
+  display: none;
+}
+.mode-menu button[aria-selected="true"] {
+  color: var(--vscode-textLink-foreground, #266cf7);
 }
 .agent #target {
   flex: 0 1 auto;
