@@ -1,6 +1,7 @@
 'use strict';
 
 const vscode = require('vscode');
+const os = require('node:os');
 const { randomBytes, randomUUID, createHash } = require('node:crypto');
 
 const origin = 'https://triplecode.ru';
@@ -32,13 +33,16 @@ async function api(action, data) {
   return response.json();
 }
 
-function credentials(response, id, state) {
+function credentials(response, state, knownId) {
   if (typeof response.email !== 'string' || !response.email ||
     typeof response.access_token !== 'string' || !response.access_token ||
     typeof response.refresh_token !== 'string' || !response.refresh_token ||
     !Number.isFinite(response.expires_in) || response.expires_in <= 0) {
     throw new Error('Сервер вернул неполные данные входа.');
   }
+  const id = typeof response.session_id === 'string' && /^[a-f0-9-]{36}$/.test(response.session_id)
+    ? response.session_id
+    : (typeof knownId === 'string' && /^[a-f0-9-]{36}$/.test(knownId) ? knownId : randomUUID());
   return {
     id,
     state,
@@ -100,8 +104,8 @@ function registerDesktopAccount(context) {
     if (!refreshing) {
       refreshing = (async () => {
         try {
-          const result = await api('refresh', { refresh_token: value.refreshToken });
-          const refreshed = credentials(result, value.id, value.state);
+          const result = await api('refresh', { refresh_token: value.refreshToken, session_id: value.id });
+          const refreshed = credentials(result, value.state, value.id);
           const latest = await read(sessionKey);
           if (latest?.id !== value.id) return latest;
           await secrets.store(sessionKey, JSON.stringify(refreshed));
@@ -178,7 +182,7 @@ function registerDesktopAccount(context) {
     const value = await activeSession();
     if (!value || value.id !== id) return;
     try {
-      await api('logout', { access_token: value.accessToken });
+      await api('logout', { access_token: value.accessToken, session_id: value.id });
     } catch (error) {
       if (error.status !== 401) throw error;
     }
@@ -198,12 +202,15 @@ function registerDesktopAccount(context) {
         void vscode.window.showWarningMessage('Запрос входа истёк. Начните вход заново в TripleCode.');
         return;
       }
-      const result = await api('exchange', { code, verifier: pending.verifier });
+      const result = await api('exchange', {
+        code, verifier: pending.verifier,
+        label: ('TripleCode IDE · ' + os.hostname()).slice(0, 120)
+      });
       if ((await read(pendingKey))?.state !== state) {
         await api('logout', { access_token: result.access_token }).catch(() => {});
         return;
       }
-      const value = credentials(result, randomUUID(), state);
+      const value = credentials(result, state);
       await secrets.store(sessionKey, JSON.stringify(value));
       await forgetPending(state);
       void vscode.window.showInformationMessage('Вход выполнен: ' + value.email);
