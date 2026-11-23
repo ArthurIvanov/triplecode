@@ -10,6 +10,7 @@ const { readFileSync } = require('node:fs');
 const { writeFile, mkdir, unlink, mkdtemp, cp, symlink, rm } = require('node:fs/promises');
 const { dirname, normalize, isAbsolute, relative, sep } = require('node:path');
 const { commentEdit, supportsComments } = require('./patch');
+const { registerDesktopAccount } = require('./desktop-account');
 const { registerInlineAI } = require('./inline');
 const provider = require('./provider');
 
@@ -461,6 +462,7 @@ async function rollbackImport(context) {
 
 function activate(context) {
   registerInlineAI(context);
+  registerDesktopAccount(context);
   const patches = new Map();
   let activeDocument;
   let pending;

@@ -9,10 +9,19 @@
   },
   "main": "./extension.js",
   "activationEvents": [
-    "onStartupFinished"
+    "onStartupFinished",
+    "onUri"
   ],
   "contributes": {
     "commands": [
+      {
+        "command": "triplecode.signIn",
+        "title": "Войти в TripleCode"
+      },
+      {
+        "command": "triplecode.account",
+        "title": "TripleCode: Аккаунт"
+      },
       {
         "command": "triplecode.welcome",
         "title": "TripleCode: Welcome"
