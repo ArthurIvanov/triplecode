@@ -10,7 +10,7 @@ const { readFileSync } = require('node:fs');
 const { writeFile, mkdir, unlink, mkdtemp, cp, symlink, rm } = require('node:fs/promises');
 const { dirname, normalize, isAbsolute, relative, sep } = require('node:path');
 const { commentEdit, supportsComments } = require('./patch');
-const { registerDesktopAccount } = require('./desktop-account');
+const { registerDesktopAccount, sessionAccessToken } = require('./desktop-account');
 const { registerInlineAI } = require('./inline');
 const provider = require('./provider');
 
@@ -769,26 +769,55 @@ function activate(context) {
     }
     return aiProbe;
   }
+  function reportUsage({ feature, provider: providerName, model, durationMs, outcome }) {
+    sessionAccessToken().then(token => {
+      if (!token) return;
+      fetch('https://triplecode.ru/api/usage/event', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+        body: JSON.stringify({ feature, provider: providerName, model, duration_ms: durationMs, outcome }),
+        signal: AbortSignal.timeout(5000)
+      }).catch(() => {});
+    }).catch(() => {});
+  }
+
   async function aiChat(messages, signal, options = {}) {
+    const started = Date.now();
     const mode = await aiSetting('ai.provider', 'auto');
-    if (mode === 'openrouter') {
-      return provider.chatCompletions({
-        baseUrl: await aiSetting('ai.openrouterEndpoint', 'https://openrouter.ai/api/v1'),
-        apiKey: await openRouterKey(),
-        model: await aiSetting('ai.openrouterModel', 'openai/gpt-4o-mini'),
+    const feature = options.feature || 'other';
+    const report = (providerName, model, outcome) => reportUsage({
+      feature, provider: providerName, model,
+      durationMs: Date.now() - started, outcome
+    });
+    try {
+      if (mode === 'openrouter') {
+        const model = await aiSetting('ai.openrouterModel', 'openai/gpt-4o-mini');
+        const reply = await provider.chatCompletions({
+          baseUrl: await aiSetting('ai.openrouterEndpoint', 'https://openrouter.ai/api/v1'),
+          apiKey: await openRouterKey(),
+          model,
+          messages,
+          signal,
+          maxTokens: options.numPredict || 4096
+        });
+        report('openrouter', model, 'ok');
+        return reply;
+      }
+      const model = await aiSetting('ai.model', 'qwen2.5-coder:7b');
+      const reply = await provider.chat({
+        endpoint: await aiSetting('ai.endpoint', 'http://localhost:11434'),
+        model,
         messages,
         signal,
-        maxTokens: options.numPredict || 4096
+        numPredict: options.numPredict,
+        numCtx: options.numCtx
       });
+      report('ollama', model, 'ok');
+      return reply;
+    } catch (error) {
+      report(mode === 'openrouter' ? 'openrouter' : 'ollama', null, signal?.aborted ? 'stopped' : 'error');
+      throw error;
     }
-    return provider.chat({
-      endpoint: await aiSetting('ai.endpoint', 'http://localhost:11434'),
-      model: await aiSetting('ai.model', 'qwen2.5-coder:7b'),
-      messages,
-      signal,
-      numPredict: options.numPredict,
-      numCtx: options.numCtx
-    });
   }
   const contextExcludePattern = /(^|[\\/])(\.env($|\.)|[^\\/]*\.(pem|key|p12|pfx)$|[^\\/]*(secret|credential)[^\\/]*|id_rsa)/i;
 
@@ -867,7 +896,7 @@ function activate(context) {
     documents.splice(6);
     if (!documents.length) throw new Error('Open a source file first.');
     const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-    const options = { numPredict: 8192, numCtx: 16384 };
+    const options = { numPredict: 8192, numCtx: 16384, feature: 'agent' };
     const knownUris = new Set(documents.map(document => document.uri.toString()));
 
     let contextDocs = documents;
@@ -1072,7 +1101,7 @@ function activate(context) {
       const reply = useAi
         ? await aiOrFallback(signal, () => {
           postProgress(run, 'Waiting for model…');
-          return aiChat(provider.askMessages(document, aiRequest), signal);
+          return aiChat(provider.askMessages(document, aiRequest), signal, { feature: 'ask' });
         }, fallback)
         : fallback();
       signal.throwIfAborted();
@@ -1085,7 +1114,7 @@ function activate(context) {
         return;
       }
       postProgress(run, 'Waiting for model…');
-      const plan = await aiChat(provider.planMessages(document, aiRequest), signal);
+      const plan = await aiChat(provider.planMessages(document, aiRequest), signal, { feature: 'plan' });
       signal.throwIfAborted();
       completeChatTurn(chat, plan, { id: randomUUID(), task: trimmed, plan });
       return;

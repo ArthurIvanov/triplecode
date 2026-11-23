@@ -260,4 +260,9 @@ function registerDesktopAccount(context) {
   status.show();
 }
 
-module.exports = { registerDesktopAccount };
+async function sessionAccessToken() {
+  const value = await activeSession();
+  return value?.accessToken || null;
+}
+
+module.exports = { registerDesktopAccount, sessionAccessToken };
