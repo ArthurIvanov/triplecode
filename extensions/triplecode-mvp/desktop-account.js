@@ -195,15 +195,24 @@ function registerDesktopAccount(context) {
   }
 
   async function handleUri(uri) {
-    if (uri.authority !== authority || uri.path !== callbackPath || exchanging) return;
+    console.log('[desktop-account] handleUri called:', uri.toString());
+    if (uri.authority !== authority || uri.path !== callbackPath || exchanging) {
+      console.log('[desktop-account] handleUri rejected:', { authority: uri.authority, path: uri.path, exchanging });
+      return;
+    }
     const params = new URLSearchParams(uri.query);
     const code = params.get('code');
     const state = params.get('state');
-    if (!opaque.test(code || '') || !opaque.test(state || '')) return;
+    if (!opaque.test(code || '') || !opaque.test(state || '')) {
+      console.log('[desktop-account] handleUri invalid code/state');
+      return;
+    }
     exchanging = true;
     try {
       const pending = await read(pendingKey);
+      console.log('[desktop-account] pending:', pending ? { state: pending.state, expiresAt: pending.expiresAt } : 'null', 'state:', state);
       if (!pending || pending.state !== state || pending.expiresAt <= Date.now()) {
+        console.log('[desktop-account] pending expired or state mismatch');
         void vscode.window.showWarningMessage('Запрос входа истёк. Начните вход заново в TripleCode.');
         return;
       }
@@ -219,7 +228,8 @@ function registerDesktopAccount(context) {
       await secrets.store(sessionKey, JSON.stringify(value));
       await forgetPending(state);
       void vscode.window.showInformationMessage('Вход выполнен: ' + value.email);
-    } catch {
+    } catch (error) {
+      console.error('[desktop-account] handleUri error:', error);
       void vscode.window.showWarningMessage('Не удалось завершить вход. Откройте ссылку в браузере ещё раз или начните новый вход.');
     } finally {
       exchanging = false;
