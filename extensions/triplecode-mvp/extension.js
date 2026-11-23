@@ -505,7 +505,7 @@ function activate(context) {
         mode: ['ask', 'plan', 'agent'].includes(chat.mode) ? chat.mode : 'agent',
         replies: Array.isArray(chat.replies) ? chat.replies.filter(reply => typeof reply === 'string').slice(-50) : [],
         plan: chat.plan && typeof chat.plan.task === 'string' && typeof chat.plan.plan === 'string'
-          ? { task: chat.plan.task.slice(0, 500), plan: chat.plan.plan.slice(0, 8000) }
+          ? { id: typeof chat.plan.id === 'string' ? chat.plan.id : randomUUID(), task: chat.plan.task, plan: chat.plan.plan }
           : null,
         attachments: Array.isArray(chat.attachments)
           ? chat.attachments.filter(a => a && (a.kind === 'file' ? typeof a.path === 'string' : a.kind === 'selection' && typeof a.text === 'string')).slice(0, 5)
@@ -628,6 +628,9 @@ function activate(context) {
       if (applying) return;
       try {
         switch (message.type) {
+          case 'close-agent':
+            if (view.visible) await toggleAgent();
+            break;
           case 'ready':
             agentReady = true;
             if (focusComposerOnReady && view.visible) focusAgentComposer();
@@ -670,12 +673,12 @@ function activate(context) {
             break;
           case 'execute-plan': {
             const plan = currentChat.plan;
-            if (!plan) break;
-            await propose(`${plan.task}\n\nApproved plan:\n${plan.plan}`, 'agent', true);
+            if (!plan || message.id !== currentChat.id || message.planId !== plan.id || activeRun || pending) break;
+            await propose(`${plan.task}\n\nApproved plan:\n${plan.plan}`, 'agent', { approvedPlan: true });
             break;
           }
           case 'discard-plan':
-            if (currentChat.plan) {
+            if (message.id === currentChat.id && currentChat.plan?.id === message.planId && !activeRun) {
               currentChat.plan = null;
               persistChats();
               agent?.postMessage({ type: 'chats', ...chatState() });
@@ -958,7 +961,7 @@ function activate(context) {
     const item = chat.queue?.shift();
     if (!item) return;
     persistChats();
-    propose(item.request, item.mode, true)
+    propose(item.request, item.mode, { queued: true })
       .catch(error => agent?.postMessage({ type: 'error', text: error.message }));
   }
 
@@ -979,9 +982,11 @@ function activate(context) {
     finishRun(run, status);
   }
 
-  function completeChatTurn(chat, reply, plan = null) {
-    chat.draft = '';
-    chat.attachments = [];
+  function completeChatTurn(chat, reply, plan = null, keepComposer = false) {
+    if (!keepComposer) {
+      chat.draft = '';
+      chat.attachments = [];
+    }
     chat.plan = plan;
     if (reply) chat.replies.push(reply);
   }
@@ -1014,9 +1019,9 @@ function activate(context) {
     return [`Plan for “${request}”:`, ...steps, 'Switch to Agent mode and resend the request to apply it.'].join('\n');
   }
 
-  async function propose(request, mode = 'agent', trusted = false) {
+  async function propose(request, mode = 'agent', { approvedPlan = false, queued = false } = {}) {
     if (pending) throw new Error('Apply or discard the current patch first.');
-    if (typeof request !== 'string' || !request.trim() || (!trusted && request.length > 500)) {
+    if (typeof request !== 'string' || !request.trim() || (!approvedPlan && request.length > 500)) {
       throw new Error('Enter a request of up to 500 characters.');
     }
     const chat = currentChat;
@@ -1029,13 +1034,13 @@ function activate(context) {
       agent?.postMessage({ type: 'chats', ...chatState() });
       return;
     }
-    if (!trusted) chat.draft = request;
+    if (!approvedPlan && !queued) chat.draft = request;
     chat.status = '';
     persistChats();
     const controller = new AbortController();
     const run = {
       chat, controller, signal: controller.signal, startedAt: Date.now(),
-      document: activeDocument, documents: aiContextDocuments()
+      document: activeDocument, documents: aiContextDocuments(), approvedPlan
     };
     activeRun = run;
     const timeoutMs = vscode.workspace.getConfiguration('triplecode').get('ai.timeoutMs', 120000);
@@ -1052,25 +1057,35 @@ function activate(context) {
 
   async function proposeInRun(trimmed, mode, run) {
     const { chat, document, signal } = run;
-    const attachments = chat.attachments || [];
+    const attachments = run.approvedPlan ? [] : chat.attachments || [];
     postProgress(run, 'Checking provider…');
     const useAi = await aiAvailable();
     signal.throwIfAborted();
+    if (run.approvedPlan && !useAi) throw new Error('The approved plan requires an AI provider. Check the connection and retry.');
     const rules = repoRules();
     const rulesSuffix = rules ? `\n\nRepository rules (.triplecode/rules.md):\n${rules}` : '';
     const aiRequest = trimmed + attachmentSuffix(attachments) + rulesSuffix;
-    if (mode === 'ask' || mode === 'plan') {
-      const fallback = () => mode === 'ask' ? answerAsk(document, trimmed) : planRequest(trimmed, document);
-      const messages = mode === 'ask' ? provider.askMessages : provider.planMessages;
+    if (mode === 'ask') {
+      const fallback = () => answerAsk(document, trimmed);
       const reply = useAi
         ? await aiOrFallback(signal, () => {
           postProgress(run, 'Waiting for model…');
-          return aiChat(messages(document, aiRequest), signal);
+          return aiChat(provider.askMessages(document, aiRequest), signal);
         }, fallback)
         : fallback();
       signal.throwIfAborted();
-      const plan = mode === 'plan' && useAi ? { task: trimmed, plan: reply.slice(0, 8000) } : null;
-      completeChatTurn(chat, reply, plan);
+      completeChatTurn(chat, reply, chat.plan);
+      return;
+    }
+    if (mode === 'plan') {
+      if (!useAi) {
+        completeChatTurn(chat, planRequest(trimmed, document), chat.plan);
+        return;
+      }
+      postProgress(run, 'Waiting for model…');
+      const plan = await aiChat(provider.planMessages(document, aiRequest), signal);
+      signal.throwIfAborted();
+      completeChatTurn(chat, plan, { id: randomUUID(), task: trimmed, plan });
       return;
     }
 
@@ -1092,7 +1107,7 @@ function activate(context) {
       const result = await aiSpecs(agentRequest, extraDocuments, run);
       signal.throwIfAborted();
       if (result.reply) {
-        completeChatTurn(chat, result.reply);
+        completeChatTurn(chat, result.reply, null, run.approvedPlan);
         return;
       }
       specs = result.specs;
@@ -1135,7 +1150,7 @@ function activate(context) {
       patches.set(modified.toString(), before.slice(0, spec.edit.offset) + spec.edit.insertion + before.slice(spec.edit.offset + deleteLength));
       return { document, before, edit: spec.edit, original, modified, column: vscode.window.activeTextEditor?.viewColumn };
     });
-    completeChatTurn(chat);
+    completeChatTurn(chat, undefined, null, run.approvedPlan);
     pending = { request: trimmed, files, checks: [] };
     recordHistory('propose', `${trimmed} — ${files.length} file${files.length === 1 ? '' : 's'}`);
     agent?.postMessage({ type: 'pending', patch: describePatch(pending) });
@@ -1352,7 +1367,6 @@ function activate(context) {
   async function clearPatch(text) {
     const patch = pending;
     pending = undefined;
-    currentChat.draft = '';
     persistChats();
     agent?.postMessage({ type: 'complete', text });
     if (!patch) return;

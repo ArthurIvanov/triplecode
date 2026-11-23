@@ -16,7 +16,7 @@ type Chat = {
   queued?: number;
   mode?: Mode;
   replies?: string[];
-  plan?: { task: string; plan?: string } | null;
+  plan?: { id: string; task: string; plan: string } | null;
   attachments?: Attachment[];
 };
 type ChatState = { chats: Chat[]; selected: number; draft: string; model: string; provider?: string; rules?: boolean; progress?: Progress | null; status?: string };
@@ -42,8 +42,9 @@ type ViewMessage =
   | { type: 'mode'; id: number; mode: Mode }
   | { type: 'propose'; id: number; request: string; mode: Mode }
   | { type: 'detach-context'; index: number }
+  | { type: 'discard-plan' | 'execute-plan'; id: number; planId: string }
   | { type: 'new-chat' | 'chat-actions' | 'check' | 'check-patch' | 'discard' | 'apply' | 'review' |
-      'discard-plan' | 'execute-plan' | 'select-model' | 'ready' }
+      'select-model' | 'ready' | 'close-agent' }
   | { type: 'apply-file' | 'discard-file'; id: number; index: number };
 
 type VsCodeApi = { postMessage(message: ViewMessage): void };
@@ -78,13 +79,13 @@ function update(state: State, action: Action): State {
     case 'target':
       return { ...state, target: action.name };
     case 'pending':
-      return { ...state, patch: action.patch, status: '', draft: '', submitting: false, progress: null };
+      return { ...state, patch: action.patch, status: '', submitting: false, progress: null };
     case 'progress':
       return action.chat === state.selected
         ? { ...state, submitting: true, progress: action }
         : state;
     case 'complete':
-      return { ...state, patch: null, status: action.text, draft: '', submitting: false, progress: null };
+      return { ...state, patch: null, status: action.text, submitting: false, progress: null };
     case 'chats':
       return {
         ...state, chats: action.chats, selected: action.selected, draft: action.draft,
@@ -133,7 +134,7 @@ export function Agent({ initial }: { initial: Initial }) {
   });
   const [modeOpen, setModeOpen] = useState(false);
   const [filesOpen, setFilesOpen] = useState(true);
-  const [planOpen, setPlanOpen] = useState(false);
+  const [expandedPlanId, setExpandedPlanId] = useState<string>();
   const prompt = useRef<HTMLTextAreaElement>(null);
   const modePicker = useRef<HTMLDivElement>(null);
   const reviewButton = useRef<HTMLButtonElement>(null);
@@ -142,6 +143,7 @@ export function Agent({ initial }: { initial: Initial }) {
   const replies = chat?.replies || [];
   const attachments = chat?.attachments || [];
   const plan = chat?.plan;
+  const planOpen = !!plan && expandedPlanId === plan.id;
   const progress = state.progress && state.progress.chat === selected ? state.progress : null;
   const target = state.target || 'Open a source file';
   const { assets } = initial;
@@ -267,17 +269,17 @@ export function Agent({ initial }: { initial: Initial }) {
         <div className="review-row">
           <button type="button" className="plan-toggle" aria-expanded={planOpen}
             title={plan.plan || plan.task}
-            onClick={() => setPlanOpen(open => !open)}>
+            onClick={() => setExpandedPlanId(planOpen ? undefined : plan.id)}>
             <span className="plan-label" id="plan-label">
               {plan.task.length > 60 ? `${plan.task.slice(0, 60)}…` : plan.task}
             </span>
           </button>
           <div className="review-actions">
             <ActionButton rounding="full" text="Discard" disabled={state.submitting}
-              onClick={() => send({ type: 'discard-plan' })} />
-            <ActionButton variant="filled" text="Execute plan" disabled={state.submitting}
-              title="Executes the plan shown above"
-              onClick={() => send({ type: 'execute-plan' })} />
+              onClick={() => send({ type: 'discard-plan', id: selected, planId: plan.id })} />
+            <ActionButton variant="filled" text="Execute plan" disabled={state.submitting || !planOpen || !!patch}
+              title="Expand the plan to review it before executing"
+              onClick={() => send({ type: 'execute-plan', id: selected, planId: plan.id })} />
           </div>
         </div>
         {planOpen && (plan.plan
@@ -313,9 +315,10 @@ export function Agent({ initial }: { initial: Initial }) {
         }}
         onKeyDown={event => {
           if (event.nativeEvent.isComposing) return;
-          if (event.key === 'Escape' && state.submitting) {
+          if (event.key === 'Escape') {
             event.preventDefault();
-            send({ type: 'stop', id: selected });
+            if (state.submitting) send({ type: 'stop', id: selected });
+            else send({ type: 'close-agent' });
             return;
           }
           const field = event.currentTarget;
