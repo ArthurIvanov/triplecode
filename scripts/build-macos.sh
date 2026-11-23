@@ -149,3 +149,14 @@ if ! mv "$app" "$destination"; then
   exit 1
 fi
 printf 'Built %s\n' "$destination"
+
+# Keep the user-facing copy in ~/Applications in sync so protocol handlers
+# (triplecode://) and LaunchServices always resolve to the latest build.
+install_app="$HOME/Applications/$app_name.app"
+if [[ -d "$HOME/Applications" || "${TRIPLECODE_INSTALL:-1}" == "1" ]]; then
+  mkdir -p "$HOME/Applications"
+  rsync -a --delete "$destination/" "$install_app/"
+  lsregister=/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister
+  "$lsregister" -f "$install_app" >/dev/null 2>&1 || true
+  printf 'Installed %s\n' "$install_app"
+fi
