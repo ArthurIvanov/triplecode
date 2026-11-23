@@ -771,14 +771,17 @@ function activate(context) {
   }
   function reportUsage({ feature, provider: providerName, model, durationMs, outcome }) {
     sessionAccessToken().then(token => {
-      if (!token) return;
+      if (!token) {
+        console.warn('[TripleCode usage] no access token, skipping report');
+        return;
+      }
       fetch('https://triplecode.ru/api/usage/event', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
         body: JSON.stringify({ feature, provider: providerName, model, duration_ms: durationMs, outcome }),
         signal: AbortSignal.timeout(5000)
-      }).catch(() => {});
-    }).catch(() => {});
+      }).catch(error => console.warn('[TripleCode usage] report failed', error.message));
+    }).catch(error => console.warn('[TripleCode usage] session lookup failed', error.message));
   }
 
   async function aiChat(messages, signal, options = {}) {
