@@ -739,7 +739,10 @@ function activate(context) {
             break;
           case 'discard':
             if (pending?.checking) throw new Error('Wait for the current working tree check to finish.');
-            if (pending) recordHistory('discard', `${pending.request} — ${pending.files.length} file${pending.files.length === 1 ? '' : 's'}`);
+            if (pending) {
+              reportUsage({ feature: 'agent', provider: null, model: null, durationMs: 0, outcome: 'rejected' });
+              recordHistory('discard', `${pending.request} — ${pending.files.length} file${pending.files.length === 1 ? '' : 's'}`);
+            }
             await clearPatch('Changes discarded.');
             break;
         }
@@ -1241,6 +1244,7 @@ function activate(context) {
     }
     if (pending !== patch) return;
     if (!await vscode.workspace.applyEdit(workspaceEdit)) throw new Error('The editor could not apply the patch.');
+    reportUsage({ feature: 'agent', provider: null, model: null, durationMs: 0, outcome: 'accepted' });
     appliedOps.push({
       request: patch.request,
       files: targets.map(file => {
@@ -1279,6 +1283,7 @@ function activate(context) {
     const patch = pending;
     if (!patch || !patch.files[index]) return;
     const [file] = patch.files.splice(index, 1);
+    reportUsage({ feature: 'agent', provider: null, model: null, durationMs: 0, outcome: 'rejected' });
     recordHistory('discard', `${patch.request} — dropped ${fileName(file.document)} from patch`);
     patches.delete(file.original.toString());
     patches.delete(file.modified.toString());
