@@ -122,6 +122,11 @@ function registerDesktopAccount(context) {
     return refreshing;
   }
 
+  async function sessionAccessToken() {
+    const value = await activeSession();
+    return value?.accessToken || null;
+  }
+
   async function forgetPending(state) {
     if ((await read(pendingKey))?.state === state) await secrets.delete(pendingKey);
   }
@@ -258,11 +263,7 @@ function registerDesktopAccount(context) {
   );
   void updateStatus();
   status.show();
+  return { sessionAccessToken };
 }
 
-async function sessionAccessToken() {
-  const value = await activeSession();
-  return value?.accessToken || null;
-}
-
-module.exports = { registerDesktopAccount, sessionAccessToken };
+module.exports = { registerDesktopAccount };

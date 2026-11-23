@@ -10,7 +10,9 @@ const { readFileSync } = require('node:fs');
 const { writeFile, mkdir, unlink, mkdtemp, cp, symlink, rm } = require('node:fs/promises');
 const { dirname, normalize, isAbsolute, relative, sep } = require('node:path');
 const { commentEdit, supportsComments } = require('./patch');
-const { registerDesktopAccount, sessionAccessToken } = require('./desktop-account');
+const { registerDesktopAccount } = require('./desktop-account');
+
+let getSessionAccessToken = () => Promise.resolve(null);
 const { registerInlineAI } = require('./inline');
 const provider = require('./provider');
 
@@ -462,7 +464,8 @@ async function rollbackImport(context) {
 
 function activate(context) {
   registerInlineAI(context);
-  registerDesktopAccount(context);
+  const { sessionAccessToken } = registerDesktopAccount(context);
+  getSessionAccessToken = sessionAccessToken;
   const patches = new Map();
   let activeDocument;
   let pending;
@@ -770,7 +773,7 @@ function activate(context) {
     return aiProbe;
   }
   function reportUsage({ feature, provider: providerName, model, durationMs, outcome }) {
-    sessionAccessToken().then(token => {
+    getSessionAccessToken().then(token => {
       if (!token) {
         console.warn('[TripleCode usage] no access token, skipping report');
         return;
