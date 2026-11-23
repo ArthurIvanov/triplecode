@@ -59,6 +59,16 @@ inference, поэтому квота меряется в токенах/ACU. У 
 - **IDE.** Остаток квоты в статус-баре/пилюле Model до того, как
   пользователь упрётся в лимит.
 
+Статус на 23.11.2026: первый срез реализован — `POST /api/usage/event`
+(Bearer access_token устройства, валидация и лимит тела 2 КБ), таблица
+`usage_events` в той же SQLite, что и гранты, страница
+`/account/usage` (30 дней: итоги, по дням, по функциям, по моделям),
+пункт «Использование» в `CabinetShell`. IDE шлёт события из `aiChat`
+(feature agent/plan/ask, provider, model, duration, outcome) —
+fire-and-forget, без промптов и путей. Задеплоено на triplecode.ru;
+`TripleCode.app` пересобрана. Осталось: квоты, accepted/rejected patch,
+Plan Info в IDE, hosted `/api/ai`.
+
 ## Дизайн кабинета
 
 Решение от 23.11.2026: кабинет пользователя — сдержанный B2B-интерфейс,
