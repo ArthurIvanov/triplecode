@@ -428,9 +428,18 @@ body[data-screen="agent"] { height: 100vh; overflow: hidden; }
 .agent-message { white-space: pre-wrap; }
 .agent-message.progress {
   display: flex;
-  align-items: center;
+  flex-direction: column;
   gap: 8px;
   color: var(--triplecode-theme-descriptionForeground);
+}
+.progress-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.progress-timeline {
+  margin-top: 4px;
+  padding-left: 20px;
 }
 .progress-spinner {
   flex: 0 0 auto;

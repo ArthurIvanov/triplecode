@@ -4,6 +4,8 @@ import { flushSync } from 'react-dom';
 import { createRoot } from 'react-dom/client';
 import { ActionButton, ActionButtonIcon } from './design-system/components/action-button';
 import { Dropdown, DropdownItem } from './design-system/components/dropdown';
+import { Timeline, TimelineItem } from './design-system/components/timeline';
+import type { TimelineItemProps } from './design-system/components/timeline';
 
 const modes = { ask: 'Ask', plan: 'Plan', agent: 'Agent' } as const;
 type Mode = keyof typeof modes;
@@ -35,14 +37,15 @@ type Patch = {
 type Assets = Record<'close' | 'plus' | 'actions' | 'chevron' | 'context' | 'attach' | 'send' |
   'crown' | 'listTodo' | 'messageSquare' | 'check' | 'chevronDown', string>;
 type Initial = ChatState & { target: string; pending: Patch | null; assets: Assets };
-type Progress = { chat: number; text: string; startedAt: number };
+type Progress = { chat: number; text: string; startedAt: number; steps?: TimelineItemProps[] };
 type HostMessage =
   | { type: 'focus-composer' }
   | { type: 'target'; name: string }
   | { type: 'pending'; patch: Patch }
   | ({ type: 'progress' } & Progress)
   | { type: 'complete' | 'error'; text: string }
-  | ({ type: 'chats'; focusPrompt?: boolean } & ChatState);
+  | ({ type: 'chats'; focusPrompt?: boolean } & ChatState)
+  | { type: 'timeline-step'; chat: number; item: TimelineItemProps };
 type ViewMessage =
   | { type: 'select-chat' | 'close-chat' | 'stop' | 'attach-menu' | 'clear-queue'; id: number }
   | { type: 'draft'; id: number; value: string }
@@ -107,6 +110,12 @@ function update(state: State, action: Action): State {
       };
     case 'error':
       return { ...state, status: action.text, submitting: false, progress: null };
+    case 'timeline-step':
+      if (action.chat === state.selected && state.progress) {
+        const steps = [...(state.progress.steps || []), action.item];
+        return { ...state, progress: { ...state.progress, steps } };
+      }
+      return state;
     case 'edit':
       return { ...state, draft: action.value };
     case 'set-mode':
@@ -127,11 +136,27 @@ function ProgressIndicator({ progress }: { progress: Progress }) {
     const timer = setInterval(() => setElapsed(Math.floor((Date.now() - progress.startedAt) / 1000)), 1000);
     return () => clearInterval(timer);
   }, [progress.startedAt]);
-  return <p className="agent-message progress" role="status">
-    <span className="progress-spinner" aria-hidden="true" />
-    <span className="progress-text">{progress.text}</span>
-    <span className="progress-time">{elapsed}s</span>
-  </p>;
+  return <div className="agent-message progress">
+    <div className="progress-header">
+      <span className="progress-spinner" aria-hidden="true" />
+      <span className="progress-text">{progress.text}</span>
+      <span className="progress-time">{elapsed}s</span>
+    </div>
+    {progress.steps && progress.steps.length > 0 && (
+      <Timeline className="progress-timeline">
+        {progress.steps.map((step, index) => (
+          <TimelineItem
+            key={index}
+            type={step.type}
+            status={step.status}
+            title={step.title}
+            description={step.description}
+            timestamp={step.timestamp}
+          />
+        ))}
+      </Timeline>
+    )}
+  </div>;
 }
 
 export type { Initial, ChatState, Chat, Patch, Progress };

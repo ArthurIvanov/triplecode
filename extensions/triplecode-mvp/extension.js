@@ -811,13 +811,22 @@ function activate(context) {
     const started = Date.now();
     const mode = await aiSetting('ai.provider', 'auto');
     const feature = options.feature || 'other';
+    const chatId = options.chatId;
     const report = (providerName, model, outcome) => reportUsage({
       feature, provider: providerName, model,
       durationMs: Date.now() - started, outcome
     });
+    const addStep = (type, title, description) => {
+      if (chatId) agent?.postMessage({
+        type: 'timeline-step',
+        chat: chatId,
+        item: { type, title, description, timestamp: Date.now(), status: 'completed' }
+      });
+    };
     try {
       if (mode === 'openrouter') {
         const model = await aiSetting('ai.openrouterModel', 'openai/gpt-4o-mini');
+        addStep('tool', 'OpenRouter request', `Model: ${model}`);
         const reply = await provider.chatCompletions({
           baseUrl: await aiSetting('ai.openrouterEndpoint', 'https://openrouter.ai/api/v1'),
           apiKey: await openRouterKey(),
@@ -830,6 +839,7 @@ function activate(context) {
         return reply;
       }
       const model = await aiSetting('ai.model', 'qwen2.5-coder:7b');
+      addStep('tool', 'Ollama request', `Model: ${model}`);
       const reply = await provider.chat({
         endpoint: await aiSetting('ai.endpoint', 'http://localhost:11434'),
         model,

@@ -1,0 +1,122 @@
+/* Triplecode-app · Timeline · Agent execution history */
+.tc-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: var(--triplecode-gap-related, 8px);
+  padding: var(--triplecode-padding-m, 8px) 0;
+}
+
+.tc-timeline__item {
+  display: flex;
+  gap: var(--triplecode-gap-dependent, 4px);
+  position: relative;
+}
+
+.tc-timeline__marker {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  flex: none;
+  margin-top: 2px;
+}
+
+.tc-timeline__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--triplecode-description-foreground, #9097a2);
+}
+
+.tc-timeline__item--tool .tc-timeline__dot {
+  background: var(--triplecode-text-link-foreground, #266cf7);
+}
+
+.tc-timeline__item--edit .tc-timeline__dot {
+  background: var(--triplecode-button-secondaryBackground, #2b2d31);
+}
+
+.tc-timeline__item--command .tc-timeline__dot {
+  background: var(--triplecode-button-primaryBackground, #0e639c);
+}
+
+.tc-timeline__item--message .tc-timeline__dot {
+  background: var(--triplecode-textLink-foreground, #266cf7);
+}
+
+.tc-timeline__item--step .tc-timeline__dot {
+  background: var(--triplecode-foreground, #f3f4f6);
+}
+
+.tc-timeline__item.running .tc-timeline__dot {
+  background: var(--triplecode-text-link-foreground, #266cf7);
+  animation: tc-timeline-pulse 1.5s ease-in-out infinite;
+}
+
+.tc-timeline__item.error .tc-timeline__dot {
+  background: var(--triplecode-errorForeground, #f48771);
+}
+
+.tc-timeline__content {
+  flex: 1;
+  min-width: 0;
+}
+
+.tc-timeline__header {
+  display: flex;
+  align-items: center;
+  gap: var(--triplecode-gap-dependent, 4px);
+  margin-bottom: 2px;
+}
+
+.tc-timeline__title {
+  font-size: var(--triplecode-font-size-small, 12px);
+  font-weight: var(--triplecode-font-weight-medium, 500);
+  color: var(--triplecode-foreground, #f3f4f6);
+  flex: 1;
+}
+
+.tc-timeline__time {
+  font-size: var(--triplecode-font-size-small, 12px);
+  color: var(--triplecode-description-foreground, #9097a2);
+  flex: none;
+}
+
+.tc-timeline__description {
+  font-size: var(--triplecode-font-size-small, 12px);
+  color: var(--triplecode-description-foreground, #9097a2);
+  margin: 0;
+  line-height: var(--triplecode-line-height-small, 16px);
+}
+
+.tc-timeline__item[role="button"] {
+  cursor: pointer;
+}
+
+.tc-timeline__item[role="button"]:hover .tc-timeline__title {
+  color: var(--triplecode-text-link-foreground, #266cf7);
+}
+
+.tc-timeline__item[role="button"]:focus {
+  outline: 1px solid var(--triplecode-focusBorder, #007fd4);
+  outline-offset: 2px;
+  border-radius: var(--triplecode-xs, 2px);
+}
+
+@keyframes tc-timeline-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+@media (forced-colors: active) {
+  .tc-timeline__dot {
+    background: CanvasText;
+  }
+  .tc-timeline__item.running .tc-timeline__dot {
+    background: Highlight;
+  }
+  .tc-timeline__item.error .tc-timeline__dot {
+    background: Mark;
+  }
+}
