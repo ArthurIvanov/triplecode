@@ -1029,11 +1029,16 @@ function activate(context) {
   }
 
   function addTimelineStep(run, type, title, description) {
-    if (run.chat.id) agent?.postMessage({
-      type: 'timeline-step',
-      chat: run.chat.id,
-      item: { type, title, description, timestamp: Date.now(), status: 'completed' }
-    });
+    if (run.chat.id && agent) {
+      console.log(`[TripleCode timeline] Sending step: ${title}`);
+      agent.postMessage({
+        type: 'timeline-step',
+        chat: run.chat.id,
+        item: { type, title, description, timestamp: Date.now(), status: 'completed' }
+      });
+    } else {
+      console.log(`[TripleCode timeline] Skipped step: ${title} (agent=${!!agent}, chatId=${run.chat.id})`);
+    }
   }
 
   function drainQueue(chat) {
