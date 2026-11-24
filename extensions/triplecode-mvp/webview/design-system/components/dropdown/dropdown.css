@@ -44,6 +44,25 @@
   right: 0;
 }
 
+.tc-dropdown[data-placement="top-left"] > .tc-dropdown__list {
+  top: auto;
+  bottom: calc(100% + var(--triplecode-gap-dependent, 4px));
+  left: 0;
+}
+
+.tc-dropdown[data-placement="top-center"] > .tc-dropdown__list {
+  top: auto;
+  bottom: calc(100% + var(--triplecode-gap-dependent, 4px));
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.tc-dropdown[data-placement="top-right"] > .tc-dropdown__list {
+  top: auto;
+  bottom: calc(100% + var(--triplecode-gap-dependent, 4px));
+  right: 0;
+}
+
 .tc-dropdown__item {
   position: relative;
   display: flex;

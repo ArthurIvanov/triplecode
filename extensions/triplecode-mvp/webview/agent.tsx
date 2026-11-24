@@ -3,9 +3,14 @@ import type { FormEvent } from 'react';
 import { flushSync } from 'react-dom';
 import { createRoot } from 'react-dom/client';
 import { ActionButton, ActionButtonIcon } from './design-system/components/action-button';
+import { Dropdown, DropdownItem } from './design-system/components/dropdown';
 
 const modes = { ask: 'Ask', plan: 'Plan', agent: 'Agent' } as const;
 type Mode = keyof typeof modes;
+const modeOrder: Mode[] = ['agent', 'plan', 'ask'];
+const modeAsset: Record<Mode, 'crown' | 'listTodo' | 'messageSquare'> = {
+  agent: 'crown', plan: 'listTodo', ask: 'messageSquare'
+};
 type Attachment =
   | { kind: 'selection'; label?: string; text: string }
   | { kind: 'file'; path: string };
@@ -19,14 +24,16 @@ type Chat = {
   plan?: { id: string; task: string; plan: string } | null;
   attachments?: Attachment[];
 };
-type ChatState = { chats: Chat[]; selected: number; draft: string; model: string; provider?: string; rules?: boolean; progress?: Progress | null; status?: string };
+type ModelChoice = { value: string; label: string };
+type ChatState = { chats: Chat[]; selected: number; draft: string; model: string; modelValue?: string; models?: ModelChoice[]; provider?: string; rules?: boolean; progress?: Progress | null; status?: string };
 type Patch = {
   request: string;
   files: { name: string; lines: string[]; start: number; removed: number }[];
   checking?: boolean;
   checks?: { command: string; code: number; output?: string; target: 'working-tree' | 'proposed-patch' }[];
 };
-type Assets = Record<'close' | 'plus' | 'actions' | 'chevron' | 'context' | 'attach' | 'send', string>;
+type Assets = Record<'close' | 'plus' | 'actions' | 'chevron' | 'context' | 'attach' | 'send' |
+  'crown' | 'listTodo' | 'messageSquare' | 'check' | 'chevronDown', string>;
 type Initial = ChatState & { target: string; pending: Patch | null; assets: Assets };
 type Progress = { chat: number; text: string; startedAt: number };
 type HostMessage =
@@ -44,7 +51,8 @@ type ViewMessage =
   | { type: 'detach-context'; index: number }
   | { type: 'discard-plan' | 'execute-plan'; id: number; planId: string }
   | { type: 'new-chat' | 'chat-actions' | 'check' | 'check-patch' | 'discard' | 'apply' | 'review' |
-      'select-model' | 'ready' | 'close-agent' }
+      'select-model' | 'refresh-models' | 'ready' | 'close-agent' }
+  | { type: 'model'; value: string }
   | { type: 'apply-file' | 'discard-file'; id: number; index: number };
 
 type VsCodeApi = { postMessage(message: ViewMessage): void };
@@ -62,6 +70,8 @@ type State = ChatState & {
   focusRequest: number;
   provider: string;
   rules: boolean;
+  models: ModelChoice[];
+  modelValue: string;
 };
 type Action = HostMessage |
   { type: 'edit'; value: string } |
@@ -91,6 +101,7 @@ function update(state: State, action: Action): State {
         ...state, chats: action.chats, selected: action.selected, draft: action.draft,
         model: action.model || state.model, mode: selectedMode(action), status: action.status || '',
         provider: action.provider || state.provider, rules: Boolean(action.rules),
+        models: action.models ?? state.models, modelValue: action.modelValue ?? state.modelValue,
         submitting: Boolean(action.progress), progress: action.progress ?? null,
         focusRequest: state.focusRequest + (action.focusPrompt ? 1 : 0)
       };
@@ -130,13 +141,12 @@ export function Agent({ initial }: { initial: Initial }) {
     model: initial.model || 'Model', target: initial.target, patch: initial.pending,
     mode: selectedMode(initial), status: initial.status || '',
     submitting: Boolean(initial.progress), progress: initial.progress ?? null, focusRequest: 0,
-    provider: initial.provider || 'Auto', rules: Boolean(initial.rules)
+    provider: initial.provider || 'Auto', rules: Boolean(initial.rules),
+    models: initial.models || [], modelValue: initial.modelValue || ''
   });
-  const [modeOpen, setModeOpen] = useState(false);
   const [filesOpen, setFilesOpen] = useState(true);
   const [expandedPlanId, setExpandedPlanId] = useState<string>();
   const prompt = useRef<HTMLTextAreaElement>(null);
-  const modePicker = useRef<HTMLDivElement>(null);
   const reviewButton = useRef<HTMLButtonElement>(null);
   const { patch, selected, mode } = state;
   const chat = state.chats.find(item => item.id === selected);
@@ -153,17 +163,10 @@ export function Agent({ initial }: { initial: Initial }) {
       dispatch(event.data);
       if (event.data.type === 'complete') setFilesOpen(true);
     }
-    function closeModeMenu(event: MouseEvent) {
-      if (event.target instanceof Node && !modePicker.current?.contains(event.target)) {
-        setModeOpen(false);
-      }
-    }
     window.addEventListener('message', receive);
     send({ type: 'ready' });
-    document.addEventListener('click', closeModeMenu);
     return () => {
       window.removeEventListener('message', receive);
-      document.removeEventListener('click', closeModeMenu);
     };
   }, []);
 
@@ -334,27 +337,61 @@ export function Agent({ initial }: { initial: Initial }) {
           }
         }} />
       <footer className="chat-actions">
-        <div className="mode-picker" ref={modePicker}>
-          <button type="button" className="pill mode" id="mode-button" aria-haspopup="listbox" aria-expanded={modeOpen}
-            onClick={() => setModeOpen(open => !open)}>{modes[mode]}</button>
-          <div className="mode-menu" id="mode-menu" role="listbox" hidden={!modeOpen}
-            onKeyDown={event => {
-              if (event.key !== 'Escape') return;
-              event.preventDefault();
-              setModeOpen(false);
-              modePicker.current?.querySelector('button')?.focus();
-            }}>
-            {(Object.keys(modes) as Mode[]).map(option => <button key={option} type="button" role="option"
-              data-mode={option} aria-selected={option === mode} onClick={() => {
-                dispatch({ type: 'set-mode', mode: option });
-                send({ type: 'mode', id: selected, mode: option });
-                setModeOpen(false);
-              }}>{modes[option]}</button>)}
-          </div>
+        <div className="chat-pickers">
+          <Dropdown
+            aria-label="Agent mode"
+            placement="top-left"
+            value={{ text: modes[mode], start: <ActionButtonIcon href={assets[modeAsset[mode]]} dimension={14} /> }}
+            onSelect={picked => {
+              const next = modeOrder.find(option => modes[option] === picked.text);
+              if (next && next !== mode) {
+                dispatch({ type: 'set-mode', mode: next });
+                send({ type: 'mode', id: selected, mode: next });
+              }
+            }}
+            trigger={
+              <ActionButton size="base" rounding="full" variant="ghost" text={modes[mode]}
+                start={<ActionButtonIcon href={assets[modeAsset[mode]]} dimension={14} />}
+                end={<ActionButtonIcon href={assets.chevronDown} dimension={14} />} />
+            }
+          >
+            {modeOrder.map(option => (
+              <DropdownItem key={option} type="text" size="small" text={modes[option]}
+                selected={option === mode}
+                start={<ActionButtonIcon href={assets[modeAsset[option]]} dimension={14} />}
+                end={option === mode ? <ActionButtonIcon href={assets.check} dimension={14} /> : undefined}
+              />
+            ))}
+          </Dropdown>
+          <Dropdown
+            aria-label="Select model"
+            placement="top-left"
+            value={{ text: state.model }}
+            onOpen={() => send({ type: 'refresh-models' })}
+            onSelect={picked => {
+              if (picked.text === 'Custom model…') {
+                send({ type: 'select-model' });
+                return;
+              }
+              const choice = state.models.find(item => item.label === picked.text);
+              if (choice && choice.value !== state.modelValue) send({ type: 'model', value: choice.value });
+            }}
+            trigger={
+              <ActionButton size="base" rounding="full" variant="ghost" text={state.model}
+                title={`${state.provider} · ${state.model}`}
+                end={<ActionButtonIcon href={assets.chevronDown} dimension={14} />} />
+            }
+          >
+            {state.models.map(choice => (
+              <DropdownItem key={choice.value} type="text" size="small" text={choice.label}
+                selected={choice.value === state.modelValue}
+                end={choice.value === state.modelValue ? <ActionButtonIcon href={assets.check} dimension={14} /> : undefined}
+              />
+            ))}
+            <DropdownItem type="divider" />
+            <DropdownItem type="text" size="small" text="Custom model…" />
+          </Dropdown>
         </div>
-        <button type="button" className="pill model-pill" id="model-pill"
-          title={`${state.provider} · ${state.model}`}
-          onClick={() => send({ type: 'select-model' })}>{state.model}</button>
         {state.rules && <span className="rules-badge" title="Repository rules from .triplecode/rules.md are included in requests">Rules</span>}
         <span id="target" className="muted" title={target}>{target}</span>
         <ActionButton text={null} start={<ActionButtonIcon href={assets.context} />} aria-label="Attach context" title="Attach context" disabled={state.submitting}

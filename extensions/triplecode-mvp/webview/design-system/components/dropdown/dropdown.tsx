@@ -16,7 +16,9 @@ import {
 } from 'react';
 import { ActionButton } from '../action-button';
 
-export type DropdownPlacement = 'bottom-left' | 'bottom-center' | 'bottom-right';
+export type DropdownPlacement =
+  | 'bottom-left' | 'bottom-center' | 'bottom-right'
+  | 'top-left' | 'top-center' | 'top-right';
 export type DropdownValue = { text?: string; start?: ReactNode };
 
 type DropdownContextValue = {
