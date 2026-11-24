@@ -932,7 +932,7 @@ function activate(context) {
     documents.splice(6);
     if (!documents.length) throw new Error('Open a source file first.');
     const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-    const options = { numPredict: 8192, numCtx: 16384, feature: 'agent' };
+    const options = { numPredict: 8192, numCtx: 16384, feature: 'agent', chatId: run.chat.id };
     const knownUris = new Set(documents.map(document => document.uri.toString()));
 
     let contextDocs = documents;
@@ -1137,7 +1137,7 @@ function activate(context) {
       const reply = useAi
         ? await aiOrFallback(signal, () => {
           postProgress(run, 'Waiting for model…');
-          return aiChat(provider.askMessages(document, aiRequest), signal, { feature: 'ask' });
+          return aiChat(provider.askMessages(document, aiRequest), signal, { feature: 'ask', chatId: chat.id });
         }, fallback)
         : fallback();
       signal.throwIfAborted();
@@ -1150,7 +1150,7 @@ function activate(context) {
         return;
       }
       postProgress(run, 'Waiting for model…');
-      const plan = await aiChat(provider.planMessages(document, aiRequest), signal, { feature: 'plan' });
+      const plan = await aiChat(provider.planMessages(document, aiRequest), signal, { feature: 'plan', chatId: chat.id });
       signal.throwIfAborted();
       completeChatTurn(chat, plan, { id: randomUUID(), task: trimmed, plan });
       return;
