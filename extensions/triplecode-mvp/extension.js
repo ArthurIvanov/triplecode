@@ -826,7 +826,7 @@ function activate(context) {
     try {
       if (mode === 'openrouter') {
         const model = await aiSetting('ai.openrouterModel', 'openai/gpt-4o-mini');
-        addStep('tool', 'OpenRouter request', `Model: ${model}`);
+        addStep('tool', 'OpenRouter request', `Model: ${model}, Messages: ${messages.length}`);
         const reply = await provider.chatCompletions({
           baseUrl: await aiSetting('ai.openrouterEndpoint', 'https://openrouter.ai/api/v1'),
           apiKey: await openRouterKey(),
@@ -836,10 +836,11 @@ function activate(context) {
           maxTokens: options.numPredict || 4096
         });
         report('openrouter', model, 'ok');
+        addStep('message', 'OpenRouter response', `Received ${reply.length} chars`);
         return reply;
       }
       const model = await aiSetting('ai.model', 'qwen2.5-coder:7b');
-      addStep('tool', 'Ollama request', `Model: ${model}`);
+      addStep('tool', 'Ollama request', `Model: ${model}, Messages: ${messages.length}`);
       const reply = await provider.chat({
         endpoint: await aiSetting('ai.endpoint', 'http://localhost:11434'),
         model,
@@ -849,6 +850,7 @@ function activate(context) {
         numCtx: options.numCtx
       });
       report('ollama', model, 'ok');
+      addStep('message', 'Ollama response', `Received ${reply.length} chars`);
       return reply;
     } catch (error) {
       report(mode === 'openrouter' ? 'openrouter' : 'ollama', null, signal?.aborted ? 'stopped' : 'error');
@@ -958,6 +960,7 @@ function activate(context) {
       if (missing.length) {
         contextDocs = [...documents, ...missing].slice(0, 6);
         postProgress(run, 'Expanding context…');
+        addTimelineStep(run, 'tool', 'Expand context', `Adding ${missing.length} file${missing.length === 1 ? '' : 's'} to context`);
         reply = await aiChat(provider.multiFileMessages(contextDocs, request), run.signal, options);
         run.signal.throwIfAborted();
         parsed = provider.parseMultiRewrite(reply);
@@ -979,6 +982,7 @@ function activate(context) {
       let document;
       try {
         document = await openModelFile(entry.path, root);
+        addTimelineStep(run, 'edit', 'Process file', `Computing diff for ${entry.path}`);
       } catch (error) {
         failedPaths.push(`${entry.path} — ${error.message}`);
         continue;
@@ -1022,6 +1026,14 @@ function activate(context) {
     run.signal.throwIfAborted();
     run.progress = { chat: run.chat.id, text, startedAt: run.startedAt };
     agent?.postMessage({ type: 'progress', ...run.progress });
+  }
+
+  function addTimelineStep(run, type, title, description) {
+    if (run.chat.id) agent?.postMessage({
+      type: 'timeline-step',
+      chat: run.chat.id,
+      item: { type, title, description, timestamp: Date.now(), status: 'completed' }
+    });
   }
 
   function drainQueue(chat) {
@@ -1126,6 +1138,7 @@ function activate(context) {
     const { chat, document, signal } = run;
     const attachments = run.approvedPlan ? [] : chat.attachments || [];
     postProgress(run, 'Checking provider…');
+    addTimelineStep(run, 'step', 'Checking provider', 'Verifying AI provider availability');
     const useAi = await aiAvailable();
     signal.throwIfAborted();
     if (run.approvedPlan && !useAi) throw new Error('The approved plan requires an AI provider. Check the connection and retry.');
@@ -1137,10 +1150,12 @@ function activate(context) {
       const reply = useAi
         ? await aiOrFallback(signal, () => {
           postProgress(run, 'Waiting for model…');
+          addTimelineStep(run, 'tool', 'Ask request', 'Sending ask-mode request to AI');
           return aiChat(provider.askMessages(document, aiRequest), signal, { feature: 'ask', chatId: chat.id });
         }, fallback)
         : fallback();
       signal.throwIfAborted();
+      addTimelineStep(run, 'message', 'Ask response', 'Received response from AI');
       completeChatTurn(chat, reply, chat.plan);
       return;
     }
@@ -1150,8 +1165,10 @@ function activate(context) {
         return;
       }
       postProgress(run, 'Waiting for model…');
+      addTimelineStep(run, 'tool', 'Plan request', 'Sending plan-mode request to AI');
       const plan = await aiChat(provider.planMessages(document, aiRequest), signal, { feature: 'plan', chatId: chat.id });
       signal.throwIfAborted();
+      addTimelineStep(run, 'message', 'Plan response', 'Received plan from AI');
       completeChatTurn(chat, plan, { id: randomUUID(), task: trimmed, plan });
       return;
     }
@@ -1165,12 +1182,14 @@ function activate(context) {
         signal.throwIfAborted();
         try {
           extraDocuments.push(await openModelFile(attachment.path, root));
+          addTimelineStep(run, 'tool', 'Open file', `Reading ${attachment.path}`);
         } catch { /* skip attachments that are not accessible files */ }
       }
       const selectionSuffix = attachments.filter(a => a.kind === 'selection')
         .map(a => `\`\`\`\n${a.text}\n\`\`\``).join('\n');
       const agentRequest = trimmed + (selectionSuffix ? `\n\nAttached selection:\n${selectionSuffix}` : '') + rulesSuffix;
       signal.throwIfAborted();
+      addTimelineStep(run, 'tool', 'Agent request', 'Sending agent-mode request to AI');
       const result = await aiSpecs(agentRequest, extraDocuments, run);
       signal.throwIfAborted();
       if (result.reply) {
@@ -1206,6 +1225,7 @@ function activate(context) {
     }
 
     postProgress(run, 'Building review…');
+    addTimelineStep(run, 'step', 'Building review', `Processing ${specs.length} file${specs.length === 1 ? '' : 's'}`);
     const files = specs.map((spec, index) => {
       const document = spec.document;
       const before = document.getText();
@@ -1220,6 +1240,7 @@ function activate(context) {
     completeChatTurn(chat, undefined, null, run.approvedPlan);
     pending = { request: trimmed, files, checks: [] };
     recordHistory('propose', `${trimmed} — ${files.length} file${files.length === 1 ? '' : 's'}`);
+    addTimelineStep(run, 'message', 'Review ready', `Patch with ${files.length} file${files.length === 1 ? '' : 's'} ready for review`);
     agent?.postMessage({ type: 'pending', patch: describePatch(pending) });
   }
 
@@ -1259,6 +1280,7 @@ function activate(context) {
       ? indices.map(index => patch.files[index]).filter(Boolean)
       : patch.files;
     if (!targets.length) return;
+    addTimelineStep({ chat: { id: currentChat.id } }, 'edit', 'Apply patch', `Applying ${targets.length} file${targets.length === 1 ? '' : 's'}`);
     const workspaceEdit = new vscode.WorkspaceEdit();
     for (const file of targets) {
       const document = await vscode.workspace.openTextDocument(file.document.uri);
@@ -1310,6 +1332,7 @@ function activate(context) {
     const patch = pending;
     if (!patch || !patch.files[index]) return;
     const [file] = patch.files.splice(index, 1);
+    addTimelineStep({ chat: { id: currentChat.id } }, 'edit', 'Discard file', `Dropping ${fileName(file.document)}`);
     reportUsage({ feature: 'agent', provider: null, model: null, durationMs: 0, outcome: 'rejected' });
     recordHistory('discard', `${patch.request} — dropped ${fileName(file.document)} from patch`);
     patches.delete(file.original.toString());
@@ -1385,6 +1408,7 @@ function activate(context) {
     const command = vscode.workspace.getConfiguration('triplecode').get('checkCommand', 'npm test');
     patch.checking = true;
     agent?.postMessage({ type: 'pending', patch: describePatch(patch) });
+    addTimelineStep({ chat: { id: currentChat.id } }, 'command', 'Run checks', `Executing: ${command}`);
     try {
       recordCheck(patch, command, await execCheck(command, folder.uri.fsPath), 'working-tree');
     } finally {
@@ -1403,6 +1427,7 @@ function activate(context) {
     const scratch = await mkdtemp(join(tmpdir(), 'triplecode-patch-'));
     patch.checking = true;
     agent?.postMessage({ type: 'pending', patch: describePatch(patch) });
+    addTimelineStep({ chat: { id: currentChat.id } }, 'command', 'Check patch', `Isolated copy: ${command}`);
     try {
       await cp(root, scratch, {
         recursive: true,
