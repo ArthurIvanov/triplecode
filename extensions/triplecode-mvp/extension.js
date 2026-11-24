@@ -475,6 +475,7 @@ function activate(context) {
   let agent;
   let agentView;
   let agentReady = false;
+  const pendingTimelineSteps = [];
   let focusComposerOnReady = false;
   let nextChatId = 1;
   let chats = [{ id: nextChatId, draft: '', mode: 'agent', replies: [] }];
@@ -638,6 +639,12 @@ function activate(context) {
             break;
           case 'ready':
             agentReady = true;
+            if (pendingTimelineSteps.length) {
+              for (const step of pendingTimelineSteps) {
+                agent?.postMessage(step);
+              }
+              pendingTimelineSteps.length = 0;
+            }
             void refreshModelChoices().then(() => {
               if (agentReady) agent?.postMessage({ type: 'chats', ...chatState() });
             });
@@ -1029,15 +1036,17 @@ function activate(context) {
   }
 
   function addTimelineStep(run, type, title, description) {
-    if (run.chat.id && agent) {
+    const step = { type, title, description, timestamp: Date.now(), status: 'completed' };
+    if (agent && agentReady) {
       console.log(`[TripleCode timeline] Sending step: ${title}`);
       agent.postMessage({
         type: 'timeline-step',
         chat: run.chat.id,
-        item: { type, title, description, timestamp: Date.now(), status: 'completed' }
+        item: step
       });
     } else {
-      console.log(`[TripleCode timeline] Skipped step: ${title} (agent=${!!agent}, chatId=${run.chat.id})`);
+      console.log(`[TripleCode timeline] Buffering step: ${title} (agent=${!!agent}, ready=${agentReady})`);
+      pendingTimelineSteps.push({ chat: run.chat.id, item: step });
     }
   }
 
