@@ -94,8 +94,38 @@ export function Dropdown({
   const listRef = useRef<HTMLDivElement>(null);
   const [innerOpen, setInnerOpen] = useState(defaultOpen);
   const [innerValue, setInnerValue] = useState<DropdownValue | undefined>(defaultValue);
+  const [actualPlacement, setActualPlacement] = useState(placement);
   const isOpen = open ?? innerOpen;
   const currentValue = value ?? innerValue;
+
+  // Auto-flip placement when there's not enough space
+  useEffect(() => {
+    if (!isOpen) return;
+    const list = listRef.current;
+    const trigger = triggerWrapRef.current;
+    if (!list || !trigger) return;
+
+    const listRect = list.getBoundingClientRect();
+    const triggerRect = trigger.getBoundingClientRect();
+    const viewportHeight = window.innerHeight;
+
+    // Check if bottom placement has enough space
+    const spaceBelow = viewportHeight - triggerRect.bottom;
+    const spaceAbove = triggerRect.top;
+
+    // If placement starts with 'bottom' and there's not enough space below, flip to top
+    if (placement.startsWith('bottom') && spaceBelow < listRect.height + 20 && spaceAbove > spaceBelow) {
+      const flipped = placement.replace('bottom', 'top') as DropdownPlacement;
+      setActualPlacement(flipped);
+    }
+    // If placement starts with 'top' and there's not enough space above, flip to bottom
+    else if (placement.startsWith('top') && spaceAbove < listRect.height + 20 && spaceBelow > spaceAbove) {
+      const flipped = placement.replace('top', 'bottom') as DropdownPlacement;
+      setActualPlacement(flipped);
+    } else {
+      setActualPlacement(placement);
+    }
+  }, [isOpen, placement]);
 
   const setOpen = useCallback((next: boolean, restoreFocus = false) => {
     if (open === undefined) setInnerOpen(next);
@@ -187,7 +217,7 @@ export function Dropdown({
   } as any);
 
   return (
-    <span className={className ? `tc-dropdown ${className}` : 'tc-dropdown'} data-placement={placement} ref={rootRef}>
+    <span className={className ? `tc-dropdown ${className}` : 'tc-dropdown'} data-placement={actualPlacement} ref={rootRef}>
       <span className="tc-dropdown__trigger" ref={triggerWrapRef}>{triggerElement}</span>
       {isOpen && (
         <DropdownList
