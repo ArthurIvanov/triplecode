@@ -1,0 +1,13 @@
+.accordion-preview {
+  display: flex;
+  flex-direction: column;
+  gap: var(--triplecode-gap-related, 16px);
+  align-items: flex-start;
+}
+
+.accordion-preview__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--triplecode-gap-related, 16px);
+  align-items: flex-start;
+}

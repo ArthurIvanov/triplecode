@@ -4,6 +4,7 @@ import { ActionButton, ActionButtonIcon } from './design-system/components/actio
 import { ActivityBarPreview } from './design-system/components/activity-bar/activity-bar.preview';
 import { ActionButtonPreview } from './design-system/components/action-button/action-button.preview';
 import { DropdownPreview } from './design-system/components/dropdown/dropdown.preview';
+import { AccordionPreview } from './design-system/components/accordion/accordion.preview';
 import { componentCatalog, reactSupport, type ComponentPreview } from './component-catalog';
 
 const media: string = JSON.parse(document.getElementById('initial')!.textContent!);
@@ -360,6 +361,15 @@ function DropdownSection() {
   </>;
 }
 
+function AccordionSection() {
+  return <>
+    <h2>Accordion</h2>
+    <div className="component-preview">
+      <AccordionPreview media={media} />
+    </div>
+  </>;
+}
+
 const sections = [
   { id: 'catalog', label: 'Catalog', Preview: Catalog },
   { id: 'figma-welcome', label: 'Figma Welcome', Preview: FigmaWelcome },
@@ -367,6 +377,7 @@ const sections = [
   { id: 'agent', label: 'Agent Panel', Preview: AgentPreview },
   { id: 'activity-bar', label: 'Activity Bar', Preview: ActivityBarSection },
   { id: 'dropdown', label: 'Dropdown', Preview: DropdownSection },
+  { id: 'accordion', label: 'Accordion', Preview: AccordionSection },
   { id: 'buttons', label: 'Buttons', Preview: ButtonsPreview },
   { id: 'forms', label: 'Forms', Preview: FormsPreview },
   { id: 'tabs', label: 'Tabs', Preview: TabsPreview }

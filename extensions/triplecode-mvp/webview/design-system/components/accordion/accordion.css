@@ -1,0 +1,176 @@
+/* Triplecode-app · Accordion · 219:6239 */
+.tc-accordion {
+  --ac-headline: var(--triplecode-description-foreground, #9097a2);
+  --ac-title-hover: var(--triplecode-foreground, #f3f4f6);
+  --ac-hover: var(--triplecode-theme-toolbar-hoverBackground, var(--triplecode-side-bar-background, #1d1e20));
+  --ac-focus: var(--triplecode-theme-textLink-activeForeground, #bad0ff);
+  --ac-line: var(--triplecode-theme-activityBar-activeBorder, #35373b);
+  --ac-border: var(--triplecode-theme-panel-border, #2b2d31);
+
+  display: inline-flex;
+  flex-direction: column;
+  gap: var(--triplecode-gap-dependent, 4px);
+  border-radius: var(--triplecode-ml, 12px);
+}
+
+.tc-accordion[data-border="true"] {
+  border: 1px solid var(--ac-border);
+  padding: var(--triplecode-padding-s, 4px);
+}
+
+.tc-accordion__header {
+  display: flex;
+  align-items: center;
+  gap: var(--triplecode-gap-dependent, 4px);
+  border-radius: var(--triplecode-sm, 6px);
+}
+
+.tc-accordion__header:hover {
+  background: var(--ac-hover);
+}
+
+.tc-accordion[data-disabled="true"] .tc-accordion__header:hover,
+.tc-accordion[data-state="disabled"] .tc-accordion__header {
+  background: transparent;
+}
+
+.tc-accordion[data-state="hover"] .tc-accordion__header {
+  background: var(--ac-hover);
+}
+
+.tc-accordion__trigger {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--triplecode-gap-dependent, 4px);
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ac-headline);
+  font: var(--triplecode-font-weight-medium, 500)
+    var(--triplecode-font-size-medium, 14px)/var(--triplecode-line-height-medium, 20px)
+    var(--triplecode-font-family-text, Inter, sans-serif);
+  text-align: left;
+  cursor: pointer;
+  border-radius: var(--triplecode-sm, 6px);
+}
+
+.tc-accordion__trigger:hover {
+  color: var(--ac-title-hover);
+}
+
+.tc-accordion__trigger:focus-visible,
+.tc-accordion[data-state="focus"] .tc-accordion__trigger {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--ac-focus);
+}
+
+.tc-accordion[data-size="small"] .tc-accordion__trigger {
+  font-size: var(--triplecode-font-size-small, 12px);
+  line-height: var(--triplecode-line-height-small, 16px);
+}
+
+.tc-accordion[data-disabled="true"] .tc-accordion__trigger,
+.tc-accordion[data-state="disabled"] .tc-accordion__trigger {
+  cursor: default;
+}
+
+.tc-accordion[data-disabled="true"] .tc-accordion__trigger:hover,
+.tc-accordion[data-state="disabled"] .tc-accordion__trigger:hover {
+  color: var(--ac-headline);
+}
+
+.tc-accordion[data-state="hover"] .tc-accordion__trigger,
+.tc-accordion[data-state="focus"] .tc-accordion__trigger {
+  color: var(--ac-title-hover);
+}
+
+.tc-accordion__chevron {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 20px;
+  height: 20px;
+  color: var(--ac-headline);
+}
+
+.tc-accordion__chevron svg {
+  width: 100%;
+  height: 100%;
+}
+
+.tc-accordion[data-size="small"] .tc-accordion__chevron {
+  width: 16px;
+  height: 16px;
+}
+
+.tc-accordion__slot-end {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 32px;
+  height: 24px;
+}
+
+.tc-accordion__slot-end svg {
+  width: 16px;
+  height: 16px;
+}
+
+.tc-accordion__actions {
+  display: inline-flex;
+  flex: none;
+  width: 24px;
+  height: 24px;
+}
+
+.tc-accordion__title {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tc-accordion__content {
+  display: flex;
+  align-items: stretch;
+  gap: 14px;
+  padding-left: 9px;
+}
+
+.tc-accordion[data-size="small"] .tc-accordion__content {
+  padding-left: 7px;
+}
+
+.tc-accordion__line {
+  flex: none;
+  width: 1px;
+  background: var(--ac-line);
+}
+
+.tc-accordion__body {
+  flex: 1 0 0;
+  min-width: 0;
+  color: var(--triplecode-foreground, #f3f4f6);
+}
+
+.tc-accordion__body > :first-child {
+  margin-top: 0;
+}
+
+.tc-accordion__body > :last-child {
+  margin-bottom: 0;
+}
+
+@media (forced-colors: active) {
+  .tc-accordion__trigger:focus-visible {
+    outline: 1px solid Highlight;
+    box-shadow: none;
+  }
+}
