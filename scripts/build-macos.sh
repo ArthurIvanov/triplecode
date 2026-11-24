@@ -136,6 +136,11 @@ python3 scripts/desktop/apply-workbench-layout.py "$resources"
   -o "$app/Contents/Resources/keychain-parent"
 codesign --force --sign - "$app/Contents/Resources/keychain-parent"
 
+# Replace app icon with TripleCode logo
+if [[ -f "$root/resources/logo.icns" ]]; then
+  cp "$root/resources/logo.icns" "$app/Contents/Resources/VSCodium.icns"
+fi
+
 codesign --force --deep --sign "$signing_identity" "$app"
 codesign --verify --deep --strict "$app"
 
