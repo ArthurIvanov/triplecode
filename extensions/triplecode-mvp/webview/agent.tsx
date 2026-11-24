@@ -4,7 +4,7 @@ import { flushSync } from 'react-dom';
 import { createRoot } from 'react-dom/client';
 import { ActionButton, ActionButtonIcon } from './design-system/components/action-button';
 import { Dropdown, DropdownItem } from './design-system/components/dropdown';
-import { Timeline, TimelineItem } from './design-system/components/timeline';
+import { Accordion } from './design-system/components/accordion';
 import type { TimelineItemProps } from './design-system/components/timeline';
 
 const modes = { ask: 'Ask', plan: 'Plan', agent: 'Agent' } as const;
@@ -130,33 +130,31 @@ function update(state: State, action: Action): State {
   }
 }
 
-function ProgressIndicator({ progress }: { progress: Progress }) {
-  const [elapsed, setElapsed] = useState(0);
-  useLayoutEffect(() => {
-    const timer = setInterval(() => setElapsed(Math.floor((Date.now() - progress.startedAt) / 1000)), 1000);
-    return () => clearInterval(timer);
-  }, [progress.startedAt]);
-  return <div className="agent-message progress">
-    <div className="progress-header">
-      <span className="progress-spinner" aria-hidden="true" />
-      <span className="progress-text">{progress.text}</span>
-      <span className="progress-time">{elapsed}s</span>
+function AgentRunSteps({ steps, expandDetails = true }: { steps: TimelineItemProps[]; expandDetails?: boolean }) {
+  return (
+    <div className="agent-steps">
+      {steps.map((step, index) => step.type === 'message' ? (
+        <Accordion key={index} title={step.title} defaultExpanded={expandDetails}>
+          {step.description && <p>{step.description}</p>}
+        </Accordion>
+      ) : (
+        <div className="agent-step" key={index}>
+          <span className="agent-step__title">{step.title}</span>
+          {step.description && <span className="agent-step__description">{step.description}</span>}
+        </div>
+      ))}
     </div>
-    {progress.steps && progress.steps.length > 0 && (
-      <Timeline className="progress-timeline">
-        {progress.steps.map((step, index) => (
-          <TimelineItem
-            key={index}
-            type={step.type}
-            status={step.status}
-            title={step.title}
-            description={step.description}
-            timestamp={step.timestamp}
-          />
-        ))}
-      </Timeline>
-    )}
-  </div>;
+  );
+}
+
+function ProgressIndicator({ progress }: { progress: Progress }) {
+  return (
+    <Accordion title={progress.text} defaultExpanded className="agent-run">
+      {progress.steps && progress.steps.length > 0 && (
+        <AgentRunSteps steps={progress.steps} />
+      )}
+    </Accordion>
+  );
 }
 
 export type { Initial, ChatState, Chat, Patch, Progress };
@@ -230,20 +228,9 @@ export function Agent({ initial }: { initial: Initial }) {
         {replies.map((reply, index) => {
           if (typeof reply === 'object' && reply.type === 'timeline') {
             return (
-              <div className="agent-message timeline-history" key={index}>
-                <Timeline>
-                  {reply.steps.map((step: TimelineItemProps, stepIndex: number) => (
-                    <TimelineItem
-                      key={stepIndex}
-                      type={step.type}
-                      status={step.status}
-                      title={step.title}
-                      description={step.description}
-                      timestamp={step.timestamp}
-                    />
-                  ))}
-                </Timeline>
-              </div>
+              <Accordion key={index} title="Timeline" className="agent-run agent-run--history">
+                <AgentRunSteps steps={reply.steps} expandDetails={false} />
+              </Accordion>
             );
           }
           return <p className="agent-message" key={index}>{reply as string}</p>;
