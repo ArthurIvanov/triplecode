@@ -1,0 +1,165 @@
+/* Triplecode-app · Dropdown · 221:6886 */
+.tc-dropdown {
+  position: relative;
+  display: inline-flex;
+}
+
+.tc-dropdown__trigger {
+  display: inline-flex;
+}
+
+.tc-dropdown__list {
+  --dropdown-bg: var(--triplecode-editor-background, #131416);
+  --dropdown-hover: var(--triplecode-theme-toolbar-hoverBackground, #1d1e20);
+  --dropdown-active: var(--triplecode-list-active-selection-background, #2b2d31);
+  --dropdown-border: var(--triplecode-theme-panel-border, #2b2d31);
+  --dropdown-text: var(--triplecode-foreground, #f3f4f6);
+  --dropdown-selected: var(--triplecode-text-link-foreground, #266cf7);
+  --dropdown-headline: var(--triplecode-description-foreground, #9097a2);
+
+  position: absolute;
+  top: calc(100% + var(--triplecode-gap-dependent, 4px));
+  min-width: 120px;
+  max-width: 600px;
+  max-height: 320px;
+  overflow-y: auto;
+  padding: var(--triplecode-padding-s, 4px);
+  background: var(--dropdown-bg);
+  border: 1px solid var(--dropdown-border);
+  border-radius: var(--triplecode-sm, 6px);
+  box-shadow: 0 2px 4px var(--triplecode-shadow-soft, rgba(25, 40, 67, 0.15));
+  z-index: 100;
+}
+
+.tc-dropdown[data-placement="bottom-left"] > .tc-dropdown__list {
+  left: 0;
+}
+
+.tc-dropdown[data-placement="bottom-center"] > .tc-dropdown__list {
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.tc-dropdown[data-placement="bottom-right"] > .tc-dropdown__list {
+  right: 0;
+}
+
+.tc-dropdown__item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--triplecode-gap-dependent, 4px);
+  width: 100%;
+  padding: var(--triplecode-padding-sm, 6px) var(--triplecode-padding-l, 12px);
+  border: 0;
+  background: transparent;
+  color: var(--dropdown-text);
+  font: var(--triplecode-font-weight-regular, 400)
+    var(--triplecode-font-size-medium, 14px)/var(--triplecode-line-height-medium, 20px)
+    var(--triplecode-font-family-text, Inter, sans-serif);
+  text-align: left;
+  cursor: pointer;
+  border-radius: 0;
+}
+
+.tc-dropdown__item:not([data-disabled="true"]):not(:disabled):hover,
+.tc-dropdown__item:not([data-disabled="true"]):not(:disabled):focus {
+  background: var(--dropdown-hover);
+  outline: none;
+}
+
+.tc-dropdown__item:not([data-disabled="true"]):not(:disabled):active {
+  background: var(--dropdown-active);
+}
+
+.tc-dropdown__item[data-selected="true"] {
+  color: var(--dropdown-selected);
+}
+
+.tc-dropdown__item[data-disabled="true"],
+.tc-dropdown__item:disabled {
+  color: var(--dropdown-headline);
+  cursor: default;
+}
+
+.tc-dropdown__item[data-size="small"] {
+  padding: var(--triplecode-padding-s, 4px) var(--triplecode-padding-m, 8px);
+  font-size: var(--triplecode-font-size-small, 12px);
+  line-height: var(--triplecode-line-height-small, 16px);
+}
+
+.tc-dropdown__item[data-size="small"] .tc-dropdown__item-icon,
+.tc-dropdown__item[data-size="small"] .tc-dropdown__item-end {
+  width: 14px;
+  height: 14px;
+}
+
+.tc-dropdown__item-icon,
+.tc-dropdown__item-end {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 16px;
+  height: 16px;
+}
+
+.tc-dropdown__item-icon svg,
+.tc-dropdown__item-end svg {
+  width: 100%;
+  height: 100%;
+}
+
+.tc-dropdown__item-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tc-dropdown__item[data-type="headline"] {
+  padding: var(--triplecode-padding-ml, 10px) var(--triplecode-padding-l, 12px)
+    var(--triplecode-padding-sm, 6px);
+  color: var(--dropdown-headline);
+  cursor: default;
+  font-size: var(--triplecode-font-size-medium, 14px);
+}
+
+.tc-dropdown__item[data-type="divider"] {
+  padding: var(--triplecode-padding-s, 4px) 0;
+  cursor: default;
+}
+
+.tc-dropdown__item[data-type="divider"]::before {
+  content: "";
+  display: block;
+  width: 100%;
+  height: 1px;
+  background: var(--dropdown-border);
+}
+
+.tc-dropdown__item-caret {
+  width: 8px;
+  height: 8px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(-45deg);
+}
+
+/* Nested menu of DropdownItem type="withChildren". Must stay after the
+   placement rules above so left/transform overrides win at equal specificity. */
+.tc-dropdown .tc-dropdown__item--submenu > .tc-dropdown__list,
+.tc-dropdown__item[data-type="withChildren"] > .tc-dropdown__list {
+  top: -5px;
+  right: auto;
+  bottom: auto;
+  left: calc(100% + var(--triplecode-gap-close, 2px));
+  transform: none;
+}
+
+@media (forced-colors: active) {
+  .tc-dropdown__item:not([data-disabled="true"]):not(:disabled):focus {
+    outline: 1px solid Highlight;
+  }
+}

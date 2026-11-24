@@ -11,6 +11,7 @@ type ActionButtonContent =
 
 export type ActionButtonProps = Omit<ComponentPropsWithRef<'button'>, 'children' | 'aria-label'> &
   ActionButtonContent & {
+    end?: ReactNode;
     rounding?: ActionButtonRounding;
     size?: ActionButtonSize;
     state?: ActionButtonState;
@@ -20,6 +21,7 @@ export type ActionButtonProps = Omit<ComponentPropsWithRef<'button'>, 'children'
 export function ActionButton({
   className,
   disabled,
+  end,
   rounding = 'default',
   size = 'large',
   start,
@@ -31,6 +33,7 @@ export function ActionButton({
 }: ActionButtonProps) {
   const iconOnly = text === null;
   const hasStart = start != null && typeof start !== 'boolean' && start !== '';
+  const hasEnd = end != null && typeof end !== 'boolean' && end !== '';
   const isDisabled = disabled || state === 'disabled';
 
   return (
@@ -47,6 +50,7 @@ export function ActionButton({
     >
       {hasStart && <span className="tc-action-button__icon" aria-hidden="true">{start}</span>}
       {!iconOnly && <span>{text}</span>}
+      {!iconOnly && hasEnd && <span className="tc-action-button__icon" aria-hidden="true">{end}</span>}
     </button>
   );
 }

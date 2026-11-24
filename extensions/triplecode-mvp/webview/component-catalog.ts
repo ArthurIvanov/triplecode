@@ -84,6 +84,7 @@ export const componentCatalog: readonly ComponentGroup[] = [
       ['Status message', 'Submission progress, errors and results', '#status', { kind: 'status', content: 'Preparing changes…', react: 'react' }],
       ['Composer', 'Prompt field and send action', '.composer · #prompt · .send', { kind: 'field', content: 'Press / for skills, @ for context|Agent　Model　▷', react: 'react' }],
       ['Mode picker', 'Agent, Ask and Plan', '.mode-picker · .mode-menu', { kind: 'menu', content: '✓ Agent|　Ask|　Plan', react: 'react' }],
+      ['Dropdown', 'Contextual action menu with arbitrary trigger', 'design-system/components/dropdown', { kind: 'menu', content: 'Dropdown button　⌄|✓ Item', react: 'react' }, '221:6886'],
       ['Model picker', 'Selected model and model selection entry', '.model-pill', { kind: 'pill', content: 'Model　⌄', react: 'react' }],
       ['Target label', 'Active file or empty context hint', '#target', { kind: 'status', content: 'src/route.ts', react: 'react' }],
       ['Attachment chip', 'Attached files and selections with remove action', '.attachment-chip', { kind: 'pill', content: 'route.ts　×', react: 'react' }],

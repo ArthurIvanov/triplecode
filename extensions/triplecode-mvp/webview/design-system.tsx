@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { ActionButton, ActionButtonIcon } from './design-system/components/action-button';
 import { ActivityBarPreview } from './design-system/components/activity-bar/activity-bar.preview';
 import { ActionButtonPreview } from './design-system/components/action-button/action-button.preview';
+import { DropdownPreview } from './design-system/components/dropdown/dropdown.preview';
 import { componentCatalog, reactSupport, type ComponentPreview } from './component-catalog';
 
 const media: string = JSON.parse(document.getElementById('initial')!.textContent!);
@@ -350,12 +351,22 @@ function ActivityBarSection() {
   </>;
 }
 
+function DropdownSection() {
+  return <>
+    <h2>Dropdown</h2>
+    <div className="component-preview">
+      <DropdownPreview media={media} />
+    </div>
+  </>;
+}
+
 const sections = [
   { id: 'catalog', label: 'Catalog', Preview: Catalog },
   { id: 'figma-welcome', label: 'Figma Welcome', Preview: FigmaWelcome },
   { id: 'welcome', label: 'Legacy Welcome', Preview: LegacyWelcome },
   { id: 'agent', label: 'Agent Panel', Preview: AgentPreview },
   { id: 'activity-bar', label: 'Activity Bar', Preview: ActivityBarSection },
+  { id: 'dropdown', label: 'Dropdown', Preview: DropdownSection },
   { id: 'buttons', label: 'Buttons', Preview: ButtonsPreview },
   { id: 'forms', label: 'Forms', Preview: FormsPreview },
   { id: 'tabs', label: 'Tabs', Preview: TabsPreview }
