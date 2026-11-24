@@ -464,8 +464,8 @@ async function rollbackImport(context) {
 
 function activate(context) {
   registerInlineAI(context);
-  const { sessionAccessToken } = registerDesktopAccount(context);
-  getSessionAccessToken = sessionAccessToken;
+  const account = registerDesktopAccount(context);
+  if (account?.sessionAccessToken) getSessionAccessToken = account.sessionAccessToken;
   const patches = new Map();
   let activeDocument;
   let pending;
