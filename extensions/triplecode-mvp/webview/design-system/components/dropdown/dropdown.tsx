@@ -299,12 +299,12 @@ export function DropdownItem({
   };
 
   if (type === 'divider') {
-    return <div className={cls} role="separator" {...dataAttrs} {...itemProps} />;
+    return <div className={cls} role="separator" {...dataAttrs} data-selectable="false" {...itemProps} />;
   }
 
   if (type === 'headline') {
     return (
-      <div className={cls} {...dataAttrs} {...itemProps}>
+      <div className={cls} {...dataAttrs} data-selectable="false" {...itemProps}>
         {text ?? children}
       </div>
     );

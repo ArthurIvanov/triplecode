@@ -143,11 +143,13 @@
   color: var(--dropdown-headline);
   cursor: default;
   font-size: var(--triplecode-font-size-medium, 14px);
+  pointer-events: none;
 }
 
 .tc-dropdown__item[data-type="divider"] {
   padding: var(--triplecode-padding-s, 4px) 0;
   cursor: default;
+  pointer-events: none;
 }
 
 .tc-dropdown__item[data-type="divider"]::before {
