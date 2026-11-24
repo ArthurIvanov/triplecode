@@ -426,6 +426,15 @@ body[data-screen="agent"] { height: 100vh; overflow: hidden; }
 .check-ok { color: var(--vscode-gitDecoration-addedResourceForeground); }
 .check-fail { color: var(--vscode-errorForeground, #f14c4c); }
 .agent-message { white-space: pre-wrap; }
+.agent-message.timeline-history {
+  padding: 8px;
+  background: var(--triplecode-theme-input-background);
+  border: 1px solid var(--triplecode-theme-input-border);
+  border-radius: var(--triplecode-s, 4px);
+}
+.agent-message.timeline-history .tc-timeline {
+  padding: 0;
+}
 .agent-message.progress {
   display: flex;
   flex-direction: column;

@@ -22,7 +22,7 @@ type Chat = {
   status?: string;
   queued?: number;
   mode?: Mode;
-  replies?: string[];
+  replies?: (string | { type: 'timeline'; steps: TimelineItemProps[] })[];
   plan?: { id: string; task: string; plan: string } | null;
   attachments?: Attachment[];
 };
@@ -227,7 +227,27 @@ export function Agent({ initial }: { initial: Initial }) {
     </header>
     <section id="conversation" className="conversation" hidden={!replies.length && !patch && !progress} aria-label="Agent output">
       <div id="messages">
-        {replies.map((reply, index) => <p className="agent-message" key={index}>{reply}</p>)}
+        {replies.map((reply, index) => {
+          if (typeof reply === 'object' && reply.type === 'timeline') {
+            return (
+              <div className="agent-message timeline-history" key={index}>
+                <Timeline>
+                  {reply.steps.map((step: TimelineItemProps, stepIndex: number) => (
+                    <TimelineItem
+                      key={stepIndex}
+                      type={step.type}
+                      status={step.status}
+                      title={step.title}
+                      description={step.description}
+                      timestamp={step.timestamp}
+                    />
+                  ))}
+                </Timeline>
+              </div>
+            );
+          }
+          return <p className="agent-message" key={index}>{reply as string}</p>;
+        })}
         {progress && <ProgressIndicator progress={progress} />}
       </div>
       {patch && <>

@@ -1037,6 +1037,9 @@ function activate(context) {
 
   function addTimelineStep(run, type, title, description) {
     const step = { type, title, description, timestamp: Date.now(), status: 'completed' };
+    // Store in chat for persistence
+    if (!run.chat.timelineSteps) run.chat.timelineSteps = [];
+    run.chat.timelineSteps.push(step);
     if (agent && agentReady) {
       console.log(`[TripleCode timeline] Sending step: ${title}`);
       agent.postMessage({
@@ -1082,6 +1085,11 @@ function activate(context) {
     }
     chat.plan = plan;
     if (reply) chat.replies.push(reply);
+    // Persist timeline steps as part of chat history
+    if (chat.timelineSteps && chat.timelineSteps.length) {
+      chat.replies.push({ type: 'timeline', steps: chat.timelineSteps });
+      chat.timelineSteps = [];
+    }
   }
 
   function answerAsk(document, request) {
