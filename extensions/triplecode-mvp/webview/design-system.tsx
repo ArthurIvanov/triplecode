@@ -3,6 +3,9 @@ import { createRoot } from 'react-dom/client';
 import { ActionButton, ActionButtonIcon } from './design-system/components/action-button';
 import { ActivityBarPreview } from './design-system/components/activity-bar/activity-bar.preview';
 import { ActionButtonPreview } from './design-system/components/action-button/action-button.preview';
+import { DropdownPreview } from './design-system/components/dropdown/dropdown.preview';
+import { AccordionPreview } from './design-system/components/accordion/accordion.preview';
+import { Dropdown, DropdownItem } from './design-system/components/dropdown';
 import { componentCatalog, reactSupport, type ComponentPreview } from './component-catalog';
 
 const media: string = JSON.parse(document.getElementById('initial')!.textContent!);
@@ -198,15 +201,20 @@ function AgentPreview() {
           </div>
           <textarea placeholder="Press / for skills, @ for context" disabled style={{ minHeight: '30px' }}></textarea>
           <footer className="chat-actions">
-            <div className="mode-picker">
-              <button type="button" className="pill mode" aria-expanded="false">Agent</button>
-              <div className="mode-menu" role="listbox" hidden>
-                <button type="button" role="option">Ask</button>
-                <button type="button" role="option">Plan</button>
-                <button type="button" role="option" aria-selected="true">Agent</button>
-              </div>
+            <div className="chat-pickers">
+              <Dropdown aria-label="Agent mode" placement="top-left"
+                trigger={<ActionButton size="base" rounding="full" variant="ghost" text="Agent"
+                  end={<ActionButtonIcon href={asset('figma-assets/dropdown/chevron-down.svg')} dimension={14} />} />}>
+                <DropdownItem type="text" size="small" text="Agent" selected />
+                <DropdownItem type="text" size="small" text="Plan" />
+                <DropdownItem type="text" size="small" text="Ask" />
+              </Dropdown>
+              <Dropdown aria-label="Select model" placement="top-left"
+                trigger={<ActionButton size="base" rounding="full" variant="ghost" text="Model"
+                  end={<ActionButtonIcon href={asset('figma-assets/dropdown/chevron-down.svg')} dimension={14} />} />}>
+                <DropdownItem type="text" size="small" text="Model" selected />
+              </Dropdown>
             </div>
-            <button type="button" className="pill model-pill" id="model-pill" data-action="select-model" title="Select model">Model</button>
             <span id="target" className="muted">src/index.ts</span>
             <ActionButton text={null} start={<ActionButtonIcon href={asset('figma-assets/imgShape.svg')} />} disabled aria-label="Attach context" />
             <ActionButton text={null} start={<ActionButtonIcon href={asset('imgPaperclip.svg')} />} disabled aria-label="Attach context" />
@@ -350,12 +358,32 @@ function ActivityBarSection() {
   </>;
 }
 
+function DropdownSection() {
+  return <>
+    <h2>Dropdown</h2>
+    <div className="component-preview">
+      <DropdownPreview media={media} />
+    </div>
+  </>;
+}
+
+function AccordionSection() {
+  return <>
+    <h2>Accordion</h2>
+    <div className="component-preview">
+      <AccordionPreview media={media} />
+    </div>
+  </>;
+}
+
 const sections = [
   { id: 'catalog', label: 'Catalog', Preview: Catalog },
   { id: 'figma-welcome', label: 'Figma Welcome', Preview: FigmaWelcome },
   { id: 'welcome', label: 'Legacy Welcome', Preview: LegacyWelcome },
   { id: 'agent', label: 'Agent Panel', Preview: AgentPreview },
   { id: 'activity-bar', label: 'Activity Bar', Preview: ActivityBarSection },
+  { id: 'dropdown', label: 'Dropdown', Preview: DropdownSection },
+  { id: 'accordion', label: 'Accordion', Preview: AccordionSection },
   { id: 'buttons', label: 'Buttons', Preview: ButtonsPreview },
   { id: 'forms', label: 'Forms', Preview: FormsPreview },
   { id: 'tabs', label: 'Tabs', Preview: TabsPreview }

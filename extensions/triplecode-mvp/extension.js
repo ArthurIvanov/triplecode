@@ -638,6 +638,9 @@ function activate(context) {
             break;
           case 'ready':
             agentReady = true;
+            void refreshModelChoices().then(() => {
+              if (agentReady) agent?.postMessage({ type: 'chats', ...chatState() });
+            });
             if (focusComposerOnReady && view.visible) focusAgentComposer();
             break;
           case 'draft':
@@ -691,6 +694,20 @@ function activate(context) {
             break;
           case 'select-model':
             await selectModel();
+            await refreshModelChoices();
+            agent?.postMessage({ type: 'chats', ...chatState() });
+            break;
+          case 'refresh-models':
+            await refreshModelChoices();
+            agent?.postMessage({ type: 'chats', ...chatState() });
+            break;
+          case 'model':
+            if (message.value === '__custom__') {
+              await selectModel();
+            } else {
+              await applyModelChoice(message.value);
+            }
+            await refreshModelChoices();
             agent?.postMessage({ type: 'chats', ...chatState() });
             break;
           case 'attach-menu':
@@ -1448,6 +1465,49 @@ function activate(context) {
     return config.get('ai.model', 'qwen2.5-coder:7b');
   }
 
+  function currentModelValue() {
+    const config = vscode.workspace.getConfiguration('triplecode');
+    const providerMode = config.get('ai.provider', 'auto');
+    if (providerMode === 'openrouter') return config.get('ai.openrouterModel', 'openai/gpt-4o-mini');
+    if (providerMode === 'stub') return 'stub';
+    return config.get('ai.model', 'qwen2.5-coder:7b');
+  }
+
+  let modelChoices = [];
+
+  async function refreshModelChoices() {
+    try {
+      const mode = await aiSetting('ai.provider', 'auto');
+      if (mode === 'openrouter') {
+        modelChoices = [
+          'openai/gpt-4o-mini', 'openai/gpt-4o', 'anthropic/claude-3.5-haiku',
+          'google/gemini-2.0-flash-001', 'qwen/qwen-2.5-coder-32b-instruct',
+          'deepseek/deepseek-chat', 'meta-llama/llama-3.3-70b-instruct'
+        ].map(value => ({ value, label: value.split('/').pop() }));
+      } else if (mode === 'stub') {
+        modelChoices = [];
+      } else {
+        const endpoint = await aiSetting('ai.endpoint', 'http://localhost:11434');
+        const remote = await provider.listOllamaModels(endpoint);
+        const models = remote.length ? remote : ['qwen2.5-coder:7b', 'qwen2.5-coder:3b', 'llama3.2:3b'];
+        modelChoices = models.map(value => ({ value, label: value }));
+      }
+    } catch {
+      modelChoices = [];
+    }
+  }
+
+  async function applyModelChoice(value) {
+    if (typeof value !== 'string' || !value.trim()) return;
+    const mode = await aiSetting('ai.provider', 'auto');
+    const config = vscode.workspace.getConfiguration('triplecode');
+    if (mode === 'openrouter') {
+      await config.update('ai.openrouterModel', value.trim(), vscode.ConfigurationTarget.Global);
+    } else if (mode !== 'stub') {
+      await config.update('ai.model', value.trim(), vscode.ConfigurationTarget.Global);
+    }
+  }
+
   function chatState() {
     return {
       chats: chats.map(chat => ({
@@ -1460,6 +1520,8 @@ function activate(context) {
       plan: currentChat.plan || null,
       attachments: currentChat.attachments || [],
       model: currentModelLabel(),
+      modelValue: currentModelValue(),
+      models: modelChoices,
       provider: (() => {
         const mode = vscode.workspace.getConfiguration('triplecode').get('ai.provider', 'auto');
         return { openrouter: 'OpenRouter', ollama: 'Ollama', stub: 'Stub' }[mode] || 'Auto';
@@ -1760,7 +1822,12 @@ function render(webview, base, screen, initial) {
     chevron: 'figma-assets/imgChevronRight.svg',
     context: 'figma-assets/imgShape.svg',
     attach: 'imgPaperclip.svg',
-    send: 'imgPlay.svg'
+    send: 'imgPlay.svg',
+    crown: 'figma-assets/chat/crown.svg',
+    listTodo: 'figma-assets/chat/list-todo.svg',
+    messageSquare: 'figma-assets/chat/message-square.svg',
+    check: 'figma-assets/chat/check.svg',
+    chevronDown: 'figma-assets/dropdown/chevron-down.svg'
   };
   const payload = screen === 'agent' ? {
     ...initial,

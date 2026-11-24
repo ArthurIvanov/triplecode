@@ -1,3 +1,7 @@
 @import "./components/action-button/action-button.css";
 @import "./components/action-button/action-button.preview.css";
 @import "./components/activity-bar/activity-bar.css";
+@import "./components/accordion/accordion.css";
+@import "./components/accordion/accordion.preview.css";
+@import "./components/dropdown/dropdown.css";
+@import "./components/dropdown/dropdown.preview.css";

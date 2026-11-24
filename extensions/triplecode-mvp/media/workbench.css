@@ -180,7 +180,7 @@ body[data-screen="agent"] { height: 100vh; overflow: hidden; }
   color: var(--triplecode-theme-input-foreground);
   overflow: hidden;
 }
-.agent form:has(.mode-menu:not([hidden])) { overflow: visible; }
+.agent form:has(.tc-dropdown__list) { overflow: visible; }
 .agent .composer-header {
   display: flex;
   flex-direction: column;
@@ -280,70 +280,10 @@ body[data-screen="agent"] { height: 100vh; overflow: hidden; }
   min-height: 32px;
   padding: 0 8px 8px;
 }
-.agent footer .pill {
-  padding: 4px;
-  border-radius: var(--triplecode-full, 999px);
-  font-size: 14px;
-  font-weight: 500;
-  line-height: 20px;
-  color: var(--triplecode-theme-button-secondaryForeground);
-  white-space: nowrap;
-}
-.agent footer .pill.model-pill {
-  border: 0;
-  background: transparent;
-  font: inherit;
-  cursor: pointer;
-}
-.agent footer .pill.model-pill:hover {
-  background: var(--triplecode-theme-list-hoverBackground, rgba(255, 255, 255, .08));
-}
-.agent footer .pill.mode {
-  border: 0;
-  background: transparent;
-}
-.agent footer .pill.mode[aria-pressed="true"],
-.agent footer .pill.mode[aria-expanded="true"] {
-  background: var(--triplecode-theme-list-hoverBackground, rgba(255, 255, 255, .08));
-}
-.mode-picker {
-  position: relative;
-}
-.mode-menu {
-  position: absolute;
-  bottom: calc(100% + 4px);
-  left: 0;
-  z-index: 10;
+.agent footer .chat-pickers {
   display: flex;
-  flex-direction: column;
-  min-width: 96px;
-  padding: 4px;
-  border: 1px solid var(--triplecode-theme-chat-requestBorder, #35373b);
-  border-radius: var(--triplecode-radius-sm, 6px);
-  background: var(--triplecode-theme-sideBar-background, #1d1e20);
-  box-shadow: var(--triplecode-shadow-soft, 0 4px 16px rgba(0, 0, 0, .4));
-}
-.mode-menu button {
-  padding: 6px 10px;
-  border: 0;
-  border-radius: var(--triplecode-radius-xs, 4px);
-  background: transparent;
-  color: var(--triplecode-theme-foreground, #f3f4f6);
-  font: inherit;
-  font-size: 13px;
-  text-align: left;
-  cursor: pointer;
-}
-.mode-menu button:hover,
-.mode-menu button:focus-visible {
-  background: var(--triplecode-theme-list-hoverBackground, rgba(255, 255, 255, .08));
-  outline: none;
-}
-.mode-menu[hidden] {
-  display: none;
-}
-.mode-menu button[aria-selected="true"] {
-  color: var(--triplecode-theme-textLink-foreground, #266cf7);
+  align-items: center;
+  gap: var(--triplecode-gap-related, 8px);
 }
 .agent #target {
   flex: 0 1 auto;

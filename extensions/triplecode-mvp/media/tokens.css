@@ -43,6 +43,7 @@
   --triplecode-padding-sm: 6px;
   --triplecode-padding-m: 8px;
   --triplecode-padding-ml: 10px;
+  --triplecode-padding-l: 12px;
   --triplecode-padding-xl: 16px;
 
   /* Legacy closest used 2px, which is named close in the current Figma export. */
