@@ -133,14 +133,13 @@ function update(state: State, action: Action): State {
 function AgentRunSteps({ steps, expandDetails = true }: { steps: TimelineItemProps[]; expandDetails?: boolean }) {
   return (
     <div className="agent-steps">
-      {steps.map((step, index) => step.type === 'message' ? (
+      {steps.map((step, index) => step.description ? (
         <Accordion key={index} title={step.title} defaultExpanded={expandDetails}>
-          {step.description && <p>{step.description}</p>}
+          <p>{step.description}</p>
         </Accordion>
       ) : (
         <div className="agent-step" key={index}>
           <span className="agent-step__title">{step.title}</span>
-          {step.description && <span className="agent-step__description">{step.description}</span>}
         </div>
       ))}
     </div>
