@@ -95,7 +95,7 @@ function update(state: State, action: Action): State {
       return { ...state, patch: action.patch, status: '', submitting: false, progress: null };
     case 'progress':
       return action.chat === state.selected
-        ? { ...state, submitting: true, progress: action }
+        ? { ...state, submitting: true, progress: { ...action, steps: state.progress?.steps || [] } }
         : state;
     case 'complete':
       return { ...state, patch: null, status: action.text, submitting: false, progress: null };
@@ -105,7 +105,7 @@ function update(state: State, action: Action): State {
         model: action.model || state.model, mode: selectedMode(action), status: action.status || '',
         provider: action.provider || state.provider, rules: Boolean(action.rules),
         models: action.models ?? state.models, modelValue: action.modelValue ?? state.modelValue,
-        submitting: Boolean(action.progress), progress: action.progress ?? null,
+        submitting: Boolean(action.progress), progress: action.progress ? { ...action.progress, steps: state.progress?.steps || [] } : null,
         focusRequest: state.focusRequest + (action.focusPrompt ? 1 : 0)
       };
     case 'error':
