@@ -14,6 +14,11 @@ const modeOrder: Mode[] = ['agent', 'plan', 'ask'];
 const modeAsset: Record<Mode, 'crown' | 'listTodo' | 'messageSquare'> = {
   agent: 'crown', plan: 'listTodo', ask: 'messageSquare'
 };
+
+function cycleMode(current: Mode): Mode {
+  const index = modeOrder.indexOf(current);
+  return modeOrder[(index + 1) % modeOrder.length];
+}
 type Attachment =
   | { kind: 'selection'; label?: string; text: string }
   | { kind: 'file'; path: string };
@@ -414,6 +419,8 @@ export function Agent({ initial }: { initial: Initial }) {
   const [expandedTimelines, setExpandedTimelines] = useState<ReadonlySet<number>>(new Set());
   const [activeTurn, setActiveTurn] = useState<number>();
   const [attachPool, setAttachPool] = useState<AttachCandidate[]>([]);
+  const [attachReady, setAttachReady] = useState(false);
+  const [attachLoading, setAttachLoading] = useState(false);
   const [atMention, setAtMention] = useState<AtMention | null>(null);
   const [atHighlight, setAtHighlight] = useState(0);
   const prompt = useRef<HTMLTextAreaElement>(null);
@@ -448,6 +455,13 @@ export function Agent({ initial }: { initial: Initial }) {
       );
     });
   const reviewBelongsToLast = Boolean(patch && turns.length && !progress);
+  const conversationEmpty = !replies.length && !patch && !progress && !streamText;
+
+  function applyMode(next: Mode) {
+    if (next === mode) return;
+    dispatch({ type: 'set-mode', mode: next });
+    send({ type: 'mode', id: selected, mode: next });
+  }
 
   useEffect(() => {
     setExpandedTimelines(new Set());
@@ -483,6 +497,8 @@ export function Agent({ initial }: { initial: Initial }) {
       if (data.type === 'attach-candidates') {
         if (data.id !== selectedRef.current) return;
         setAttachPool(Array.isArray(data.items) ? data.items : []);
+        setAttachReady(true);
+        setAttachLoading(false);
         setAtHighlight(0);
         if (data.open) {
           const field = prompt.current;
@@ -526,6 +542,8 @@ export function Agent({ initial }: { initial: Initial }) {
   useEffect(() => {
     setAtMention(null);
     setAttachPool([]);
+    setAttachReady(false);
+    setAttachLoading(false);
     setAtHighlight(0);
   }, [selected]);
 
@@ -533,7 +551,21 @@ export function Agent({ initial }: { initial: Initial }) {
     const mention = parseAtQuery(value, cursor);
     setAtMention(mention);
     setAtHighlight(0);
-    if (mention && !attachPool.length) send({ type: 'attach-query', id: selected });
+    if (!mention) {
+      setAttachLoading(false);
+      return;
+    }
+    if (!attachReady) {
+      setAttachLoading(true);
+      send({ type: 'attach-query', id: selected });
+    }
+  }
+
+  function atPickerStatus(): 'loading' | 'empty-sources' | 'no-matches' | 'ready' {
+    if (attachLoading && !attachReady) return 'loading';
+    if (!attachPool.length) return 'empty-sources';
+    if (!atItems.length) return 'no-matches';
+    return 'ready';
   }
 
   function pickAttach(item: AttachCandidate) {
@@ -580,8 +612,19 @@ export function Agent({ initial }: { initial: Initial }) {
         onClick={() => setNavOpen(open => !open)} />
     </header>
     <div className="conversation-wrap">
-    <section id="conversation" className="conversation" hidden={!replies.length && !patch && !progress && !streamText} aria-label="Agent output" onScroll={trackScroll}>
-      <div id="messages">
+    <section id="conversation" className={conversationEmpty ? 'conversation is-empty' : 'conversation'} aria-label="Agent output" onScroll={trackScroll}>
+      {conversationEmpty ? (
+        <div className="agent-empty" role="status">
+          <p className="agent-empty__title">Start an agent task</p>
+          <ul className="agent-empty__hints">
+            <li><kbd>Enter</kbd> send · <kbd>Shift+Enter</kbd> newline</li>
+            <li><kbd>@</kbd> attach context</li>
+            <li><kbd>Shift+Tab</kbd> cycle Ask / Plan / Agent</li>
+          </ul>
+          <p className="agent-empty__mode">Current mode: {modes[mode]}</p>
+        </div>
+      ) : null}
+      <div id="messages" hidden={conversationEmpty}>
         {turns.map((turn, turnPos) => {
           const isLast = turnPos === turns.length - 1;
           return (
@@ -855,10 +898,18 @@ export function Agent({ initial }: { initial: Initial }) {
         })}
       </div>
       <div className="composer-prompt">
-        {atMention && <div id="at-picker" className="at-picker" role="listbox" aria-label="Attach context">
-          {atItems.length === 0
-            ? <div className="at-picker__empty">No matches — keep typing or Esc</div>
-            : atItems.map((item, index) => (
+        {atMention && <div id="at-picker" className="at-picker" role="listbox" aria-label="Attach context"
+          aria-busy={atPickerStatus() === 'loading' || undefined}>
+          {atPickerStatus() === 'loading' && (
+            <div className="at-picker__empty">Loading context…</div>
+          )}
+          {atPickerStatus() === 'empty-sources' && (
+            <div className="at-picker__empty">No context sources — open a folder or Esc</div>
+          )}
+          {atPickerStatus() === 'no-matches' && (
+            <div className="at-picker__empty">No matches — keep typing or Esc</div>
+          )}
+          {atPickerStatus() === 'ready' && atItems.map((item, index) => (
               <button type="button" role="option" key={item.id}
                 className={index === atHighlight ? 'at-picker__item is-active' : 'at-picker__item'}
                 aria-selected={index === atHighlight}
@@ -871,7 +922,7 @@ export function Agent({ initial }: { initial: Initial }) {
         </div>}
         <label className="sr-only" htmlFor="prompt">Agent task</label>
         <textarea id="prompt" ref={prompt} maxLength={500}
-          placeholder="Describe a task. Type @ for context." required disabled={!!patch}
+          placeholder="Describe a task. @ context · Shift+Tab mode" required disabled={!!patch}
           value={state.draft}
           aria-expanded={Boolean(atMention)}
           aria-controls={atMention ? 'at-picker' : undefined}
@@ -885,10 +936,16 @@ export function Agent({ initial }: { initial: Initial }) {
           onKeyDown={event => {
             if (event.nativeEvent.isComposing) return;
             const field = event.currentTarget;
+            if (event.key === 'Tab' && event.shiftKey) {
+              event.preventDefault();
+              applyMode(cycleMode(mode));
+              return;
+            }
             if (atMention) {
               if (event.key === 'Escape') {
                 event.preventDefault();
                 setAtMention(null);
+                setAttachLoading(false);
                 return;
               }
               if (event.key === 'ArrowDown') {
@@ -907,7 +964,7 @@ export function Agent({ initial }: { initial: Initial }) {
                 if (item) pickAttach(item);
                 return;
               }
-              if (event.key === 'Tab' && atItems.length) {
+              if (event.key === 'Tab' && !event.shiftKey && atItems.length) {
                 event.preventDefault();
                 const item = atItems[atHighlight] || atItems[0];
                 if (item) pickAttach(item);
@@ -931,6 +988,7 @@ export function Agent({ initial }: { initial: Initial }) {
               if (!state.submitting && !atMention) field.form?.requestSubmit();
             }
           }} />
+        <p className="composer-hint">@ context · Shift+Tab cycle mode · Enter send</p>
       </div>
       <footer className="chat-actions">
         <div className="chat-pickers">
@@ -940,13 +998,11 @@ export function Agent({ initial }: { initial: Initial }) {
             value={{ text: modes[mode], start: <ActionButtonIcon href={assets[modeAsset[mode]]} dimension={14} /> }}
             onSelect={picked => {
               const next = modeOrder.find(option => modes[option] === picked.text);
-              if (next && next !== mode) {
-                dispatch({ type: 'set-mode', mode: next });
-                send({ type: 'mode', id: selected, mode: next });
-              }
+              if (next) applyMode(next);
             }}
             trigger={
-              <ActionButton size="base" rounding="full" variant="ghost" text={modes[mode]}
+              <ActionButton className="mode-pill" size="base" rounding="full" variant="ghost" text={modes[mode]}
+                title="Shift+Tab to cycle Ask / Plan / Agent"
                 start={<ActionButtonIcon href={assets[modeAsset[mode]]} dimension={14} />}
                 end={<ActionButtonIcon href={assets.chevronDown} dimension={14} />} />
             }

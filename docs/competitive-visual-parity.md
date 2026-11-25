@@ -46,7 +46,7 @@
 
 | ID | Outcome | Scenario | Stage |
 | --- | --- | --- | --- |
-| R-V1 | Composer/mode/@ keyboard parity with Cursor sidepane | S19 | beta polish **next** |
+| R-V1 | Composer/mode/@ keyboard parity with Cursor sidepane | S19 | ✓ Shift+Tab + @ states + empty CTA |
 | R-V2 | Timeline/diff/queue visual language (Cursor 2/3 cues) | S19 | beta |
 | R-V3 | Session rail ACC-like (Devin) + PR/handoff cards | S11+S19 | full (session bar stub ✓) |
 | R-V4 | Evidence pack screenshots | evidence | ✓ Cursor+Devin 25.11; TripleCode side-by-side optional |
@@ -86,8 +86,8 @@
 
 ## Следующие действия
 
-1. **R-V1** — mode pill + keyboard cycle + `@` empty/loading/no-results + empty Agents CTA.  
-2. Опционально: 1–2 скрина **TripleCode** Agents (empty + review) в тот же evidence folder.  
+1. **R-V2** — timeline/tool/queue visual language + files-changed strip / Quick review cues.  
+2. Опционально: 1–2 скрина **TripleCode** Agents (empty + review) в `docs/evidence/2026-11-25/`.  
 3. Не строить отдельный Agents Window shell до ADR 0006 / cloud E.
 
 ## Links

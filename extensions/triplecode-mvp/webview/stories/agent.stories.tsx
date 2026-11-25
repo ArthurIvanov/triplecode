@@ -60,6 +60,17 @@ type Story = StoryObj<typeof meta>;
 
 export const Empty: Story = { args: { initial: base } };
 
+export const EmptyFresh: Story = {
+  args: {
+    initial: {
+      ...base,
+      chats: [{ id: 1, name: 'New chat', mode: 'agent', replies: [] }],
+      selected: 1,
+      draft: ''
+    }
+  }
+};
+
 export const WithDraft: Story = {
   args: { initial: { ...base, draft: 'add a deleteUser function to index.ts' } }
 };

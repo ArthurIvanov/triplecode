@@ -15,7 +15,7 @@
 
 ## Acceptance (phased)
 
-- [ ] **R-V1:** mode cycle keyboard + `@` empty/loading/no-results как у Cursor sidepane.
+- [x] **R-V1:** mode cycle keyboard (`Shift+Tab`) + `@` loading/empty/no-matches + empty Agents CTA.
 - [ ] **R-V2:** timeline/tool/queue визуальный язык ближе Cursor 2/3; Check patch заметнее.
 - [ ] **R-V3:** session rail ACC-like (Devin): filter/group later; badge + PR card now.
 - [x] **R-V4:** evidence pack Cursor+Devin в `docs/evidence/2026-11-25/` (TripleCode side-by-side optional).
