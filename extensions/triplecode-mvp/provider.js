@@ -73,17 +73,19 @@ function fileContext(document, maxChars = 14000) {
   return `File: ${document.uri.fsPath}\nLanguage: ${document.languageId}\n\n${content}`;
 }
 
-function askMessages(document, request) {
+function askMessages(document, request, projectTree = '') {
+  const tree = projectTree ? `\n\nProject files:\n${projectTree}` : '';
   return [
     { role: 'system', content: 'You are a coding assistant inside an IDE. Answer briefly and concretely.' },
-    { role: 'user', content: `${document ? fileContext(document) : ''}\n\nQuestion: ${request}` }
+    { role: 'user', content: `${document ? fileContext(document) : ''}${tree}\n\nQuestion: ${request}` }
   ];
 }
 
-function planMessages(document, request) {
+function planMessages(document, request, projectTree = '') {
+  const tree = projectTree ? `\n\nProject files:\n${projectTree}` : '';
   return [
     { role: 'system', content: 'You are a coding assistant inside an IDE. Reply with a short numbered plan, one step per line.' },
-    { role: 'user', content: `${document ? fileContext(document) : ''}\n\nTask: ${request}` }
+    { role: 'user', content: `${document ? fileContext(document) : ''}${tree}\n\nTask: ${request}` }
   ];
 }
 
@@ -109,21 +111,22 @@ function rewriteMessages(document, request) {
   ];
 }
 
-function multiFileMessages(documents, request) {
+function multiFileMessages(documents, request, projectTree = '') {
   const context = documents.map(document => {
     let content = document.getText();
     if (!content.trim()) content = '(empty file)';
     if (content.length > 6000) content = `${content.slice(0, 6000)}\n// … truncated …`;
     return `${document.uri.fsPath}\n\n${content}`;
   }).join('\n\n');
+  const tree = projectTree ? `\n\nProject files:\n${projectTree}` : '';
   return [
     { role: 'system', content: 'You are a coding assistant inside an IDE. You rewrite files precisely.' },
     {
       role: 'user',
-      content: `Files:\n\n${context}\n\nTask: ${request}\n\n` +
-        'For each file that must change, output a line FILE: followed by its path, ' +
-        'then the COMPLETE updated file content inside one code fence. Keep every ' +
-        'untouched line identical. Only edit files listed above.'
+      content: `Files:\n\n${context}${tree}\n\nTask: ${request}\n\n` +
+        'For each file that must change, output a line FILE: followed by its workspace-relative path, ' +
+        'then the COMPLETE updated file content inside one code fence. You may edit any file from ' +
+        'the project listing. Keep every untouched line identical.'
     }
   ];
 }
@@ -133,6 +136,8 @@ function parseMultiRewrite(text) {
   if (/^NO\s*CHANGE\b/i.test(trimmed)) {
     return { noChange: true, reason: trimmed.replace(/^NO\s*CHANGE\b[:\-–—]?\s*/i, '').slice(0, 300) };
   }
+  const answer = /^ANSWER[:\-–—]\s*([\s\S]+)$/i.exec(trimmed);
+  if (answer) return { answer: answer[1].trim().slice(0, 8000) };
   const files = [];
   const blockPattern = /^FILE:[ \t]*(.+?)[ \t]*\r?\n(?:[ \t]*\r?\n)*[ \t]*```[a-zA-Z]*[ \t]*\r?\n([\s\S]*?)```/gm;
   let match;

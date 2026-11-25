@@ -883,6 +883,21 @@ function activate(context) {
     return contextExcludePattern.test(document.uri.fsPath);
   }
 
+  const projectTreeExclude = '**/{node_modules,.git,dist,build,out,coverage,.next,.turbo,.venv,vendor}/**';
+
+  async function projectTree(root, limit = 200) {
+    if (!root) return '';
+    try {
+      const files = await vscode.workspace.findFiles('**/*', projectTreeExclude, limit);
+      return files
+        .map(uri => vscode.workspace.asRelativePath(uri))
+        .filter(rel => !contextExcludePattern.test(rel))
+        .join('\n');
+    } catch {
+      return '';
+    }
+  }
+
   function repoRules() {
     const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
     if (!root) return '';
@@ -952,22 +967,25 @@ function activate(context) {
       }
     }
     documents.splice(6);
-    if (!documents.length) throw new Error('Open a source file first.');
     const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-    const options = { numPredict: 8192, numCtx: 16384, feature: 'agent', run };
+    if (!documents.length && !root) throw new Error('Open a source file first.');
+    const tree = await projectTree(root);
+    if (tree) addTimelineStep(run, 'tool', 'Project map', `Indexed ${tree.split('\n').length} project files`);
+    const options = { numPredict: 8192, numCtx: 32768, feature: 'agent', run };
     const knownUris = new Set(documents.map(document => document.uri.toString()));
 
     let contextDocs = documents;
     postProgress(run, 'Waiting for model…');
-    let reply = await aiChat(provider.multiFileMessages(contextDocs, request), run.signal, options);
+    let reply = await aiChat(provider.multiFileMessages(contextDocs, request, tree), run.signal, options);
     run.signal.throwIfAborted();
     let parsed = provider.parseMultiRewrite(reply);
     if (!parsed) throw aiParseError(reply);
+    if (parsed.answer) return { reply: parsed.answer };
 
     if (!parsed.noChange) {
       const missing = [];
       const requested = new Set();
-      for (const entry of parsed.files.slice(0, 6)) {
+      for (const entry of parsed.files.slice(0, 8)) {
         run.signal.throwIfAborted();
         try {
           const document = await openModelFile(entry.path, root);
@@ -978,13 +996,14 @@ function activate(context) {
         } catch { /* invalid paths are rejected again on the final pass */ }
       }
       if (missing.length) {
-        contextDocs = [...documents, ...missing].slice(0, 6);
+        contextDocs = [...documents, ...missing].slice(0, 8);
         postProgress(run, 'Expanding context…');
         addTimelineStep(run, 'tool', 'Expand context', `Adding ${missing.length} file${missing.length === 1 ? '' : 's'} to context`);
-        reply = await aiChat(provider.multiFileMessages(contextDocs, request), run.signal, options);
+        reply = await aiChat(provider.multiFileMessages(contextDocs, request, tree), run.signal, options);
         run.signal.throwIfAborted();
         parsed = provider.parseMultiRewrite(reply);
         if (!parsed) throw aiParseError(reply);
+        if (parsed.answer) return { reply: parsed.answer };
       }
     }
     run.signal.throwIfAborted();
@@ -997,7 +1016,7 @@ function activate(context) {
     const specs = [];
     const seenPaths = new Set();
     const failedPaths = [];
-    for (const entry of parsed.files.slice(0, 6)) {
+    for (const entry of parsed.files.slice(0, 8)) {
       run.signal.throwIfAborted();
       let document;
       try {
@@ -1196,13 +1215,16 @@ function activate(context) {
     const rules = repoRules();
     const rulesSuffix = rules ? `\n\nRepository rules (.triplecode/rules.md):\n${rules}` : '';
     const aiRequest = trimmed + attachmentSuffix(attachments) + rulesSuffix;
+    const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
     if (mode === 'ask') {
+      const tree = useAi ? await projectTree(root) : '';
+      if (tree) addTimelineStep(run, 'tool', 'Project map', `Indexed ${tree.split('\n').length} project files`);
       const fallback = () => answerAsk(document, trimmed);
       const reply = useAi
         ? await aiOrFallback(signal, () => {
           postProgress(run, 'Waiting for model…');
           addTimelineStep(run, 'tool', 'Ask request', 'Sending ask-mode request to AI');
-          return aiChat(provider.askMessages(document, aiRequest), signal, { feature: 'ask', run });
+          return aiChat(provider.askMessages(document, aiRequest, tree), signal, { feature: 'ask', run });
         }, fallback)
         : fallback();
       signal.throwIfAborted();
@@ -1216,8 +1238,10 @@ function activate(context) {
         return;
       }
       postProgress(run, 'Waiting for model…');
+      const tree = await projectTree(root);
+      if (tree) addTimelineStep(run, 'tool', 'Project map', `Indexed ${tree.split('\n').length} project files`);
       addTimelineStep(run, 'tool', 'Plan request', 'Sending plan-mode request to AI');
-      const plan = await aiChat(provider.planMessages(document, aiRequest), signal, { feature: 'plan', run });
+      const plan = await aiChat(provider.planMessages(document, aiRequest, tree), signal, { feature: 'plan', run });
       signal.throwIfAborted();
       addTimelineStep(run, 'message', 'Plan response', 'Received plan from AI');
       completeChatTurn(chat, plan, { id: randomUUID(), task: trimmed, plan });
@@ -1227,7 +1251,6 @@ function activate(context) {
     const id = randomUUID();
     let specs;
     if (useAi) {
-      const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
       const extraDocuments = [];
       for (const attachment of attachments.filter(a => a.kind === 'file')) {
         signal.throwIfAborted();
@@ -1240,6 +1263,16 @@ function activate(context) {
         .map(a => `\`\`\`\n${a.text}\n\`\`\``).join('\n');
       const agentRequest = trimmed + (selectionSuffix ? `\n\nAttached selection:\n${selectionSuffix}` : '') + rulesSuffix;
       signal.throwIfAborted();
+      if (/^(analy[sz]e|explain|describe|summari[sz]e|review|what|how|why|list|show|overview|architecture|audit|inspect|examine|walk)\b/i.test(trimmed)) {
+        const tree = await projectTree(root);
+        if (tree) addTimelineStep(run, 'tool', 'Project map', `Indexed ${tree.split('\n').length} project files`);
+        postProgress(run, 'Waiting for model…');
+        addTimelineStep(run, 'tool', 'Agent request', 'Sending analysis request to AI');
+        const reply = await aiChat(provider.askMessages(document, agentRequest, tree), signal, { feature: 'agent', run });
+        signal.throwIfAborted();
+        completeChatTurn(chat, reply, null, run.approvedPlan);
+        return;
+      }
       addTimelineStep(run, 'tool', 'Agent request', 'Sending agent-mode request to AI');
       const result = await aiSpecs(agentRequest, extraDocuments, run);
       signal.throwIfAborted();
