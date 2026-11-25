@@ -47,7 +47,7 @@
 | ID | Outcome | Scenario | Stage |
 | --- | --- | --- | --- |
 | R-V1 | Composer/mode/@ keyboard parity with Cursor sidepane | S19 | ✓ Shift+Tab + @ states + empty CTA |
-| R-V2 | Timeline/diff/queue visual language (Cursor 2/3 cues) | S19 | beta |
+| R-V2 | Timeline/diff/queue visual language (Cursor 2/3 cues) | S19 | ✓ changes strip + Build + queue/live |
 | R-V3 | Session rail ACC-like (Devin) + PR/handoff cards | S11+S19 | full (session bar stub ✓) |
 | R-V4 | Evidence pack screenshots | evidence | ✓ Cursor+Devin 25.11; TripleCode side-by-side optional |
 
@@ -78,15 +78,15 @@
 | --- | --- | --- | --- | --- |
 | 1 | Mode pill + Shift+Tab cycle visibly | Cursor Ask/Plan/Agent | Mode есть, слабый visual/keyboard | **V1** |
 | 2 | Composer hints `@` `/` Plan·Build | Cursor | Частично S08 | **V1** |
-| 3 | Files-changed strip + Quick review над input | Devin | Review block отдельно | **V2** |
-| 4 | Plan → Build primary CTA | Cursor | Execute plan | **V2** |
+| 3 | Files-changed strip + Quick review над input | Devin | Changes strip + Quick/View | **V2 ✓** |
+| 4 | Plan → Build primary CTA | Cursor | Build CTA | **V2 ✓** |
 | 5 | Session rail (not only tabs) + Local/Cloud | Devin ACC | Session bar stub | **V3** |
 | 6 | Changes as tool tab beside chat | Both | Monaco Review | **V2/V3** |
 | 7 | Empty-state shortcut CTA | Cursor | Welcome/empty chat | **V1** |
 
 ## Следующие действия
 
-1. **R-V2** — timeline/tool/queue visual language + files-changed strip / Quick review cues.  
+1. **R-V3** — session rail ACC-like (badge already); PR/handoff card polish.  
 2. Опционально: 1–2 скрина **TripleCode** Agents (empty + review) в `docs/evidence/2026-11-25/`.  
 3. Не строить отдельный Agents Window shell до ADR 0006 / cloud E.
 

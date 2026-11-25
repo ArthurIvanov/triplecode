@@ -96,7 +96,7 @@ SoT: [competitive-visual-parity.md](competitive-visual-parity.md) · Scenario [S
 | ID | Outcome | Scenario | Role | Stage |
 | --- | --- | --- | --- | --- |
 | R-V1 | Composer mode/@ keyboard parity (Cursor sidepane) | S19 | Design + AI | ✓ Shift+Tab + @ states + empty CTA |
-| R-V2 | Timeline/diff/queue visual language | S19 | Design | beta |
+| R-V2 | Timeline/diff/queue visual language | S19 | Design | ✓ changes strip + Build + queue/live |
 | R-V3 | Session rail ACC-like + PR cards (Devin) | S11 S19 | Design + AI | full |
 | R-V4 | Evidence screenshots Cursor/Devin/TripleCode | evidence | Research | ✓ Cursor+Devin 25.11; TC shot optional |
 

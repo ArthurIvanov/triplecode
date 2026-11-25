@@ -300,9 +300,13 @@ function AgentRunSteps({ steps, expandDetails = true, live = false }: { steps: T
 }
 
 function ProgressIndicator({ progress }: { progress: Progress }) {
+  const stepCount = progress.steps?.length || 0;
   return (
     <div className="agent-turn agent-turn--live">
-      <div className="agent-turn__label">Working</div>
+      <div className="agent-turn__label">
+        <span className="live-dot" aria-hidden="true" />
+        Working{stepCount ? ` · ${stepCount} step${stepCount === 1 ? '' : 's'}` : ''}
+      </div>
       <Accordion title={progress.text} defaultExpanded className="agent-run">
         {progress.steps && progress.steps.length > 0 && (
           <AgentRunSteps steps={progress.steps} live />
@@ -310,6 +314,21 @@ function ProgressIndicator({ progress }: { progress: Progress }) {
       </Accordion>
     </div>
   );
+}
+
+function patchStats(files: PatchFile[]): { count: number; added: number; removed: number } {
+  let added = 0;
+  let removed = 0;
+  for (const file of files) {
+    added += file.added ?? file.lines?.length ?? 0;
+    removed += file.removed || 0;
+  }
+  return { count: files.length, added, removed };
+}
+
+function planStepCount(planText: string | undefined): number {
+  if (!planText) return 0;
+  return planText.split(/\n+/).map(line => line.trim()).filter(Boolean).length;
 }
 
 /** Group flat replies into Request → Steps → Answer turns (S12). */
@@ -456,6 +475,8 @@ export function Agent({ initial }: { initial: Initial }) {
     });
   const reviewBelongsToLast = Boolean(patch && turns.length && !progress);
   const conversationEmpty = !replies.length && !patch && !progress && !streamText;
+  const pendingStats = patch ? patchStats(patch.files) : null;
+  const pendingPlanSteps = plan ? planStepCount(plan.plan) : 0;
 
   function applyMode(next: Mode) {
     if (next === mode) return;
@@ -792,24 +813,43 @@ export function Agent({ initial }: { initial: Initial }) {
           send({ type: 'attach-file', id: selected, path });
         }
       }}>
-      {patch && <div id="review" className="composer-header">
-        <div className="review-row">
-          <button type="button" className="files-toggle" aria-expanded={filesOpen}
+      {patch && pendingStats && <div id="review" className="composer-header changes-strip">
+        <div className="changes-strip__row">
+          <button type="button" className="files-toggle changes-strip__stat" aria-expanded={filesOpen}
+            id="file-count"
             onClick={() => setFilesOpen(open => !open)}>
             <img src={assets.chevron} alt="" />
-            <span id="file-count">{patch.files.length} {patch.files.length === 1 ? 'file' : 'files'}</span>
+            <span>
+              {pendingStats.count} file{pendingStats.count === 1 ? '' : 's'} changed
+              {' '}
+              <span className="changes-strip__add">+{pendingStats.added}</span>
+              {pendingStats.removed > 0 && <span className="changes-strip__del"> −{pendingStats.removed}</span>}
+            </span>
           </button>
+          <div className="changes-strip__quick">
+            <ActionButton rounding="full" text="Quick review"
+              title="Show file list and hunks in the panel"
+              onClick={() => {
+                setFilesOpen(true);
+                document.getElementById('patch')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+              }} />
+            <ActionButton variant="filled" rounding="full" text="View changes" ref={reviewButton}
+              title="Open full diff review"
+              onClick={() => send({ type: 'review' })} />
+          </div>
+        </div>
+        <div className="review-row changes-strip__actions">
           <div className="review-actions">
-            <ActionButton rounding="full" text="Run checks" disabled={patch.checking} aria-describedby="check-target"
-              onClick={() => send({ type: 'check' })} />
-            <ActionButton rounding="full" text="Check patch" disabled={patch.checking}
+            <ActionButton className="check-patch-cta" variant="filled" rounding="full" text="Check patch"
+              disabled={patch.checking}
               title="Runs the check command on a temporary copy with the proposed patch applied"
               onClick={() => send({ type: 'check-patch' })} />
+            <ActionButton rounding="full" text="Run checks" disabled={patch.checking} aria-describedby="check-target"
+              onClick={() => send({ type: 'check' })} />
             <ActionButton rounding="full" text="Undo all" disabled={patch.checking}
               onClick={() => send({ type: 'discard' })} />
             <ActionButton rounding="full" text="Keep all" disabled={patch.checking}
               onClick={() => send({ type: 'apply' })} />
-            <ActionButton variant="filled" text="Review" ref={reviewButton} onClick={() => send({ type: 'review' })} />
           </div>
         </div>
         <div id="checks" className="checks" aria-live="polite">
@@ -818,7 +858,7 @@ export function Agent({ initial }: { initial: Initial }) {
               ? 'Running check…'
               : patch.checks?.some(check => check.target === 'proposed-patch')
                 ? 'Check patch ran on an isolated copy with the proposal applied.'
-                : 'Run checks tests the current working tree. Check patch tests the proposal in an isolated copy.'}
+                : 'Check patch tests the proposal in an isolated copy. Run checks tests the current working tree.'}
           </p>
           {patch.checks?.map((check, index) => <div className="check-row" key={index}>
             <span title={check.output || ''}>
@@ -858,13 +898,20 @@ export function Agent({ initial }: { initial: Initial }) {
             <span className="plan-label" id="plan-label">
               {plan.task.length > 60 ? `${plan.task.slice(0, 60)}…` : plan.task}
             </span>
+            {pendingPlanSteps > 0 && (
+              <span className="plan-steps">{pendingPlanSteps} steps</span>
+            )}
           </button>
           <div className="review-actions">
             <ActionButton rounding="full" text="Discard" disabled={state.submitting}
               onClick={() => send({ type: 'discard-plan', id: selected, planId: plan.id })} />
-            <ActionButton variant="filled" text="Execute plan" disabled={state.submitting || !planOpen || !!patch}
-              title="Expand the plan to review it before executing"
-              onClick={() => send({ type: 'execute-plan', id: selected, planId: plan.id })} />
+            <ActionButton className="plan-build" variant="filled" text="Build"
+              disabled={state.submitting || !!patch}
+              title="Build from this plan (expand to edit first if needed)"
+              onClick={() => {
+                if (!planOpen) setExpandedPlanId(plan.id);
+                send({ type: 'execute-plan', id: selected, planId: plan.id });
+              }} />
           </div>
         </div>
         {planOpen && (plan.plan
@@ -879,10 +926,11 @@ export function Agent({ initial }: { initial: Initial }) {
               }} />
           : <p className="plan-text muted">Plan text unavailable — regenerate in Plan mode.</p>)}
       </div>}
-      {(chat?.queued ?? 0) > 0 && <p className="queue-note">
-        {chat!.queued} request{chat!.queued === 1 ? '' : 's'} queued
-        <ActionButton rounding="full" text="Cancel queue" onClick={() => send({ type: 'clear-queue', id: selected })} />
-      </p>}
+      {(chat?.queued ?? 0) > 0 && <div className="queue-chip" role="status">
+        <span className="queue-chip__count">{chat!.queued}</span>
+        <span className="queue-chip__label">queued</span>
+        <ActionButton size="base" rounding="full" text="Cancel" onClick={() => send({ type: 'clear-queue', id: selected })} />
+      </div>}
       <div id="attachments" className="attachments" hidden={!attachments.length}>
         {attachments.map((attachment, index) => {
           const selection = attachment.kind === 'selection';
