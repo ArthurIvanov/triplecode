@@ -14,7 +14,7 @@ const {
   allowRequestLength, buildExecuteRequest, sanitizePlanEdit
 } = require('./agent-modes');
 const {
-  RULES_LIMIT,
+  ATTACHMENT_LIMIT, RULES_LIMIT,
   isSensitivePath, rulesSuffix, hasRulesBadge
 } = require('./context-rules');
 const { buildAttachCandidates, appendAttachment } = require('./attach-logic');

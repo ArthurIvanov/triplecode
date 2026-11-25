@@ -257,12 +257,12 @@ function groupTurns(replies: Reply[]): Turn[] {
   const turns: Turn[] = [];
   for (let index = 0; index < replies.length; index += 1) {
     const reply = replies[index];
-    if (typeof reply === 'object' && reply.type === 'request') {
+    if (reply && typeof reply === 'object' && reply.type === 'request') {
       const turn: Turn = { id: index, request: reply.text };
       let cursor = index + 1;
       if (cursor < replies.length) {
         const next = replies[cursor];
-        if (typeof next === 'object' && next.type === 'timeline') {
+        if (next && typeof next === 'object' && next.type === 'timeline') {
           turn.steps = next.steps;
           turn.stepsIndex = cursor;
           cursor += 1;
