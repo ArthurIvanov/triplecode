@@ -531,6 +531,19 @@ body[data-screen="agent"] { height: 100vh; overflow: hidden; }
   display: flex;
   width: 100%;
 }
+.agent-step-enter {
+  width: 100%;
+  animation: agent-step-in .25s ease both;
+}
+.agent-step-enter > * { width: 100%; }
+@keyframes agent-step-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.agent-step-enter.is-running .agent-step__title,
+.agent-step-enter.is-running .tc-accordion__title {
+  color: var(--triplecode-theme-focusBorder, var(--vscode-focusBorder));
+}
 .agent-steps {
   display: flex;
   flex-direction: column;

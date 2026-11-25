@@ -154,18 +154,27 @@ async function copyText(text: string) {
   }
 }
 
-function AgentRunSteps({ steps, expandDetails = true }: { steps: TimelineItemProps[]; expandDetails?: boolean }) {
+function AgentRunSteps({ steps, expandDetails = true, live = false }: { steps: TimelineItemProps[]; expandDetails?: boolean; live?: boolean }) {
   return (
     <div className="agent-steps">
-      {steps.map((step, index) => step.description ? (
-        <Accordion key={index} title={step.title} defaultExpanded={expandDetails}>
-          <p>{step.description}</p>
-        </Accordion>
-      ) : (
-        <div className="agent-step" key={index}>
-          <span className="agent-step__title">{step.title}</span>
-        </div>
-      ))}
+      {steps.map((step, index) => {
+        const running = live && index === steps.length - 1;
+        const cls = `agent-step-enter${running ? ' is-running' : ''}`;
+        const style = { animationDelay: `${Math.min(index, 8) * 80}ms` };
+        return step.description ? (
+          <div className={cls} style={style} key={index}>
+            <Accordion title={step.title} defaultExpanded={expandDetails}>
+              <p>{step.description}</p>
+            </Accordion>
+          </div>
+        ) : (
+          <div className={cls} style={style} key={index}>
+            <div className="agent-step">
+              <span className="agent-step__title">{step.title}</span>
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -174,7 +183,7 @@ function ProgressIndicator({ progress }: { progress: Progress }) {
   return (
     <Accordion title={progress.text} defaultExpanded className="agent-run">
       {progress.steps && progress.steps.length > 0 && (
-        <AgentRunSteps steps={progress.steps} />
+        <AgentRunSteps steps={progress.steps} live />
       )}
     </Accordion>
   );
