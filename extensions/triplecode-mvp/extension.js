@@ -466,10 +466,16 @@ function activate(context) {
     }).catch(error => console.warn('[TripleCode usage] session lookup failed', error.message));
   }
 
+  function postStreamDelta(run, text) {
+    if (!run || !agent || run.chat !== currentChat || !isActiveRun(activeRun, run)) return;
+    agent.postMessage({ type: 'stream-delta', chat: run.chat.id, text });
+  }
+
   async function aiChat(messages, signal, options = {}) {
     const started = Date.now();
     const mode = await aiSetting('ai.provider', 'auto');
     const feature = options.feature || 'other';
+    const stream = options.stream !== false;
     const report = (providerName, model, outcome) => reportUsage({
       feature, provider: providerName, model,
       durationMs: Date.now() - started, outcome
@@ -477,32 +483,41 @@ function activate(context) {
     const addStep = (type, title, description) => {
       if (options.run) addTimelineStep(options.run, type, title, description);
     };
+    const onDelta = stream && options.run
+      ? (_delta, full) => postStreamDelta(options.run, full)
+      : undefined;
     try {
       if (mode === 'openrouter') {
         const model = await aiSetting('ai.openrouterModel', 'openai/gpt-4o-mini');
         addStep('tool', 'OpenRouter request', `Model: ${model}, Messages: ${messages.length}`);
-        const reply = await provider.chatCompletions({
+        const args = {
           baseUrl: await aiSetting('ai.openrouterEndpoint', 'https://openrouter.ai/api/v1'),
           apiKey: await openRouterKey(),
           model,
           messages,
           signal,
           maxTokens: options.numPredict || 4096
-        });
+        };
+        const reply = onDelta
+          ? await provider.chatCompletionsStream({ ...args, onDelta })
+          : await provider.chatCompletions(args);
         report('openrouter', model, 'ok');
         addStep('message', 'OpenRouter response', `Received ${reply.length} chars`);
         return reply;
       }
       const model = await aiSetting('ai.model', 'qwen2.5-coder:7b');
       addStep('tool', 'Ollama request', `Model: ${model}, Messages: ${messages.length}`);
-      const reply = await provider.chat({
+      const args = {
         endpoint: await aiSetting('ai.endpoint', 'http://localhost:11434'),
         model,
         messages,
         signal,
         numPredict: options.numPredict,
         numCtx: options.numCtx
-      });
+      };
+      const reply = onDelta
+        ? await provider.chatStream({ ...args, onDelta })
+        : await provider.chat(args);
       report('ollama', model, 'ok');
       addStep('message', 'Ollama response', `Received ${reply.length} chars`);
       return reply;

@@ -35,6 +35,7 @@
 - Изменения Review/apply/undo/check — обновляй `review-logic.cjs` / `check-logic.cjs` и `npm test` (S05–S07).
 - Изменения attach candidates — обновляй `attach-logic.cjs` и `npm test`.
 - Изменения chronology / Markdown / diff preview — `markdown-logic.cjs`, `review-logic.describeEditHunk`, `webview/agent.tsx` + `npm test` / `build:webview` (S12).
+- Изменения streaming — `stream-logic.cjs`, `provider.js` chatStream/chatCompletionsStream, `npm test` (S13).
 - Изменения Ask/Plan/Execute — обновляй `agent-modes.cjs` и `npm test` (S03–S04).
 - Изменения @/attachments/rules/inline picker — обновляй `context-rules.cjs`, `webview/agent.tsx`, `npm test` + `build:webview` (S08).
 - Изменения Welcome/recent/first-launch defaults — обновляй `welcome-logic.cjs` и `npm test` (S01).

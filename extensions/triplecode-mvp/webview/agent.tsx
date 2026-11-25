@@ -77,6 +77,7 @@ type HostMessage =
   | { type: 'complete' | 'error'; text: string }
   | ({ type: 'chats'; focusPrompt?: boolean } & ChatState)
   | { type: 'timeline-step'; chat: number; item: TimelineItemProps }
+  | { type: 'stream-delta'; chat: number; text: string }
   | { type: 'attach-candidates'; id: number; items: AttachCandidate[]; open?: boolean };
 type ViewMessage =
   | { type: 'select-chat' | 'close-chat' | 'stop' | 'attach-menu' | 'clear-queue' | 'attach-query'; id: number }
@@ -130,6 +131,7 @@ type State = ChatState & {
   status: string;
   submitting: boolean;
   progress: Progress | null;
+  streamText: string;
   focusRequest: number;
   provider: string;
   rules: boolean;
@@ -152,13 +154,17 @@ function update(state: State, action: Action): State {
     case 'target':
       return { ...state, target: action.name };
     case 'pending':
-      return { ...state, patch: action.patch, status: '', submitting: false, progress: null };
+      return { ...state, patch: action.patch, status: '', submitting: false, progress: null, streamText: '' };
     case 'progress':
       return action.chat === state.selected
         ? { ...state, submitting: true, progress: { ...action, steps: state.progress?.steps || [] } }
         : state;
+    case 'stream-delta':
+      return action.chat === state.selected
+        ? { ...state, submitting: true, streamText: action.text }
+        : state;
     case 'complete':
-      return { ...state, patch: null, status: action.text, submitting: false, progress: null };
+      return { ...state, patch: null, status: action.text, submitting: false, progress: null, streamText: '' };
     case 'chats':
       return {
         ...state, chats: action.chats, selected: action.selected, draft: action.draft,
@@ -166,10 +172,11 @@ function update(state: State, action: Action): State {
         provider: action.provider || state.provider, rules: Boolean(action.rules),
         models: action.models ?? state.models, modelValue: action.modelValue ?? state.modelValue,
         submitting: Boolean(action.progress), progress: action.progress ? { ...action.progress, steps: state.progress?.steps || [] } : null,
+        streamText: action.progress ? state.streamText : '',
         focusRequest: state.focusRequest + (action.focusPrompt ? 1 : 0)
       };
     case 'error':
-      return { ...state, status: action.text, submitting: false, progress: null };
+      return { ...state, status: action.text, submitting: false, progress: null, streamText: '' };
     case 'timeline-step':
       if (action.chat === state.selected && state.progress) {
         const steps = [...(state.progress.steps || []), action.item];
@@ -182,7 +189,7 @@ function update(state: State, action: Action): State {
       return { ...state, mode: action.mode };
     case 'submit':
       return {
-        ...state, submitting: true, status: '',
+        ...state, submitting: true, status: '', streamText: '',
         progress: { chat: state.selected, text: 'Working…', startedAt: Date.now() }
       };
     default:
@@ -344,7 +351,8 @@ export function Agent({ initial }: { initial: Initial }) {
     chats: initial.chats, selected: initial.selected, draft: initial.draft,
     model: initial.model || 'Model', target: initial.target, patch: initial.pending,
     mode: selectedMode(initial), status: initial.status || '',
-    submitting: Boolean(initial.progress), progress: initial.progress ?? null, focusRequest: 0,
+    submitting: Boolean(initial.progress), progress: initial.progress ?? null, streamText: '',
+    focusRequest: 0,
     provider: initial.provider || 'Auto', rules: Boolean(initial.rules),
     models: initial.models || [], modelValue: initial.modelValue || ''
   });
@@ -371,6 +379,7 @@ export function Agent({ initial }: { initial: Initial }) {
   const plan = chat?.plan;
   const planOpen = !!plan && expandedPlanId === plan.id;
   const progress = state.progress && state.progress.chat === selected ? state.progress : null;
+  const streamText = state.submitting ? state.streamText : '';
   const { assets } = initial;
 
   const turns = groupTurns(replies);
@@ -520,7 +529,7 @@ export function Agent({ initial }: { initial: Initial }) {
         onClick={() => setNavOpen(open => !open)} />
     </header>
     <div className="conversation-wrap">
-    <section id="conversation" className="conversation" hidden={!replies.length && !patch && !progress} aria-label="Agent output" onScroll={trackScroll}>
+    <section id="conversation" className="conversation" hidden={!replies.length && !patch && !progress && !streamText} aria-label="Agent output" onScroll={trackScroll}>
       <div id="messages">
         {turns.map((turn, turnPos) => {
           const isLast = turnPos === turns.length - 1;
@@ -587,6 +596,12 @@ export function Agent({ initial }: { initial: Initial }) {
           return null;
         })}
         {progress && <ProgressIndicator progress={progress} />}
+        {streamText && (
+          <div className="agent-bubble agent-bubble--stream" aria-live="polite">
+            <Markdown source={streamText} className="agent-message agent-message--md" />
+            <span className="stream-cursor" aria-hidden="true" />
+          </div>
+        )}
       </div>
       {patch && <>
         {!reviewBelongsToLast && <p id="task" className="agent-message request">{patch.request}</p>}

@@ -53,7 +53,7 @@
 
 | ID | Outcome | Scenario | Screen / states | Role | Deps | Stage |
 | --- | --- | --- | --- | --- | --- | --- |
-| R-C1 | Streaming tokens in Agents UI | S04/S05 | streaming, partial message | AI + Design | provider | beta (S12: chronology/MD shell without stream) |
+| R-C1 | Streaming tokens in Agents UI | S13 | streaming, partial message | AI + Design | provider | beta ✓ 25.11 |
 | R-C2 | Tool-calling loop (read/edit/check) | S05 S07 S12 | timeline tool steps real | AI | — | beta (S12: turn+steps UX; real tools later) |
 | R-C3 | MCP host + permissions UI | — | MCP connect/deny | AI + Security | — | beta |
 | R-C4 | `@` picker + index/search context | S08 | @ menu, chips keyboard | AI + Design | — | MVP+beta ✓ 25.11 (index/search later) |

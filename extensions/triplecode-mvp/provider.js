@@ -1,5 +1,9 @@
 'use strict';
 
+const {
+  parseOllamaStreamLine, parseCompletionsSseData, splitLines, splitSseEvents, appendDelta
+} = require('./stream-logic.cjs');
+
 async function probe(endpoint, timeoutMs = 2000) {
   try {
     const response = await fetch(`${endpoint}/api/version`, { signal: AbortSignal.timeout(timeoutMs) });
@@ -52,6 +56,104 @@ async function chatCompletions({ baseUrl, apiKey, model, messages, timeoutMs = 1
   const text = data?.choices?.[0]?.message?.content;
   if (typeof text !== 'string' || !text.trim()) throw new Error('Model returned an empty response.');
   return text.trim();
+}
+
+async function chatStream({ endpoint, model, messages, timeoutMs = 120000, signal, numPredict = 2048, numCtx = 8192, onDelta }) {
+  const response = await fetch(`${endpoint}/api/chat`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      model,
+      messages,
+      stream: true,
+      options: { temperature: 0.2, num_predict: numPredict, num_ctx: numCtx }
+    }),
+    signal: signal ?? AbortSignal.timeout(timeoutMs)
+  });
+  if (!response.ok) throw new Error(`Model request failed (HTTP ${response.status}).`);
+  if (!response.body) throw new Error('Model stream has no body.');
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let pending = '';
+  let full = '';
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    pending += decoder.decode(value, { stream: true });
+    const { lines, rest } = splitLines(pending);
+    pending = rest;
+    for (const line of lines) {
+      const { delta, done: finished } = parseOllamaStreamLine(line);
+      if (delta) {
+        full = appendDelta(full, delta);
+        onDelta?.(delta, full);
+      }
+      if (finished) break;
+    }
+  }
+  if (pending.trim()) {
+    const { delta } = parseOllamaStreamLine(pending);
+    if (delta) {
+      full = appendDelta(full, delta);
+      onDelta?.(delta, full);
+    }
+  }
+  if (!full.trim()) throw new Error('Model returned an empty response.');
+  return full.trim();
+}
+
+async function chatCompletionsStream({ baseUrl, apiKey, model, messages, timeoutMs = 120000, signal, maxTokens = 4096, onDelta }) {
+  const response = await fetch(`${baseUrl.replace(/\/+$/, '')}/chat/completions`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      ...(apiKey ? { authorization: `Bearer ${apiKey}` } : {})
+    },
+    body: JSON.stringify({
+      model,
+      messages,
+      temperature: 0.2,
+      max_tokens: maxTokens,
+      stream: true
+    }),
+    signal: signal ?? AbortSignal.timeout(timeoutMs)
+  });
+  if (!response.ok) {
+    const detail = await response.text().catch(() => '');
+    throw new Error(`Model request failed (HTTP ${response.status})${detail ? `: ${detail.slice(0, 200)}` : '.'}`);
+  }
+  if (!response.body) throw new Error('Model stream has no body.');
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let pending = '';
+  let full = '';
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    pending += decoder.decode(value, { stream: true });
+    const { events, rest } = splitSseEvents(pending);
+    pending = rest;
+    for (const event of events) {
+      const { delta, done: finished } = parseCompletionsSseData(event);
+      if (delta) {
+        full = appendDelta(full, delta);
+        onDelta?.(delta, full);
+      }
+      if (finished && event.trim() === '[DONE]') break;
+    }
+  }
+  if (pending.trim()) {
+    for (const line of pending.split('\n')) {
+      if (!line.startsWith('data:')) continue;
+      const { delta } = parseCompletionsSseData(line.slice(5).trimStart());
+      if (delta) {
+        full = appendDelta(full, delta);
+        onDelta?.(delta, full);
+      }
+    }
+  }
+  if (!full.trim()) throw new Error('Model returned an empty response.');
+  return full.trim();
 }
 
 async function listOllamaModels(endpoint, timeoutMs = 3000) {
@@ -201,4 +303,8 @@ function diffEdit(before, after, eol = '\n') {
   return { offset, deleteLength, insertion };
 }
 
-module.exports = { probe, chat, chatCompletions, listOllamaModels, askMessages, planMessages, rewriteMessages, multiFileMessages, parseRewrite, parseMultiRewrite, diffEdit };
+module.exports = {
+  probe, chat, chatCompletions, chatStream, chatCompletionsStream,
+  listOllamaModels, askMessages, planMessages, rewriteMessages, multiFileMessages,
+  parseRewrite, parseMultiRewrite, diffEdit
+};

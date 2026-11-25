@@ -19,5 +19,6 @@
 | [S10](S10-tab-cmdk-beta.md) | Tab + Cmd-K | beta | C |
 | [S11](S11-cloud-handoff-full.md) | Cloud/background handoff | full | E |
 | [S12](S12-agent-conversation-md-diff.md) | Chronology + Markdown + diff preview | MVP polish | A/C |
+| [S13](S13-streaming-tokens.md) | Streaming tokens in Agents | beta | C |
 
 Индекс роадмапа: [../roadmap.md](../roadmap.md).
