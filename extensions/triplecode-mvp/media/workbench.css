@@ -290,10 +290,15 @@ body[data-screen="agent"] { height: 100vh; overflow: hidden; }
   color: var(--triplecode-theme-foreground);
 }
 .agent .plan-text {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 120px;
   max-height: 220px;
   margin: 0;
   padding: 8px;
   overflow: auto;
+  resize: vertical;
   border: 1px solid var(--triplecode-chat-request-border, var(--triplecode-theme-input-border));
   border-radius: 4px;
   background: var(--vscode-textCodeBlock-background, transparent);
@@ -303,6 +308,9 @@ body[data-screen="agent"] { height: 100vh; overflow: hidden; }
   line-height: 1.45;
   white-space: pre-wrap;
   word-break: break-word;
+}
+.agent textarea.plan-text {
+  field-sizing: content;
 }
 .agent .review-row {
   display: flex;

@@ -387,7 +387,7 @@
   },
   "scripts": {
     "build:webview": "tsc --noEmit -p webview && esbuild webview/agent.tsx webview/import-preview.tsx webview/design-system.tsx webview/design-system/design-system-components.css --bundle --minify --jsx=automatic --define:process.env.NODE_ENV=\\\"production\\\" --outdir=media",
-    "test": "node --test test/s05-s07-smoke.test.cjs",
+    "test": "node --test test/*.test.cjs",
     "storybook": "storybook dev -p 6006 --no-open",
     "build-storybook": "storybook build"
   }

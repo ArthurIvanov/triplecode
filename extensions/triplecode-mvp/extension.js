@@ -14,6 +14,9 @@ const { registerDesktopAccount } = require('./desktop-account');
 const {
   applyEdit, selectFiles, classifyUndo, isStale, isActiveRun, remainingAfterApply
 } = require('./review-logic');
+const {
+  allowRequestLength, buildExecuteRequest, sanitizePlanEdit
+} = require('./agent-modes');
 
 let getSessionAccessToken = () => Promise.resolve(null);
 const { registerInlineAI } = require('./inline');
@@ -708,9 +711,16 @@ function activate(context) {
           case 'execute-plan': {
             const plan = currentChat.plan;
             if (!plan || message.id !== currentChat.id || message.planId !== plan.id || activeRun || pending) break;
-            await propose(`${plan.task}\n\nApproved plan:\n${plan.plan}`, 'agent', { approvedPlan: true });
+            await propose(buildExecuteRequest(plan), 'agent', { approvedPlan: true });
             break;
           }
+          case 'update-plan':
+            if (message.id === currentChat.id && currentChat.plan?.id === message.planId && !activeRun && !pending) {
+              currentChat.plan = sanitizePlanEdit(currentChat.plan, message.plan);
+              persistChats();
+              agent?.postMessage({ type: 'chats', ...chatState() });
+            }
+            break;
           case 'discard-plan':
             if (message.id === currentChat.id && currentChat.plan?.id === message.planId && !activeRun) {
               currentChat.plan = null;
@@ -1192,7 +1202,7 @@ function activate(context) {
 
   async function propose(request, mode = 'agent', { approvedPlan = false, queued = false } = {}) {
     if (pending) throw new Error('Apply or discard the current patch first.');
-    if (typeof request !== 'string' || !request.trim() || (!approvedPlan && request.length > 500)) {
+    if (!allowRequestLength(request, { approvedPlan })) {
       throw new Error('Enter a request of up to 500 characters.');
     }
     const chat = currentChat;

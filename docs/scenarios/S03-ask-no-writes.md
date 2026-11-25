@@ -7,6 +7,7 @@
 | Stage | MVP |
 | Roadmap | R-B3 |
 | Audit | A03 |
+| QA | **Closed 25.11.2026** — `agent-modes.cjs` + `npm test` (Ask/Plan reply-only) |
 
 ## Preconditions
 
@@ -19,29 +20,32 @@
 2. Выбрать Ask.
 3. Задать вопрос о файле («how many lines», структура).
 4. Дождаться ответа.
+5. Переключить режим на Agent — draft в composer сохраняется.
 
 ## Expected
 
 - Ответ в чате.
-- Ни один файл workspace не изменён (git status чист относительно старта хода).
+- Ни один файл workspace не изменён; Review/pending не создаётся.
+- Смена режима сохраняет draft.
 
 ## Negative
 
 - Модель вернула текст похожий на патч — отображается как текст, не как Review apply.
-- Нет провайдера — честный stub/ошибка, без записи.
+- Нет провайдера — stub `answerAsk`, без записи.
 
 ## Acceptance
 
-- [ ] Ask не создаёт Review apply и не пишет диск.
-- [ ] Смена режима на Agent сохраняет draft текст.
+- [x] Ask не создаёт Review apply и не пишет диск (`modeMayWriteDisk('ask') === false`; ветка `mode === 'ask'` только `completeChatTurn`).
+- [x] Смена режима на Agent сохраняет draft текст (`mode` handler не трогает draft).
 
 ## Code paths
 
-- `extensions/triplecode-mvp/extension.js` (`propose`, Ask branch)  
-- `webview/agent.tsx`  
+- `agent-modes.cjs`, `extension.js` (`proposeInRun` Ask)  
+- `webview/agent.tsx` mode dropdown  
+- `test/s03-s04-modes.test.cjs`
 
 ## Verify
 
 ```bash
-git status  # до/после Ask на контрольном репо
+npm --prefix extensions/triplecode-mvp test
 ```

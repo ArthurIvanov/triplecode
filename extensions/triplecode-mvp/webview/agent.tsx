@@ -54,6 +54,7 @@ type ViewMessage =
   | { type: 'detach-context'; index: number }
   | { type: 'attach-file'; id: number; path: string }
   | { type: 'discard-plan' | 'execute-plan'; id: number; planId: string }
+  | { type: 'update-plan'; id: number; planId: string; plan: string }
   | { type: 'new-chat' | 'chat-actions' | 'check' | 'check-patch' | 'discard' | 'apply' | 'review' |
       'select-model' | 'refresh-models' | 'ready' | 'close-agent' }
   | { type: 'model'; value: string }
@@ -495,7 +496,15 @@ export function Agent({ initial }: { initial: Initial }) {
           </div>
         </div>
         {planOpen && (plan.plan
-          ? <pre className="plan-text" id="plan-text">{plan.plan}</pre>
+          ? <textarea className="plan-text" id="plan-text" aria-label="Editable plan"
+              defaultValue={plan.plan} key={plan.id + plan.plan.length}
+              disabled={state.submitting || !!patch}
+              onBlur={event => {
+                const next = event.currentTarget.value;
+                if (next.trim() && next !== plan.plan) {
+                  send({ type: 'update-plan', id: selected, planId: plan.id, plan: next });
+                }
+              }} />
           : <p className="plan-text muted">Plan text unavailable — regenerate in Plan mode.</p>)}
       </div>}
       {(chat?.queued ?? 0) > 0 && <p className="queue-note">

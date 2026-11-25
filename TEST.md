@@ -24,7 +24,7 @@ bash scripts/verify-release-manifest.sh path/to/release-manifest.json
 
 ## Scenario smoke (ручной / ui-check)
 
-См. [docs/scenarios/README.md](docs/scenarios/README.md). **S05–S07** закрыты автотестами `review-logic` (25.11.2026). Перед tag дополнительно: S03 Ask на macOS GUI.
+См. [docs/scenarios/README.md](docs/scenarios/README.md). **S03–S07** закрыты автотестами `agent-modes` + `review-logic` (25.11.2026).
 
 | Env (если harness доступен) | Сценарий |
 | --- | --- |

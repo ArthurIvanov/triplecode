@@ -25,7 +25,7 @@
 | R-A1 | Кабинет: план, квоты, usage | S09 | Account guest/waiting/signed-in; cabinet usage | Инженер AI + web | `triplecode-web` | MVP |
 | R-A2 | Per-file Keep/Drop + Undo QA | S05 | Review list, conflict, stale | QA + IDE | — | MVP ✓ 25.11 |
 | R-A3 | Check patch vs Run checks labeling | S07 | Review check badge, history | QA + AI | — | MVP ✓ 25.11 |
-| R-A4 | Plan edit + Execute confirmed version | S04 | Plan card expanded/edit/execute | AI + Design | — | MVP |
+| R-A4 | Plan edit + Execute confirmed version | S04 | Plan card expanded/edit/execute | AI + Design | — | MVP ✓ 25.11 |
 | R-A5 | E2E import real VS Code profile | S02 | Import preview/report/rollback | IDE + QA | — | MVP |
 | R-A6 | Docs SoT repaired (audit/architecture) | — | — | Продакт | — | MVP |
 
@@ -39,7 +39,7 @@
 | --- | --- | --- | --- | --- | --- | --- |
 | R-B1 | CI PR: tsc webview + patch dry-check | — | — | Релизы | `.github/workflows` | MVP |
 | R-B2 | Build artifacts macOS/Win/Linux | — | — | Релизы | upstream.env | MVP→beta |
-| R-B3 | Smoke stop/apply/undo/Ask | S03 S05 S06 | — | QA | CI | MVP (S05/S06 ✓; S03 GUI) |
+| R-B3 | Smoke stop/apply/undo/Ask | S03 S05 S06 | — | QA | CI | MVP ✓ S03/S05/S06 |
 | R-B4 | Modularize/type `extension.js` | — | — | AI/IDE | — | MVP |
 | R-B5 | Release manifest + verify script | — | — | Релизы | ADR 0005 | beta |
 
