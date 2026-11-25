@@ -747,6 +747,11 @@ function activate(context) {
               agent?.postMessage({ type: 'chats', ...chatState() });
             }
             break;
+          case 'attach-file':
+            if (!activeRun && !pending && message.id === currentChat.id && typeof message.path === 'string' && message.path.trim()) {
+              pushAttachment({ kind: 'file', path: message.path.trim() });
+            }
+            break;
           case 'review':
             if (pending) await showDiff(pending);
             break;
@@ -885,7 +890,7 @@ function activate(context) {
 
   const projectTreeExclude = '**/{node_modules,.git,dist,build,out,coverage,.next,.turbo,.venv,vendor}/**';
 
-  async function projectTree(root, limit = 200) {
+  async function projectTree(root, limit = 600) {
     if (!root) return '';
     try {
       const files = await vscode.workspace.findFiles('**/*', projectTreeExclude, limit);
@@ -972,7 +977,7 @@ function activate(context) {
     const tree = await projectTree(root);
     if (tree) addTimelineStep(run, 'tool', 'Project map', `Indexed ${tree.split('\n').length} project files`);
     const options = { numPredict: 8192, numCtx: 32768, feature: 'agent', run };
-    const maxContextDocs = 10;
+    const maxContextDocs = 12;
     const extraDocs = [];
     const knownUris = new Set(documents.map(document => document.uri.toString()));
 
@@ -989,12 +994,12 @@ function activate(context) {
     let parsed = await ask();
     if (parsed.answer) return { reply: parsed.answer };
 
-    for (let round = 0; round < 2 && !parsed.noChange; round++) {
+    for (let round = 0; round < 3 && !parsed.noChange; round++) {
       const wanted = [...parsed.files.map(entry => entry.path), ...(parsed.reads || [])];
       if (!wanted.length) break;
       const missing = [];
       const requested = new Set();
-      for (const path of wanted.slice(0, 10)) {
+      for (const path of wanted.slice(0, 16)) {
         run.signal.throwIfAborted();
         try {
           const document = await openModelFile(path, root);
@@ -1206,7 +1211,7 @@ function activate(context) {
       document: activeDocument, documents: aiContextDocuments(), approvedPlan
     };
     activeRun = run;
-    const timeoutMs = vscode.workspace.getConfiguration('triplecode').get('ai.timeoutMs', 120000);
+    const timeoutMs = vscode.workspace.getConfiguration('triplecode').get('ai.timeoutMs', 300000);
     run.timeout = setTimeout(() => {
       if (activeRun === run) stopRun('Agent timed out. Draft kept.');
     }, timeoutMs);

@@ -250,6 +250,10 @@ body[data-screen="agent"] { height: 100vh; overflow: hidden; }
   color: var(--triplecode-theme-input-foreground);
   overflow: hidden;
 }
+.agent form.drag-over {
+  border-color: var(--triplecode-theme-focusBorder, var(--vscode-focusBorder));
+  box-shadow: 0 0 0 1px var(--triplecode-theme-focusBorder, var(--vscode-focusBorder));
+}
 .agent form:has(.tc-dropdown__list) { overflow: visible; }
 .agent .composer-header {
   display: flex;

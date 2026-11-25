@@ -52,6 +52,7 @@ type ViewMessage =
   | { type: 'mode'; id: number; mode: Mode }
   | { type: 'propose'; id: number; request: string; mode: Mode }
   | { type: 'detach-context'; index: number }
+  | { type: 'attach-file'; id: number; path: string }
   | { type: 'discard-plan' | 'execute-plan'; id: number; planId: string }
   | { type: 'new-chat' | 'chat-actions' | 'check' | 'check-patch' | 'discard' | 'apply' | 'review' |
       'select-model' | 'refresh-models' | 'ready' | 'close-agent' }
@@ -189,6 +190,45 @@ function ProgressIndicator({ progress }: { progress: Progress }) {
   );
 }
 
+function pathsFromDrop(data: DataTransfer): string[] {
+  const paths: string[] = [];
+  const push = (value: string) => {
+    const trimmed = value.trim();
+    if (!trimmed) return;
+    try {
+      const uri = new URL(trimmed);
+      if (uri.protocol === 'file:') paths.push(decodeURIComponent(uri.pathname));
+      return;
+    } catch { /* not a URL */ }
+    if (trimmed.startsWith('/')) paths.push(trimmed);
+  };
+  for (const type of ['CodeFiles', 'text/uri-list', 'text/plain', 'DownloadURL']) {
+    const raw = data.getData(type);
+    if (!raw) continue;
+    for (const match of raw.matchAll(/"(?:fsPath|path|uri)"\s*:\s*"((?:file:\/\/|\/)[^"]+)"/g)) push(match[1]);
+    try {
+      const parsed = JSON.parse(raw);
+      const list = Array.isArray(parsed) ? parsed : [parsed];
+      for (const item of list) {
+        const resource = item?.resource ?? item?.uri ?? item;
+        const fs = typeof resource === 'string' ? resource : resource?.fsPath ?? resource?.path;
+        if (typeof fs === 'string') push(fs);
+      }
+    } catch {
+      for (const line of raw.split(/\r?\n/)) push(line);
+    }
+  }
+  if (!paths.length && data.files?.length) {
+    for (const file of Array.from(data.files)) {
+      const fileWithPath = file as File & { path?: string };
+      const webUtils = (globalThis as { webUtils?: { getPathForFile?: (f: File) => string } }).webUtils;
+      const p = fileWithPath.path || webUtils?.getPathForFile?.(file);
+      if (p) paths.push(p);
+    }
+  }
+  return [...new Set(paths)];
+}
+
 export type { Initial, ChatState, Chat, Patch, Progress };
 export function Agent({ initial }: { initial: Initial }) {
   const [state, dispatch] = useReducer(update, {
@@ -202,6 +242,7 @@ export function Agent({ initial }: { initial: Initial }) {
   const [filesOpen, setFilesOpen] = useState(true);
   const [expandedPlanId, setExpandedPlanId] = useState<string>();
   const [navOpen, setNavOpen] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
   const [expandedTimelines, setExpandedTimelines] = useState<ReadonlySet<number>>(new Set());
   const [activeTurn, setActiveTurn] = useState<number>();
   const prompt = useRef<HTMLTextAreaElement>(null);
@@ -213,7 +254,6 @@ export function Agent({ initial }: { initial: Initial }) {
   const plan = chat?.plan;
   const planOpen = !!plan && expandedPlanId === plan.id;
   const progress = state.progress && state.progress.chat === selected ? state.progress : null;
-  const target = state.target || 'Open a source file';
   const { assets } = initial;
 
   const turns = replies.reduce<{ index: number; text: string; steps: number }[]>((acc, reply, index) => {
@@ -380,7 +420,25 @@ export function Agent({ initial }: { initial: Initial }) {
     )}
     </div>
     <p id="status" role="status" hidden={!state.status}>{state.status}</p>
-    <form id="request" className="composer" onSubmit={submit}>
+    <form id="request" className={dragOver ? 'composer drag-over' : 'composer'} onSubmit={submit}
+      onDragOver={event => {
+        if (patch || state.submitting) return;
+        if (!event.dataTransfer.types.some(type => ['Files', 'CodeFiles', 'text/uri-list', 'text/plain'].includes(type))) return;
+        event.preventDefault();
+        event.dataTransfer.dropEffect = 'copy';
+        setDragOver(true);
+      }}
+      onDragLeave={event => {
+        if (!(event.relatedTarget instanceof Node) || !event.currentTarget.contains(event.relatedTarget)) setDragOver(false);
+      }}
+      onDrop={event => {
+        event.preventDefault();
+        setDragOver(false);
+        if (patch || state.submitting) return;
+        for (const path of pathsFromDrop(event.dataTransfer)) {
+          send({ type: 'attach-file', id: selected, path });
+        }
+      }}>
       {patch && <div id="review" className="composer-header">
         <div className="review-row">
           <button type="button" className="files-toggle" aria-expanded={filesOpen}
@@ -459,7 +517,7 @@ export function Agent({ initial }: { initial: Initial }) {
         })}
       </div>
       <label className="sr-only" htmlFor="prompt">Agent task</label>
-      <textarea id="prompt" ref={prompt} maxLength={500} aria-describedby="target"
+      <textarea id="prompt" ref={prompt} maxLength={500}
         placeholder="Describe a task. Type @ for context." required disabled={!!patch}
         value={state.draft}
         onChange={event => {
@@ -544,7 +602,6 @@ export function Agent({ initial }: { initial: Initial }) {
           </Dropdown>
         </div>
         {state.rules && <span className="rules-badge" title="Repository rules from .triplecode/rules.md are included in requests">Rules</span>}
-        <span id="target" className="muted" title={target}>{target}</span>
         <ActionButton text={null} start={<ActionButtonIcon href={assets.context} />} aria-label="Attach context" title="Attach context" disabled={state.submitting}
           onClick={() => send({ type: 'attach-menu', id: selected })} />
         <ActionButton text={null} start={<ActionButtonIcon href={assets.attach} />} aria-label="Attach context" title="Attach context" disabled={state.submitting}
