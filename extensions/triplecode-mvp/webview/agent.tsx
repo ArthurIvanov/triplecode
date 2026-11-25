@@ -27,6 +27,7 @@ type Chat = {
   name?: string;
   status?: string;
   queued?: number;
+  queueItems?: { request: string; mode?: Mode }[];
   mode?: Mode;
   replies?: Reply[];
   plan?: { id: string; task: string; plan: string } | null;
@@ -91,6 +92,7 @@ type HostMessage =
   | { type: 'mcp-permission'; id: string; chat: number; server: string; tool: string; argsPreview: string };
 type ViewMessage =
   | { type: 'select-chat' | 'close-chat' | 'stop' | 'attach-menu' | 'clear-queue' | 'attach-query'; id: number }
+  | { type: 'cancel-queue-item' | 'edit-queue-item'; id: number; index: number }
   | { type: 'mcp-permission-response'; id: string; decision: 'once' | 'always' | 'deny' }
   | { type: 'draft'; id: number; value: string }
   | { type: 'mode'; id: number; mode: Mode }
@@ -446,6 +448,7 @@ export function Agent({ initial }: { initial: Initial }) {
   const [attachLoading, setAttachLoading] = useState(false);
   const [atMention, setAtMention] = useState<AtMention | null>(null);
   const [atHighlight, setAtHighlight] = useState(0);
+  const [queueOpen, setQueueOpen] = useState(false);
   const prompt = useRef<HTMLTextAreaElement>(null);
   const reviewButton = useRef<HTMLButtonElement>(null);
   const selectedRef = useRef(state.selected);
@@ -996,9 +999,23 @@ export function Agent({ initial }: { initial: Initial }) {
           : <p className="plan-text muted">Plan text unavailable — regenerate in Plan mode.</p>)}
       </div>}
       {(chat?.queued ?? 0) > 0 && <div className="queue-chip" role="status">
-        <span className="queue-chip__count">{chat!.queued}</span>
-        <span className="queue-chip__label">queued</span>
-        <ActionButton size="base" rounding="full" text="Cancel" onClick={() => send({ type: 'clear-queue', id: selected })} />
+        <button type="button" className="queue-chip__toggle" aria-expanded={queueOpen}
+          onClick={() => setQueueOpen(open => !open)}>
+          <span className="queue-chip__count">{chat!.queued}</span>
+          <span className="queue-chip__label">queued</span>
+          <span className="queue-chip__chevron" aria-hidden="true">{queueOpen ? '▾' : '▸'}</span>
+        </button>
+        <ActionButton size="base" rounding="full" text="Cancel all" onClick={() => send({ type: 'clear-queue', id: selected })} />
+        {queueOpen && <ul className="queue-chip__list">
+          {(chat?.queueItems ?? []).map((item, index) => <li key={index} className="queue-chip__item">
+            <span className="queue-chip__mode">{item.mode || 'agent'}</span>
+            <span className="queue-chip__request" title={item.request}>{item.request}</span>
+            <button type="button" className="queue-chip__edit" aria-label={`Edit queued request: ${item.request}`}
+              onClick={() => send({ type: 'edit-queue-item', id: selected, index })}>Edit</button>
+            <button type="button" className="chip-remove" aria-label={`Remove queued request: ${item.request}`}
+              onClick={() => send({ type: 'cancel-queue-item', id: selected, index })}>×</button>
+          </li>)}
+        </ul>}
       </div>}
       <div id="attachments" className="attachments" hidden={!attachments.length}>
         {attachments.map((attachment, index) => {

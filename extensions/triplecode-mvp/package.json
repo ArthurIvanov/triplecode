@@ -182,6 +182,11 @@
           "default": 120000,
           "description": "Timeout for an entire agent turn in milliseconds, including provider selection and context retrieval. Inline completions use a limit of at most 10 seconds."
         },
+        "triplecode.notifyOnComplete": {
+          "type": "boolean",
+          "default": false,
+          "description": "Show an OS notification when an agent run finishes while the Agents panel is not focused."
+        },
         "triplecode.ai.openrouterEndpoint": {
           "type": "string",
           "default": "https://openrouter.ai/api/v1",

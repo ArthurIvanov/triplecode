@@ -361,6 +361,22 @@ function activate(context) {
               agent?.postMessage({ type: 'chats', ...chatState() });
             }
             break;
+          case 'cancel-queue-item':
+            if (!activeRun && message.id === currentChat.id && Number.isInteger(message.index) && currentChat.queue?.length) {
+              currentChat.queue.splice(message.index, 1);
+              persistChats();
+              agent?.postMessage({ type: 'chats', ...chatState() });
+            }
+            break;
+          case 'edit-queue-item':
+            if (!activeRun && message.id === currentChat.id && Number.isInteger(message.index) && currentChat.queue?.length) {
+              const item = currentChat.queue.splice(message.index, 1)[0];
+              currentChat.draft = item.request;
+              currentChat.mode = item.mode || currentChat.mode;
+              persistChats();
+              agent?.postMessage({ type: 'chats', ...chatState(), focusPrompt: true });
+            }
+            break;
           case 'execute-plan': {
             const plan = currentChat.plan;
             if (!plan || message.id !== currentChat.id || message.planId !== plan.id || activeRun || pending) break;
@@ -1130,6 +1146,13 @@ function activate(context) {
     }
     persistChats();
     if (currentChat === run.chat) agent?.postMessage({ type: 'chats', ...chatState() });
+    if (vscode.workspace.getConfiguration('triplecode').get('notifyOnComplete', false)) {
+      const label = run.chat.name || `Chat ${run.chat.id}`;
+      void vscode.window.showInformationMessage(
+        status ? `TripleCode: ${label} — ${status}` : `TripleCode: ${label} finished — review ready`,
+        'Open Agents'
+      ).then(action => { if (action) void showAgent(); });
+    }
     if (!pending && run.chat === currentChat) drainQueue(run.chat);
   }
 
@@ -1637,6 +1660,7 @@ function activate(context) {
       chats: chats.map(chat => ({
         id: chat.id, mode: chat.mode, replies: chat.replies,
         name: chat.name || '', status: chat.status || '', queued: chat.queue?.length || 0,
+        queueItems: (chat.queue || []).map(item => ({ request: item.request, mode: item.mode })),
         plan: chat.plan || null, attachments: chat.attachments || [],
         session: chat.session || null
       })),
