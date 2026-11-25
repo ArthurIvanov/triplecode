@@ -2,21 +2,47 @@
 
 const vscode = require('vscode');
 const provider = require('./provider');
+const {
+  LATENCY_STATUS_MS,
+  shouldYieldToSuggest,
+  parseSuggestion,
+  completionMessages,
+  latencyStatusLabel
+} = require('./inline-logic.cjs');
 
 const LANGUAGES = [
   { language: 'typescript' },
   { language: 'typescriptreact' },
   { language: 'javascript' },
-  { language: 'javascriptreact' }
+  { language: 'javascriptreact' },
+  { language: 'python' },
+  { language: 'go' },
+  { language: 'rust' }
 ];
 
 const DEBOUNCE_MS = 300;
-const MAX_SUGGESTION_CHARS = 3000;
 const MAX_IN_FLIGHT = 2;
 
 function registerInlineAI(context) {
   let inFlight = 0;
   let ollamaProbe = { endpoint: '', ok: false, ts: 0 };
+  const status = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 50);
+  status.name = 'TripleCode Inline';
+  status.command = 'triplecode.toggleInline';
+  context.subscriptions.push(status);
+
+  function refreshStatusIdle() {
+    const enabled = vscode.workspace.getConfiguration('triplecode').get('ai.inlineEnabled', false);
+    if (!enabled) {
+      status.text = '$(circle-slash) Inline off';
+      status.tooltip = 'TripleCode inline completions are off. Click to enable (BYOK / local model).';
+      status.show();
+      return;
+    }
+    status.text = '$(sparkle) Inline';
+    status.tooltip = 'TripleCode inline completions on. Click to disable.';
+    status.show();
+  }
 
   async function probeOllama(endpoint) {
     if (ollamaProbe.endpoint === endpoint && Date.now() - ollamaProbe.ts < 30000) {
@@ -60,60 +86,73 @@ function registerInlineAI(context) {
     }
   }
 
-  function completionMessages(document, position) {
-    const offset = document.offsetAt(position);
-    const text = document.getText();
-    const before = text.slice(Math.max(0, offset - 6000), offset);
-    const after = text.slice(offset, offset + 2000);
-    return [
-      {
-        role: 'system',
-        content: 'You are a code completion engine inside an IDE. Continue the code exactly at the <CURSOR> marker. ' +
-          'Output ONLY the raw code to insert at the cursor: no markdown fences, no explanation, no repetition of code that already exists.'
-      },
-      {
-        role: 'user',
-        content: `File: ${document.fileName.split('/').pop()} (${document.languageId})\n\n` +
-          `${before}<CURSOR>${after}\n\nCode to insert at <CURSOR>:`
-      }
-    ];
-  }
-
-  function parseSuggestion(reply, afterText) {
-    if (!reply) return null;
-    let text = reply.trim();
-    const fence = /^```[\w-]*\n?([\s\S]*?)```\s*$/.exec(text);
-    if (fence) text = fence[1];
-    if (!text || text.includes('<CURSOR>') || text.length > MAX_SUGGESTION_CHARS) return null;
-    text = text.replace(/[ \t]+$/gm, '').replace(/\s+$/, '');
-    if (!text.trim() || afterText.startsWith(text)) return null;
-    return text;
-  }
-
   const registration = vscode.languages.registerInlineCompletionItemProvider(
     LANGUAGES,
     {
-      async provideInlineCompletionItems(document, position, _trigger, token) {
+      async provideInlineCompletionItems(document, position, contextInline, token) {
         const config = vscode.workspace.getConfiguration('triplecode');
         if (!config.get('ai.inlineEnabled', false)) return { items: [] };
+        if (shouldYieldToSuggest(contextInline)) return { items: [] };
         if (token.isCancellationRequested || inFlight >= MAX_IN_FLIGHT) return { items: [] };
         await new Promise(resolve => setTimeout(resolve, DEBOUNCE_MS));
         if (token.isCancellationRequested) return { items: [] };
+
         inFlight += 1;
+        const started = Date.now();
+        let latencyTimer = setTimeout(() => {
+          status.text = `$(loading~spin) ${latencyStatusLabel(Date.now() - started)}`;
+          status.show();
+        }, LATENCY_STATUS_MS);
         try {
-          const reply = await aiChat(completionMessages(document, position));
           const offset = document.offsetAt(position);
-          const suggestion = parseSuggestion(reply, document.getText().slice(offset, offset + 2000));
-          if (!suggestion) return { items: [] };
+          const text = document.getText();
+          const before = text.slice(Math.max(0, offset - 6000), offset);
+          const after = text.slice(offset, offset + 2000);
+          const fileName = document.fileName.split('/').pop() || 'file';
+          const reply = await aiChat(completionMessages(fileName, document.languageId, before, after));
+          if (token.isCancellationRequested) return { items: [] };
+          const suggestion = parseSuggestion(reply, after);
+          if (!suggestion) {
+            if (Date.now() - started >= 2500) {
+              status.text = '$(warning) Inline slow';
+              status.tooltip = 'Inline model was slow or empty. Check triplecode.ai.inline* / Set Inline API Key.';
+              setTimeout(refreshStatusIdle, 2500);
+            }
+            return { items: [] };
+          }
           const range = new vscode.Range(position, position);
           return { items: [new vscode.InlineCompletionItem(suggestion, range)] };
         } finally {
+          clearTimeout(latencyTimer);
           inFlight -= 1;
+          if (inFlight === 0) refreshStatusIdle();
         }
       }
     }
   );
-  context.subscriptions.push(registration);
+
+  async function toggleInline() {
+    const config = vscode.workspace.getConfiguration('triplecode');
+    const next = !config.get('ai.inlineEnabled', false);
+    await config.update('ai.inlineEnabled', next, vscode.ConfigurationTarget.Global);
+    if (next) {
+      const kind = config.get('ai.inlineProvider', 'ollama');
+      const tip = kind === 'openai'
+        ? 'Inline on. Use TripleCode: Set Inline API Key for BYOK OpenAI-compatible completions.'
+        : 'Inline on. Uses local Ollama model from triplecode.ai.inlineModel.';
+      void vscode.window.showInformationMessage(tip);
+    }
+    refreshStatusIdle();
+  }
+
+  context.subscriptions.push(
+    registration,
+    vscode.commands.registerCommand('triplecode.toggleInline', toggleInline),
+    vscode.workspace.onDidChangeConfiguration(event => {
+      if (event.affectsConfiguration('triplecode.ai.inlineEnabled')) refreshStatusIdle();
+    })
+  );
+  refreshStatusIdle();
 }
 
 module.exports = { registerInlineAI };

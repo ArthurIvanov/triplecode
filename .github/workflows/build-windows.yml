@@ -23,7 +23,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: TripleCode-win32-x64
-          path: |
-            dist/TripleCode-win32-x64.zip
-            dist/TripleCode-win32-x64.tar.gz
+          path: dist/TripleCode-win32-x64.zip
           if-no-files-found: error

@@ -78,6 +78,26 @@
       {
         "command": "triplecode.setInlineApiKey",
         "title": "TripleCode: Set Inline API Key"
+      },
+      {
+        "command": "triplecode.toggleInline",
+        "title": "TripleCode: Toggle Inline Completions"
+      },
+      {
+        "command": "triplecode.editSelection",
+        "title": "TripleCode: Cmd-K Edit Selection"
+      },
+      {
+        "command": "triplecode.discardCmdk",
+        "title": "TripleCode: Discard Cmd-K Preview"
+      },
+      {
+        "command": "triplecode.collectDiagnostics",
+        "title": "TripleCode: Collect Diagnostics"
+      },
+      {
+        "command": "triplecode.showOutput",
+        "title": "TripleCode: Show Output"
       }
     ],
     "configuration": {
@@ -87,6 +107,26 @@
           "type": "string",
           "default": "npm test",
           "description": "Command run by the agent “Run checks” action in the workspace root."
+        },
+        "triplecode.mcp.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Allow the Agent tool-loop to connect to MCP servers from .triplecode/mcp.json (with per-tool permission prompts)."
+        },
+        "triplecode.mcp.servers": {
+          "type": "object",
+          "default": {},
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "command": { "type": "string" },
+              "args": { "type": "array", "items": { "type": "string" } },
+              "env": { "type": "object", "additionalProperties": { "type": "string" } },
+              "cwd": { "type": "string" }
+            },
+            "required": ["command"]
+          },
+          "description": "Optional MCP stdio servers merged over .triplecode/mcp.json. Keys are server names; values need a command (and optional args/env)."
         },
         "triplecode.ai.provider": {
           "type": "string",
@@ -147,6 +187,11 @@
           "type": "string",
           "default": "qwen2.5-coder:1.5b",
           "description": "Model used for inline completions. For openai provider set the served model name."
+        },
+        "triplecode.ai.cmdkEnabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable Cmd-K / Ctrl+K selection edit when the editor has a non-empty selection."
         }
       }
     },
@@ -156,6 +201,18 @@
         "key": "ctrl+alt+a",
         "mac": "cmd+ctrl+a",
         "when": "workbenchState != empty && !inQuickOpen"
+      },
+      {
+        "command": "triplecode.editSelection",
+        "key": "ctrl+k",
+        "mac": "cmd+k",
+        "when": "editorTextFocus && editorHasSelection && !suggestWidgetVisible && !inlineSuggestionVisible && config.triplecode.ai.cmdkEnabled"
+      },
+      {
+        "command": "triplecode.editSelection",
+        "key": "ctrl+shift+k",
+        "mac": "cmd+shift+k",
+        "when": "editorTextFocus && !suggestWidgetVisible && config.triplecode.ai.cmdkEnabled"
       }
     ],
     "menus": {

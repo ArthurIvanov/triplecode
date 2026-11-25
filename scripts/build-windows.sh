@@ -38,21 +38,19 @@ if [[ -d "$stage/VSCodium" ]]; then
 fi
 resources="$app_dir/resources/app"
 if [[ ! -d "$resources" ]]; then
-  # some zips nest under a single folder
-  resources="$(find "$stage" -type d -path '*/resources/app' | head -1)"
+  resources="$(find "$stage" -type d -path '*/resources/app' | head -1 || true)"
 fi
 if [[ -z "${resources:-}" || ! -d "$resources" ]]; then
   printf 'Could not locate resources/app in Windows zip\n' >&2
   find "$stage" -maxdepth 3 -type d | head -50 >&2
   exit 1
 fi
+app_dir="$(cd "$(dirname "$(dirname "$resources")")" && pwd)"
 
 extension=extensions/triplecode-mvp
 npm --prefix "$extension" ci --no-audit --no-fund
 npm --prefix "$extension" run build:webview
-mkdir -p "$resources/extensions/triplecode-mvp"
-rsync -a --exclude=/node_modules/ --exclude=/webview/ --exclude=/package-lock.json \
-  "$extension/" "$resources/extensions/triplecode-mvp/"
+python3 "$root/scripts/embed-extension.py" "$extension" "$resources"
 
 python3 - "$resources" "${TRIPLECODE_UPDATE_URL:-}" <<'PY'
 import json, sys
@@ -77,17 +75,29 @@ if update_url:
 product_file.write_text(json.dumps(product, indent=2) + '\n')
 PY
 
+python3 "$root/scripts/desktop/apply-workbench-layout.py" "$resources"
+
 dest="$out/TripleCode-win32-x64"
 rm -rf "$dest"
 mkdir -p "$out"
 cp -R "$app_dir" "$dest"
-(
-  cd "$out"
-  if command -v zip >/dev/null; then
-    rm -f TripleCode-win32-x64.zip
-    zip -qr TripleCode-win32-x64.zip TripleCode-win32-x64
-  else
-    tar -czf TripleCode-win32-x64.tar.gz TripleCode-win32-x64
-  fi
-)
+
+python3 - "$out" <<'PY'
+"""Always emit TripleCode-win32-x64.zip (stdlib zipfile — no zip/rsync required)."""
+import sys
+import zipfile
+from pathlib import Path
+
+out = Path(sys.argv[1])
+folder = out / 'TripleCode-win32-x64'
+zip_path = out / 'TripleCode-win32-x64.zip'
+if zip_path.exists():
+    zip_path.unlink()
+with zipfile.ZipFile(zip_path, 'w', compression=zipfile.ZIP_DEFLATED) as zf:
+    for path in folder.rglob('*'):
+        if path.is_file():
+            zf.write(path, path.relative_to(folder.parent).as_posix())
+print('wrote', zip_path)
+PY
+
 printf 'Windows package ready under %s\n' "$out"

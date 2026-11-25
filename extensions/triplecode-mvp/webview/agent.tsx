@@ -78,9 +78,11 @@ type HostMessage =
   | ({ type: 'chats'; focusPrompt?: boolean } & ChatState)
   | { type: 'timeline-step'; chat: number; item: TimelineItemProps }
   | { type: 'stream-delta'; chat: number; text: string }
-  | { type: 'attach-candidates'; id: number; items: AttachCandidate[]; open?: boolean };
+  | { type: 'attach-candidates'; id: number; items: AttachCandidate[]; open?: boolean }
+  | { type: 'mcp-permission'; id: string; chat: number; server: string; tool: string; argsPreview: string };
 type ViewMessage =
   | { type: 'select-chat' | 'close-chat' | 'stop' | 'attach-menu' | 'clear-queue' | 'attach-query'; id: number }
+  | { type: 'mcp-permission-response'; id: string; decision: 'once' | 'always' | 'deny' }
   | { type: 'draft'; id: number; value: string }
   | { type: 'mode'; id: number; mode: Mode }
   | { type: 'propose'; id: number; request: string; mode: Mode }
@@ -124,6 +126,14 @@ const vscode: VsCodeApi = (globalThis as { acquireVsCodeApi?: () => VsCodeApi })
   ?? { postMessage: () => {} };
 const send = (message: ViewMessage) => vscode.postMessage(message);
 
+type McpPermissionPrompt = {
+  id: string;
+  chat: number;
+  server: string;
+  tool: string;
+  argsPreview: string;
+};
+
 type State = ChatState & {
   target: string;
   patch: Patch | null;
@@ -137,11 +147,13 @@ type State = ChatState & {
   rules: boolean;
   models: ModelChoice[];
   modelValue: string;
+  mcpPermission: McpPermissionPrompt | null;
 };
 type Action = HostMessage |
   { type: 'edit'; value: string } |
   { type: 'set-mode'; mode: Mode } |
-  { type: 'submit' };
+  { type: 'submit' } |
+  { type: 'clear-mcp-permission' };
 
 function selectedMode(state: ChatState): Mode {
   return state.chats.find(chat => chat.id === state.selected)?.mode || 'agent';
@@ -154,7 +166,7 @@ function update(state: State, action: Action): State {
     case 'target':
       return { ...state, target: action.name };
     case 'pending':
-      return { ...state, patch: action.patch, status: '', submitting: false, progress: null, streamText: '' };
+      return { ...state, patch: action.patch, status: '', submitting: false, progress: null, streamText: '', mcpPermission: null };
     case 'progress':
       return action.chat === state.selected
         ? { ...state, submitting: true, progress: { ...action, steps: state.progress?.steps || [] } }
@@ -164,7 +176,7 @@ function update(state: State, action: Action): State {
         ? { ...state, submitting: true, streamText: action.text }
         : state;
     case 'complete':
-      return { ...state, patch: null, status: action.text, submitting: false, progress: null, streamText: '' };
+      return { ...state, patch: null, status: action.text, submitting: false, progress: null, streamText: '', mcpPermission: null };
     case 'chats':
       return {
         ...state, chats: action.chats, selected: action.selected, draft: action.draft,
@@ -173,25 +185,41 @@ function update(state: State, action: Action): State {
         models: action.models ?? state.models, modelValue: action.modelValue ?? state.modelValue,
         submitting: Boolean(action.progress), progress: action.progress ? { ...action.progress, steps: state.progress?.steps || [] } : null,
         streamText: action.progress ? state.streamText : '',
+        mcpPermission: action.progress ? state.mcpPermission : null,
         focusRequest: state.focusRequest + (action.focusPrompt ? 1 : 0)
       };
     case 'error':
-      return { ...state, status: action.text, submitting: false, progress: null, streamText: '' };
+      return { ...state, status: action.text, submitting: false, progress: null, streamText: '', mcpPermission: null };
     case 'timeline-step':
       if (action.chat === state.selected && state.progress) {
         const steps = [...(state.progress.steps || []), action.item];
         return { ...state, progress: { ...state.progress, steps } };
       }
       return state;
+    case 'mcp-permission':
+      return action.chat === state.selected
+        ? {
+          ...state,
+          mcpPermission: {
+            id: action.id,
+            chat: action.chat,
+            server: action.server,
+            tool: action.tool,
+            argsPreview: action.argsPreview
+          }
+        }
+        : state;
     case 'edit':
       return { ...state, draft: action.value };
     case 'set-mode':
       return { ...state, mode: action.mode };
     case 'submit':
       return {
-        ...state, submitting: true, status: '', streamText: '',
+        ...state, submitting: true, status: '', streamText: '', mcpPermission: null,
         progress: { chat: state.selected, text: 'Working…', startedAt: Date.now() }
       };
+    case 'clear-mcp-permission':
+      return { ...state, mcpPermission: null };
     default:
       return state;
   }
@@ -354,7 +382,8 @@ export function Agent({ initial }: { initial: Initial }) {
     submitting: Boolean(initial.progress), progress: initial.progress ?? null, streamText: '',
     focusRequest: 0,
     provider: initial.provider || 'Auto', rules: Boolean(initial.rules),
-    models: initial.models || [], modelValue: initial.modelValue || ''
+    models: initial.models || [], modelValue: initial.modelValue || '',
+    mcpPermission: null
   });
   const [filesOpen, setFilesOpen] = useState(true);
   const [expandedPlanId, setExpandedPlanId] = useState<string>();
@@ -600,6 +629,33 @@ export function Agent({ initial }: { initial: Initial }) {
           <div className="agent-bubble agent-bubble--stream" aria-live="polite">
             <Markdown source={streamText} className="agent-message agent-message--md" />
             <span className="stream-cursor" aria-hidden="true" />
+          </div>
+        )}
+        {state.mcpPermission && state.mcpPermission.chat === selected && (
+          <div className="mcp-permission" role="alertdialog" aria-labelledby="mcp-permission-title">
+            <div className="mcp-permission__title" id="mcp-permission-title">
+              Allow MCP tool <code>{state.mcpPermission.server}/{state.mcpPermission.tool}</code>?
+            </div>
+            {state.mcpPermission.argsPreview && state.mcpPermission.argsPreview !== '{}' && (
+              <pre className="mcp-permission__args">{state.mcpPermission.argsPreview}</pre>
+            )}
+            <div className="mcp-permission__actions">
+              <ActionButton rounding="full" text="Deny"
+                onClick={() => {
+                  send({ type: 'mcp-permission-response', id: state.mcpPermission!.id, decision: 'deny' });
+                  dispatch({ type: 'clear-mcp-permission' });
+                }} />
+              <ActionButton rounding="full" text="Allow once"
+                onClick={() => {
+                  send({ type: 'mcp-permission-response', id: state.mcpPermission!.id, decision: 'once' });
+                  dispatch({ type: 'clear-mcp-permission' });
+                }} />
+              <ActionButton variant="filled" text="Always allow"
+                onClick={() => {
+                  send({ type: 'mcp-permission-response', id: state.mcpPermission!.id, decision: 'always' });
+                  dispatch({ type: 'clear-mcp-permission' });
+                }} />
+            </div>
           </div>
         )}
       </div>

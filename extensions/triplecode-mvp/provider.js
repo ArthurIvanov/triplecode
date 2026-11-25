@@ -222,14 +222,23 @@ function multiFileMessages(documents, request, projectTree = '') {
   }).join('\n\n');
   const tree = projectTree ? `\n\nProject files:\n${projectTree}` : '';
   return [
-    { role: 'system', content: 'You are a coding assistant inside an IDE. You rewrite files precisely.' },
+    {
+      role: 'system',
+      content:
+        'You are a coding assistant inside an IDE. You use a short tool protocol and rewrite files precisely.\n' +
+        'Tools (one turn may combine them; the host runs tools and replies with TOOL RESULT …):\n' +
+        '- READ: <workspace-relative-path> — inspect a file not yet in context.\n' +
+        '- CHECK: [command] — run project checks (omit command to use the IDE default).\n' +
+        '- MCP: <server>/<tool> then optional ```json arguments fence — call a configured MCP tool (needs user permission).\n' +
+        '- FILE: <path> then a full-file code fence — propose an edit (complete file, untouched lines identical).\n' +
+        '- ANSWER: <text> — final text reply with no file changes.\n' +
+        '- NOCHANGE — nothing to edit.\n' +
+        'Prefer READ before editing unknown files. After CHECK/MCP results, either FILE edits or ANSWER.'
+    },
     {
       role: 'user',
       content: `Files:\n\n${context}${tree}\n\nTask: ${request}\n\n` +
-        'For each file that must change, output a line FILE: followed by its workspace-relative path, ' +
-        'then the COMPLETE updated file content inside one code fence. You may edit any file from ' +
-        'the project listing. To inspect a file you have not seen, output a line READ: followed by ' +
-        'its workspace-relative path. Keep every untouched line identical.'
+        'Respond with READ:, CHECK:, MCP:, FILE: (+ fence), ANSWER:, or NOCHANGE as needed.'
     }
   ];
 }

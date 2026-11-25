@@ -16,10 +16,16 @@ jobs:
           cache-dependency-path: extensions/triplecode-mvp/package-lock.json
       - name: Build macOS app
         run: bash scripts/build-macos.sh
+      - name: Zip app for release download
+        run: |
+          set -euo pipefail
+          cd dist
+          ditto -c -k --sequesterRsrc --keepParent TripleCode.app TripleCode-darwin-arm64.zip
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: TripleCode-darwin-arm64
           path: |
+            dist/TripleCode-darwin-arm64.zip
             dist/TripleCode.app
           if-no-files-found: error

@@ -24,7 +24,7 @@
 
 - Cursor checkpoints / restore timeline (отдельный ADR).
 - Devin PR Review Guide / Bug Catcher.
-- Token streaming (R-C1) и настоящий tool loop (R-C2).
+- Token streaming (R-C1 ✓), tool loop (R-C2 / S14 ✓), MCP stdio + permissions (R-C3 / S15 ✓).
 
 ## Связь
 

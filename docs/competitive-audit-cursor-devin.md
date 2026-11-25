@@ -38,12 +38,12 @@
 | A07 | Checks / verify before accept | Cursor runs terminal tools; Devin CI/PR | Run checks + Check patch | MVP (wedge) | S07 |
 | A08 | @ context + rules | Cursor `@` menu; rules always-on | Chips + rules.md; no `@` menu | MVP→beta | S08 |
 | A09 | Account / usage | Cursor web billing + usage | PKCE login; cabinet/quotas incomplete | MVP gate | S09 |
-| A10 | Tab + Cmd-K | Cursor native | Inline off; Cmd-K missing | Beta | S10 |
+| A10 | Tab + Cmd-K | Cursor native | Inline toggle + BYOK/local; Cmd-K preview/apply (S10) | Beta | S10 ✓ |
 | A11 | Cloud / background / PR | Cursor Cloud + Devin Cloud | Missing | Full | S11 |
 | A12 | Agents Window / parallel isolation | Cursor 3 Agents Window + worktrees | Multi-chat local only | Full | roadmap R-E* |
 | A13 | Streaming tokens | Cursor streams | `stream: false` | Beta | roadmap R-C1 |
-| A14 | Tool-calling / MCP | Cursor tools + MCP | Text FILE/READ protocol | Beta | roadmap R-C2 |
-| A15 | Debug mode | Cursor Debug mode | Not in MVP | Beta | roadmap R-C6 |
+| A14 | Tool-calling / MCP | Cursor tools + MCP | READ/CHECK/FILE (S14) + stdio MCP + permission card (S15) | Beta | S14 ✓ · S15 ✓ |
+| A15 | Debug mode | Cursor Debug mode | Collect diagnostics + redacted Output (S16); agent debug later | Beta | S16 ✓ |
 
 ## Выводы для роадмапа
 

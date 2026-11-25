@@ -20,5 +20,9 @@
 | [S11](S11-cloud-handoff-full.md) | Cloud/background handoff | full | E |
 | [S12](S12-agent-conversation-md-diff.md) | Chronology + Markdown + diff preview | MVP polish | A/C |
 | [S13](S13-streaming-tokens.md) | Streaming tokens in Agents | beta | C |
+| [S14](S14-tool-calling-loop.md) | Tool-calling loop read/edit/check | beta | C |
+| [S15](S15-mcp-host-permissions.md) | MCP host + permissions | beta | C |
+| [S16](S16-debug-diagnostics.md) | Debug / diagnostics collect | beta | C |
+| [S17](S17-packaging-three-os.md) | Packaging macOS/Win/Linux | MVP→beta | B |
 
 Индекс роадмапа: [../roadmap.md](../roadmap.md).

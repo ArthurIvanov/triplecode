@@ -62,8 +62,7 @@ resources="$app/Contents/Resources/app"
 extension=extensions/triplecode-mvp
 npm --prefix "$extension" ci --no-audit --no-fund
 npm --prefix "$extension" run build:webview
-rsync -a --exclude=/node_modules/ --exclude=/webview/ --exclude=/package-lock.json \
-  "$extension/" "$resources/extensions/triplecode-mvp/"
+python3 "$root/scripts/embed-extension.py" "$extension" "$resources"
 
 python3 - "$app" "$app_name" <<'PY'
 import json

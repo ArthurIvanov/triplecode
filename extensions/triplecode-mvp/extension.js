@@ -20,6 +20,15 @@ const {
 const { buildAttachCandidates, appendAttachment } = require('./attach-logic.cjs');
 const { execCheck, checkResultEntry, runIsolatedPatchCheck } = require('./check-logic.cjs');
 const {
+  MAX_TOOL_ROUNDS, parseToolTurn, nextLoopDecision,
+  formatReadResult, formatCheckResult, formatToolBatch, describeToolStep
+} = require('./tool-loop.cjs');
+const {
+  parseMcpConfig, mergeServerMaps, decidePermission, applyPermissionDecision,
+  sessionAllows, grantSession, formatMcpCatalog, formatMcpResult
+} = require('./mcp-logic.cjs');
+const { createMcpRegistry } = require('./mcp-host.cjs');
+const {
   shouldShowWelcome, updateRecentFolders, filterExistingRecent
 } = require('./welcome-logic.cjs');
 const {
@@ -28,6 +37,8 @@ const {
 
 let getSessionAccessToken = () => Promise.resolve(null);
 const { registerInlineAI } = require('./inline');
+const { registerCmdK } = require('./cmdk-host.cjs');
+const { registerDebugDiagnostics } = require('./debug-host.cjs');
 const provider = require('./provider');
 
 function showDesignSystem(context) {
@@ -64,6 +75,8 @@ function showDesignSystem(context) {
 
 function activate(context) {
   registerInlineAI(context);
+  const cmdkContent = new Map();
+  let debugLog = { appendLog() {} };
   const account = registerDesktopAccount(context);
   if (account?.sessionAccessToken) getSessionAccessToken = account.sessionAccessToken;
   const patches = new Map();
@@ -81,6 +94,9 @@ function activate(context) {
   let chats = [{ id: nextChatId, draft: '', mode: 'agent', replies: [] }];
   let currentChat = chats[0];
   let welcome;
+  const mcpRegistry = createMcpRegistry();
+  const mcpPermissionWaiters = new Map();
+  let mcpSessionAllows = {};
 
   function persistChats() {
     void context.workspaceState.update('triplecode.chats', {
@@ -304,6 +320,16 @@ function activate(context) {
           case 'stop':
             if (activeRun?.chat.id === message.id) stopRun('Stopped. Draft kept.');
             break;
+          case 'mcp-permission-response': {
+            const waiter = mcpPermissionWaiters.get(message.id);
+            if (!waiter) break;
+            mcpPermissionWaiters.delete(message.id);
+            const decision = ['once', 'always', 'deny'].includes(message.decision)
+              ? message.decision
+              : 'deny';
+            waiter.resolve(decision);
+            break;
+          }
           case 'clear-queue':
             if (message.id === currentChat.id && currentChat.queue?.length) {
               currentChat.queue = [];
@@ -455,6 +481,7 @@ function activate(context) {
     getSessionAccessToken().then(token => {
       if (!token) {
         console.warn('[TripleCode usage] no access token, skipping report');
+        debugLog.appendLog('warn', 'usage: no access token');
         return;
       }
       fetch('https://triplecode.ru/api/usage/event', {
@@ -462,8 +489,14 @@ function activate(context) {
         headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
         body: JSON.stringify({ feature, provider: providerName, model, duration_ms: durationMs, outcome }),
         signal: AbortSignal.timeout(5000)
-      }).catch(error => console.warn('[TripleCode usage] report failed', error.message));
-    }).catch(error => console.warn('[TripleCode usage] session lookup failed', error.message));
+      }).catch(error => {
+        console.warn('[TripleCode usage] report failed', error.message);
+        debugLog.appendLog('warn', `usage report failed: ${error.message}`);
+      });
+    }).catch(error => {
+      console.warn('[TripleCode usage] session lookup failed', error.message);
+      debugLog.appendLog('warn', `usage session lookup failed: ${error.message}`);
+    });
   }
 
   function postStreamDelta(run, text) {
@@ -523,6 +556,7 @@ function activate(context) {
       return reply;
     } catch (error) {
       report(mode === 'openrouter' ? 'openrouter' : 'ollama', null, signal?.aborted ? 'stopped' : 'error');
+      if (!signal?.aborted) debugLog.appendLog('error', `aiChat ${feature}: ${error.message}`);
       throw error;
     }
   }
@@ -604,6 +638,158 @@ function activate(context) {
     return `\n\nAttached context:\n${parts.join('\n')}`;
   }
 
+  function defaultCheckCommand() {
+    return vscode.workspace.getConfiguration('triplecode').get('checkCommand', 'npm test');
+  }
+
+  function mcpEnabled() {
+    return vscode.workspace.getConfiguration('triplecode').get('mcp.enabled', true) !== false;
+  }
+
+  function loadMcpServers() {
+    if (!mcpEnabled()) return { servers: {}, errors: [] };
+    const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+    let fileServers = {};
+    const errors = [];
+    if (root) {
+      try {
+        const raw = readFileSync(join(root, '.triplecode', 'mcp.json'), 'utf-8');
+        const parsed = parseMcpConfig(raw);
+        fileServers = parsed.servers;
+        errors.push(...parsed.errors);
+      } catch (error) {
+        if (error?.code !== 'ENOENT') errors.push(error.message);
+      }
+    }
+    const setting = vscode.workspace.getConfiguration('triplecode').get('mcp.servers');
+    const fromSettings = parseMcpConfig(
+      setting && typeof setting === 'object' ? { mcpServers: setting } : {}
+    );
+    errors.push(...fromSettings.errors);
+    return { servers: mergeServerMaps(fileServers, fromSettings.servers), errors };
+  }
+
+  function mcpPermissionStore() {
+    return context.globalState.get('triplecode.mcp.permissions', {}) || {};
+  }
+
+  async function persistMcpPermission(server, tool, decision) {
+    if (decision !== 'always' && decision !== 'deny') return;
+    const next = applyPermissionDecision(mcpPermissionStore(), server, tool, decision);
+    await context.globalState.update('triplecode.mcp.permissions', next);
+  }
+
+  function rejectMcpPermissionWaiters(reason = 'Stopped') {
+    for (const [id, waiter] of mcpPermissionWaiters) {
+      mcpPermissionWaiters.delete(id);
+      waiter.reject(Object.assign(new Error(reason), { name: 'AbortError' }));
+    }
+  }
+
+  function requestMcpPermission(run, { server, tool, args }) {
+    const id = randomUUID();
+    const preview = (() => {
+      try { return JSON.stringify(args ?? {}).slice(0, 400); }
+      catch { return '{}'; }
+    })();
+    return new Promise((resolve, reject) => {
+      mcpPermissionWaiters.set(id, { resolve, reject });
+      const onAbort = () => {
+        if (!mcpPermissionWaiters.has(id)) return;
+        mcpPermissionWaiters.delete(id);
+        reject(Object.assign(new Error('Stopped'), { name: 'AbortError' }));
+      };
+      if (run.signal.aborted) {
+        onAbort();
+        return;
+      }
+      run.signal.addEventListener('abort', onAbort, { once: true });
+      const step = describeToolStep('mcp-permission', `Waiting for ${server}/${tool}`);
+      addTimelineStep(run, step.type, step.title, step.description);
+      postProgress(run, `Allow MCP ${server}/${tool}?`);
+      agent?.postMessage({
+        type: 'mcp-permission',
+        id,
+        chat: run.chat.id,
+        server,
+        tool,
+        argsPreview: preview
+      });
+    });
+  }
+
+  async function runMcpCalls(turn, run, root) {
+    const { servers } = loadMcpServers();
+    const results = [];
+    for (const call of turn.mcpCalls || []) {
+      run.signal.throwIfAborted();
+      const label = `${call.server}/${call.tool}`;
+      if (call.args?._parseError) {
+        results.push(formatMcpResult(call.server, call.tool, { error: call.args._parseError }));
+        continue;
+      }
+      const def = servers[call.server];
+      if (!def) {
+        results.push(formatMcpResult(call.server, call.tool, {
+          error: `Unknown MCP server "${call.server}". Add it to .triplecode/mcp.json.`
+        }));
+        continue;
+      }
+      let allowed = decidePermission(mcpPermissionStore(), call.server, call.tool) === 'allow'
+        || sessionAllows(mcpSessionAllows, call.server, call.tool);
+      if (!allowed && decidePermission(mcpPermissionStore(), call.server, call.tool) === 'deny') {
+        const step = describeToolStep('mcp', `${label} denied`);
+        addTimelineStep(run, step.type, step.title, 'Permission denied');
+        results.push(formatMcpResult(call.server, call.tool, { error: 'User denied this MCP tool.' }));
+        continue;
+      }
+      if (!allowed) {
+        const decision = await requestMcpPermission(run, call);
+        run.signal.throwIfAborted();
+        if (decision === 'deny') {
+          await persistMcpPermission(call.server, call.tool, 'deny');
+          results.push(formatMcpResult(call.server, call.tool, { error: 'User denied this MCP tool.' }));
+          continue;
+        }
+        if (decision === 'always') await persistMcpPermission(call.server, call.tool, 'always');
+        if (decision === 'once') mcpSessionAllows = grantSession(mcpSessionAllows, call.server, call.tool);
+        allowed = true;
+      }
+      postProgress(run, `MCP ${label}…`);
+      const step = describeToolStep('mcp', label);
+      addTimelineStep(run, step.type, step.title, step.description);
+      try {
+        const result = await mcpRegistry.call(def, call.tool, call.args, { cwd: root });
+        results.push(formatMcpResult(call.server, call.tool, {
+          content: result?.content,
+          isError: Boolean(result?.isError)
+        }));
+      } catch (error) {
+        results.push(formatMcpResult(call.server, call.tool, { error: error.message }));
+      }
+    }
+    return results;
+  }
+
+  async function resolveFileEntries(entries, root, run, { timeline = true } = {}) {
+    const resolved = [];
+    const failedPaths = [];
+    for (const entry of entries) {
+      run.signal.throwIfAborted();
+      try {
+        const document = await openModelFile(entry.path, root);
+        if (timeline) {
+          const step = describeToolStep('edit', entry.path);
+          addTimelineStep(run, step.type, step.title, step.description);
+        }
+        resolved.push({ ...entry, document });
+      } catch (error) {
+        failedPaths.push(`${entry.path} — ${error.message}`);
+      }
+    }
+    return { resolved, failedPaths };
+  }
+
   async function aiSpecs(request, extraDocuments, run) {
     const documents = [];
     const seenDocs = new Set();
@@ -618,88 +804,167 @@ function activate(context) {
     if (!documents.length && !root) throw new Error('Open a source file first.');
     const tree = await projectTree(root);
     if (tree) addTimelineStep(run, 'tool', 'Project map', `Indexed ${tree.split('\n').length} project files`);
-    const options = { numPredict: 8192, numCtx: 32768, feature: 'agent', run };
+    const options = { numPredict: 8192, numCtx: 32768, feature: 'agent', run, stream: false };
     const maxContextDocs = 12;
-    const extraDocs = [];
     const knownUris = new Set(documents.map(document => document.uri.toString()));
+    let contextDocs = documents.slice();
+    const messages = provider.multiFileMessages(contextDocs, request, tree);
+    const mcpConfig = loadMcpServers();
+    if (Object.keys(mcpConfig.servers).length) {
+      messages.push({
+        role: 'user',
+        content: formatMcpCatalog(mcpConfig.servers, mcpRegistry.toolIndex())
+      });
+      addTimelineStep(run, 'tool', 'MCP catalog',
+        `${Object.keys(mcpConfig.servers).length} server${Object.keys(mcpConfig.servers).length === 1 ? '' : 's'} configured`);
+    }
 
-    let contextDocs = documents;
-    const ask = async () => {
-      postProgress(run, 'Waiting for model…');
-      const text = await aiChat(provider.multiFileMessages(contextDocs, request, tree), run.signal, options);
-      run.signal.throwIfAborted();
-      const result = provider.parseMultiRewrite(text);
-      if (!result) throw aiParseError(text);
-      return result;
+    const finalizeEdits = async (files) => {
+      const { resolved, failedPaths } = await resolveFileEntries(files, root, run);
+      const contextUris = new Set(contextDocs.map(document => document.uri.toString()));
+      const specs = [];
+      const seenPaths = new Set();
+      let dropped = 0;
+      for (const entry of resolved) {
+        if (seenPaths.has(entry.document.uri.toString())) continue;
+        if (!contextUris.has(entry.document.uri.toString())) {
+          dropped++;
+          continue;
+        }
+        seenPaths.add(entry.document.uri.toString());
+        const eol = entry.document.eol === vscode.EndOfLine.CRLF ? '\r\n' : '\n';
+        const edit = provider.diffEdit(entry.document.getText(), entry.content, eol);
+        if (edit) specs.push({ document: entry.document, edit });
+      }
+      if (!specs.length && failedPaths.length) {
+        throw new Error(`The model referenced files that could not be opened:\n${failedPaths.join('\n')}`);
+      }
+      if (dropped) {
+        addTimelineStep(run, 'message', 'Skipped files',
+          `${dropped} proposed file${dropped === 1 ? '' : 's'} exceeded the context limit and ${dropped === 1 ? 'was' : 'were'} not included in the patch`);
+      }
+      return specs.length ? { specs } : { reply: 'The model did not propose a change.' };
     };
 
-    let parsed = await ask();
-    if (parsed.answer) return { reply: parsed.answer };
-
-    for (let round = 0; round < 3 && !parsed.noChange; round++) {
-      const wanted = [...parsed.files.map(entry => entry.path), ...(parsed.reads || [])];
-      if (!wanted.length) break;
-      const missing = [];
-      const requested = new Set();
-      for (const path of wanted.slice(0, 16)) {
-        run.signal.throwIfAborted();
-        try {
-          const document = await openModelFile(path, root);
-          if (!knownUris.has(document.uri.toString()) && !requested.has(document.uri.toString())) {
-            requested.add(document.uri.toString());
-            missing.push(document);
+    const runToolChecks = async (turn) => {
+      if (!root) throw new Error('Open a project folder first.');
+      const configured = defaultCheckCommand();
+      const commands = turn.checks.map(command => command || configured);
+      const results = [];
+      let provisional = null;
+      if (turn.kind === 'check_with_edit' && turn.files?.length) {
+        const { resolved, failedPaths } = await resolveFileEntries(turn.files, root, run, { timeline: false });
+        if (failedPaths.length && !resolved.length) {
+          throw new Error(`The model referenced files that could not be opened:\n${failedPaths.join('\n')}`);
+        }
+        provisional = resolved.map(entry => {
+          const eol = entry.document.eol === vscode.EndOfLine.CRLF ? '\r\n' : '\n';
+          const edit = provider.diffEdit(entry.document.getText(), entry.content, eol);
+          return edit
+            ? { path: entry.document.uri.fsPath, before: entry.document.getText(), edit }
+            : null;
+        }).filter(Boolean);
+        for (const entry of resolved) {
+          if (!knownUris.has(entry.document.uri.toString())) {
+            contextDocs = [...contextDocs, entry.document].slice(-maxContextDocs);
+            knownUris.add(entry.document.uri.toString());
           }
-        } catch { /* invalid paths are rejected again on the final pass */ }
+        }
       }
-      if (!missing.length) break;
-      for (const document of missing) {
-        extraDocs.push(document);
-        knownUris.add(document.uri.toString());
+      for (const command of commands) {
+        run.signal.throwIfAborted();
+        postProgress(run, `Running ${command}…`);
+        try {
+          let code;
+          let output;
+          let target = 'working-tree';
+          if (provisional?.length) {
+            const { result } = await runIsolatedPatchCheck({ root, command, files: provisional });
+            code = result.code;
+            output = `${result.stdout}\n${result.stderr}`;
+            target = 'proposed-patch';
+          } else {
+            const result = await execCheck(command, root);
+            code = result.code;
+            output = `${result.stdout}\n${result.stderr}`;
+          }
+          const detail = `${command} — exit ${code}${target === 'proposed-patch' ? ' (isolated copy)' : ''}`;
+          const step = describeToolStep('check', detail);
+          addTimelineStep(run, step.type, step.title, step.description);
+          results.push(formatCheckResult(command, { code, output }, { target }));
+        } catch (error) {
+          const step = describeToolStep('check', `${command} — failed`);
+          addTimelineStep(run, step.type, step.title, error.message);
+          results.push(formatCheckResult(command, { code: -1, output: '' }, { error: error.message }));
+        }
       }
-      contextDocs = [...documents, ...extraDocs].slice(0, maxContextDocs);
-      postProgress(run, 'Expanding context…');
-      addTimelineStep(run, 'tool', 'Expand context', `Round ${round + 1}: adding ${missing.length} file${missing.length === 1 ? '' : 's'} to context`);
-      parsed = await ask();
-      if (parsed.answer) return { reply: parsed.answer };
-    }
-    run.signal.throwIfAborted();
-    const contextUris = new Set(contextDocs.map(document => document.uri.toString()));
+      return results;
+    };
 
-    if (parsed.noChange) {
-      return { reply: `The model did not propose a change.${parsed.reason ? ` ${parsed.reason}` : ''}` };
-    }
-
-    const specs = [];
-    const seenPaths = new Set();
-    const failedPaths = [];
-    let dropped = 0;
-    for (const entry of parsed.files.slice(0, 8)) {
+    for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
       run.signal.throwIfAborted();
-      let document;
-      try {
-        document = await openModelFile(entry.path, root);
-        addTimelineStep(run, 'edit', 'Process file', `Computing diff for ${entry.path}`);
-      } catch (error) {
-        failedPaths.push(`${entry.path} — ${error.message}`);
+      postProgress(run, round === 0 ? 'Waiting for model…' : `Tool round ${round + 1}…`);
+      const modelStep = describeToolStep('model', `Round ${round + 1}`);
+      addTimelineStep(run, modelStep.type, modelStep.title, modelStep.description);
+      const text = await aiChat(messages, run.signal, options);
+      run.signal.throwIfAborted();
+      messages.push({ role: 'assistant', content: text });
+
+      const turn = parseToolTurn(text, provider.parseMultiRewrite);
+      const decision = nextLoopDecision(turn, { round, maxRounds: MAX_TOOL_ROUNDS });
+      if (decision.action === 'limit') {
+        return { reply: decision.message };
+      }
+      if (decision.action === 'error') throw aiParseError(text);
+      if (decision.action === 'answer') return { reply: turn.answer };
+      if (decision.action === 'noChange') {
+        return { reply: `The model did not propose a change.${turn.reason ? ` ${turn.reason}` : ''}` };
+      }
+
+      if (decision.action === 'read') {
+        const results = [];
+        for (const path of turn.reads) {
+          run.signal.throwIfAborted();
+          try {
+            const document = await openModelFile(path, root);
+            const rel = root ? relative(root, document.uri.fsPath) : path;
+            const step = describeToolStep('read', rel);
+            addTimelineStep(run, step.type, step.title, step.description);
+            if (!knownUris.has(document.uri.toString())) {
+              contextDocs = [...contextDocs, document].slice(-maxContextDocs);
+              knownUris.add(document.uri.toString());
+            }
+            results.push(formatReadResult(rel, document.getText()));
+          } catch (error) {
+            const step = describeToolStep('read', path);
+            addTimelineStep(run, step.type, step.title, error.message);
+            results.push(formatReadResult(path, '', { error: error.message }));
+          }
+        }
+        if (!results.length) throw aiParseError(text);
+        messages.push({ role: 'user', content: formatToolBatch(results) });
         continue;
       }
-      if (seenPaths.has(document.uri.toString())) continue;
-      if (!contextUris.has(document.uri.toString())) {
-        dropped++;
+
+      if (decision.action === 'mcp') {
+        const results = await runMcpCalls(turn, run, root);
+        if (!results.length) throw aiParseError(text);
+        messages.push({ role: 'user', content: formatToolBatch(results) });
         continue;
       }
-      seenPaths.add(document.uri.toString());
-      const eol = document.eol === vscode.EndOfLine.CRLF ? '\r\n' : '\n';
-      const edit = provider.diffEdit(document.getText(), entry.content, eol);
-      if (edit) specs.push({ document, edit });
+
+      if (decision.action === 'check') {
+        const results = await runToolChecks(turn);
+        messages.push({ role: 'user', content: formatToolBatch(results) });
+        continue;
+      }
+
+      if (decision.action === 'edit') {
+        return finalizeEdits(turn.files);
+      }
     }
-    if (!specs.length && failedPaths.length) {
-      throw new Error(`The model referenced files that could not be opened:\n${failedPaths.join('\n')}`);
-    }
-    if (dropped) {
-      addTimelineStep(run, 'message', 'Skipped files', `${dropped} proposed file${dropped === 1 ? '' : 's'} exceeded the context limit and ${dropped === 1 ? 'was' : 'were'} not included in the patch`);
-    }
-    return specs.length ? { specs } : { reply: 'The model did not propose a change.' };
+
+    return { reply: 'Tool loop reached the round limit without a final patch.' };
   }
 
   async function aiOrFallback(signal, primary, fallback) {
@@ -783,6 +1048,7 @@ function activate(context) {
   function stopRun(status) {
     const run = activeRun;
     if (!run) return;
+    rejectMcpPermissionWaiters(status || 'Stopped');
     run.controller.abort();
     finishRun(run, status);
   }
@@ -1525,7 +1791,54 @@ function activate(context) {
   const brand = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, -1000);
   brand.text = 'TripleCode IDE';
   brand.show();
+  registerCmdK(vscode, context, {
+    contentMap: cmdkContent,
+    chatFn: async (messages, signal) => {
+      const useAi = await aiAvailable();
+      if (!useAi) throw new Error('Configure an AI provider (Ollama / OpenRouter) for Cmd-K.');
+      return aiChat(messages, signal, { feature: 'cmdk', stream: false, numPredict: 4096 });
+    }
+  });
+
+  debugLog = registerDebugDiagnostics(vscode, context, {
+    getSnapshot: async () => {
+      const config = vscode.workspace.getConfiguration('triplecode');
+      const mcp = typeof loadMcpServers === 'function' ? loadMcpServers() : { servers: {} };
+      const perms = context.globalState.get('triplecode.mcp.permissions', {}) || {};
+      return {
+        extensionVersion: context.extension?.packageJSON?.version || '0.0.1',
+        vscodeVersion: vscode.version,
+        nodeVersion: process.version,
+        platform: process.platform,
+        arch: process.arch,
+        appName: vscode.env.appName,
+        folderCount: vscode.workspace.workspaceFolders?.length || 0,
+        trusted: vscode.workspace.isTrusted,
+        remoteName: vscode.env.remoteName || '',
+        aiProvider: config.get('ai.provider', 'auto'),
+        aiEndpoint: config.get('ai.endpoint', ''),
+        aiModel: config.get('ai.model', ''),
+        openrouterEndpoint: config.get('ai.openrouterEndpoint', ''),
+        openrouterModel: config.get('ai.openrouterModel', ''),
+        inlineEnabled: Boolean(config.get('ai.inlineEnabled', false)),
+        inlineProvider: config.get('ai.inlineProvider', ''),
+        inlineModel: config.get('ai.inlineModel', ''),
+        cmdkEnabled: config.get('ai.cmdkEnabled', true) !== false,
+        checkCommand: config.get('checkCommand', 'npm test'),
+        hasOpenRouterKey: Boolean(await context.secrets.get('triplecode.openrouterKey')),
+        hasInlineKey: Boolean(await context.secrets.get('triplecode.inlineApiKey')),
+        mcpEnabled: config.get('mcp.enabled', true) !== false,
+        mcpServers: Object.keys(mcp.servers || {}),
+        chatCount: chats.length,
+        activeRun: Boolean(activeRun),
+        pendingReview: Boolean(pending),
+        mcpPermissionCount: Object.keys(perms).length
+      };
+    }
+  });
+
   context.subscriptions.push(
+    { dispose: () => { rejectMcpPermissionWaiters('Deactivated'); mcpRegistry.closeAll(); } },
     brand,
     localWorkspace,
     vscode.workspace.registerTextDocumentContentProvider('triplecode-review', {

@@ -266,6 +266,37 @@ body[data-screen="agent"] { height: 100vh; overflow: hidden; }
   border-bottom: 0;
   border-top: 1px solid var(--triplecode-chat-request-border, var(--triplecode-theme-input-border));
 }
+.agent .mcp-permission {
+  margin: 12px 0;
+  padding: 12px;
+  border: 1px solid var(--triplecode-chat-request-border, var(--triplecode-theme-input-border));
+  border-radius: 8px;
+  background: var(--triplecode-theme-input-background, transparent);
+}
+.agent .mcp-permission__title {
+  font-size: 13px;
+  margin-bottom: 8px;
+}
+.agent .mcp-permission__title code {
+  font-family: var(--vscode-editor-font-family, ui-monospace, monospace);
+  font-size: 12px;
+}
+.agent .mcp-permission__args {
+  margin: 0 0 10px;
+  padding: 8px;
+  max-height: 120px;
+  overflow: auto;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--triplecode-theme-editor-background, #1e1e1e) 80%, transparent);
+  font: 11px/1.4 var(--vscode-editor-font-family, ui-monospace, monospace);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.agent .mcp-permission__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
 .agent .plan-label {
   min-width: 0;
   overflow: hidden;

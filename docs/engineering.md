@@ -65,9 +65,12 @@ bash scripts/run-macos-qa.sh
 
 # Validate release manifest JSON
 bash scripts/verify-release-manifest.sh path/to/release-manifest.json
+
+# Three-OS packaging pins + script alignment (R-B2 / S17)
+bash scripts/check-packaging.sh
 ```
 
-CI jobs: `ci`, `build-macos`, `build-windows`, `build-linux`, `release` (tag `v*`). См. [TEST.md](../TEST.md).
+CI jobs: `ci` (includes `check-packaging.sh`), `build-macos`, `build-windows`, `build-linux`, `release` (tag `v*`). См. [TEST.md](../TEST.md) · [S17](scenarios/S17-packaging-three-os.md).
 
 ## ADR
 

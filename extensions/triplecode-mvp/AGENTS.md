@@ -8,7 +8,8 @@
 | --- | --- | --- |
 | Extension host | `extension.js`, `import-host.cjs`, `attach-logic.cjs`, `check-logic.cjs`, `desktop-account.js`, `patch.js` | Команды, чаты, apply/undo, checks, import, account |
 | Provider | `provider.js` | HTTP к Ollama/OpenRouter; промпты; parse multi-file |
-| Inline | `inline.js` | InlineCompletion; default off |
+| Inline | `inline.js`, `inline-logic.cjs` | InlineCompletion; default off; toggle + latency status |
+| Cmd-K | `cmdk-host.cjs`, `cmdk-logic.cjs` | Selection edit preview → Apply/Discard |
 | Webview UI | `webview/**` | React Agents UI, design-system gallery |
 | Media bundles | `media/*` | esbuild output — не править вручную; `npm run build:webview` |
 
@@ -36,6 +37,10 @@
 - Изменения attach candidates — обновляй `attach-logic.cjs` и `npm test`.
 - Изменения chronology / Markdown / diff preview — `markdown-logic.cjs`, `review-logic.describeEditHunk`, `webview/agent.tsx` + `npm test` / `build:webview` (S12).
 - Изменения streaming — `stream-logic.cjs`, `provider.js` chatStream/chatCompletionsStream, `npm test` (S13).
+- Изменения tool-loop (READ/CHECK/FILE раунды) — `tool-loop.cjs`, `provider.multiFileMessages`, `aiSpecs` в `extension.js`, `npm test` (S14).
+- Изменения MCP — `mcp-logic.cjs`, `mcp-host.cjs`, permission card в `webview/agent.tsx`, `npm test` (S15).
+- Изменения Tab/Cmd-K — `inline-logic.cjs`, `inline.js`, `cmdk-logic.cjs`, `cmdk-host.cjs`, `npm test` (S10).
+- Изменения diagnostics — `debug-logic.cjs`, `debug-host.cjs`, `npm test` (S16); не включать промпты/секреты в отчёт.
 - Изменения Ask/Plan/Execute — обновляй `agent-modes.cjs` и `npm test` (S03–S04).
 - Изменения @/attachments/rules/inline picker — обновляй `context-rules.cjs`, `webview/agent.tsx`, `npm test` + `build:webview` (S08).
 - Изменения Welcome/recent/first-launch defaults — обновляй `welcome-logic.cjs` и `npm test` (S01).

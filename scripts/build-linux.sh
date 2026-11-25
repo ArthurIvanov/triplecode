@@ -24,7 +24,7 @@ fi
 printf '%s  %s\n' "$checksum" "$archive" | shasum -a 256 -c
 
 tar -xzf "$archive" -C "$stage"
-resources="$(find "$stage" -type d -path '*/resources/app' | head -1)"
+resources="$(find "$stage" -type d -path '*/resources/app' | head -1 || true)"
 if [[ -z "$resources" ]]; then
   printf 'Could not locate resources/app in Linux tarball\n' >&2
   find "$stage" -maxdepth 3 -type d | head -50 >&2
@@ -35,9 +35,7 @@ app_dir="$(dirname "$(dirname "$resources")")"
 extension=extensions/triplecode-mvp
 npm --prefix "$extension" ci --no-audit --no-fund
 npm --prefix "$extension" run build:webview
-mkdir -p "$resources/extensions/triplecode-mvp"
-rsync -a --exclude=/node_modules/ --exclude=/webview/ --exclude=/webview --exclude=/package-lock.json \
-  "$extension/" "$resources/extensions/triplecode-mvp/"
+python3 "$root/scripts/embed-extension.py" "$extension" "$resources"
 
 python3 - "$resources" "${TRIPLECODE_UPDATE_URL:-}" <<'PY'
 import json, sys
@@ -60,6 +58,8 @@ if update_url:
     product['updateUrl'] = update_url
 product_file.write_text(json.dumps(product, indent=2) + '\n')
 PY
+
+python3 "$root/scripts/desktop/apply-workbench-layout.py" "$resources"
 
 dest="$out/TripleCode-linux-x64"
 rm -rf "$dest"

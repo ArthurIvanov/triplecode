@@ -38,13 +38,14 @@ jobs:
           version="${GITHUB_REF_NAME#v}"
           mkdir -p dist-release
           # Normalize downloaded artifacts into dist-release/
-          find release-assets -type f \( -name '*.zip' -o -name '*.tar.gz' -o -name '*.app' \) -print || true
-          if [[ -d release-assets/TripleCode-darwin-arm64/TripleCode.app ]]; then
-            (cd release-assets/TripleCode-darwin-arm64 && zip -qr "$GITHUB_WORKSPACE/dist-release/TripleCode-darwin-arm64.zip" TripleCode.app)
-          fi
-          cp release-assets/TripleCode-linux-x64/TripleCode-linux-x64.tar.gz dist-release/ 2>/dev/null || true
-          cp release-assets/TripleCode-win32-x64/TripleCode-win32-x64.zip dist-release/ 2>/dev/null || \
-            cp release-assets/TripleCode-win32-x64/TripleCode-win32-x64.tar.gz dist-release/ 2>/dev/null || true
+          find release-assets -type f \( -name '*.zip' -o -name '*.tar.gz' \) -print
+          cp release-assets/TripleCode-darwin-arm64/TripleCode-darwin-arm64.zip dist-release/ 2>/dev/null || {
+            if [[ -d release-assets/TripleCode-darwin-arm64/TripleCode.app ]]; then
+              (cd release-assets/TripleCode-darwin-arm64 && zip -qr "$GITHUB_WORKSPACE/dist-release/TripleCode-darwin-arm64.zip" TripleCode.app)
+            fi
+          }
+          cp release-assets/TripleCode-linux-x64/TripleCode-linux-x64.tar.gz dist-release/
+          cp release-assets/TripleCode-win32-x64/TripleCode-win32-x64.zip dist-release/
           python3 - <<PY
           import hashlib, json, os, pathlib, datetime
           root = pathlib.Path("dist-release")
