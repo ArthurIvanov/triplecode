@@ -33,14 +33,18 @@
 
 ## Acceptance
 
-- [ ] E2E login (уже было 23.11) остаётся зелёным.
-- [ ] Cabinet/quotas documented as remaining blocker for external pilot.
+- [x] PKCE login + SecretStorage + status guest/waiting/signed-in (IDE).
+- [x] Usage events из IDE → `/api/usage/event`; кабинет `/account/usage`.
+- [x] Кабинет `/account/plan` — Pilot · BYOK + soft quota (не блокирует IDE).
+- [ ] Hosted checkout / жёсткий биллинг — blocker для платного пилота (не S09 floor).
+- [ ] Live E2E login re-run на QA build (ручной; уже было 23.11).
 
 ## Code paths
 
-- `extensions/triplecode-mvp/desktop-account.js`  
-- `triplecode-web` contracts desktop auth  
+- `extensions/triplecode-mvp/desktop-account.js`, `account-logic.cjs`  
+- `triplecode-web` `apps/api/usage-events.mjs`, `/account/plan`, `/account/usage`  
+- contracts: `packages/contracts/README.md`
 
 ## Links
 
-[accounts.md](../accounts.md) · contracts in sibling `triplecode-web/packages/contracts`
+[accounts.md](../accounts.md) · [contracts-sync.md](../contracts-sync.md) · sibling `triplecode-web/packages/contracts`

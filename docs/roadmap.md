@@ -22,7 +22,7 @@
 
 | ID | Outcome | Scenario | Screen / states | Role | Deps | Stage |
 | --- | --- | --- | --- | --- | --- | --- |
-| R-A1 | Кабинет: план, квоты, usage | S09 | Account guest/waiting/signed-in; cabinet usage | Инженер AI + web | `triplecode-web` | MVP |
+| R-A1 | Кабинет: план, квоты, usage | S09 | Account guest/waiting/signed-in; cabinet usage | Инженер AI + web | `triplecode-web` | MVP ✓ 25.11 floor (Pilot BYOK + soft quota; checkout later) |
 | R-A2 | Per-file Keep/Drop + Undo QA | S05 | Review list, conflict, stale | QA + IDE | — | MVP ✓ 25.11 |
 | R-A3 | Check patch vs Run checks labeling | S07 | Review check badge, history | QA + AI | — | MVP ✓ 25.11 |
 | R-A4 | Plan edit + Execute confirmed version | S04 | Plan card expanded/edit/execute | AI + Design | — | MVP ✓ 25.11 |

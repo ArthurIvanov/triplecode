@@ -22,7 +22,13 @@ export type UsageEvent = {
   provider: string;
   model: string;
   duration_ms: number;
-  outcome: 'ok' | 'error' | 'stopped';
+  outcome: 'ok' | 'error' | 'stopped' | 'accepted' | 'rejected';
+};
+
+export type SoftPlan = {
+  id: 'pilot-byok';
+  title: string;
+  blurb: string;
 };
 
 export type ReleaseArtifact = {

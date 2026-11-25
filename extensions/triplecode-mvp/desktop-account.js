@@ -3,6 +3,11 @@
 const vscode = require('vscode');
 const os = require('node:os');
 const { randomBytes, randomUUID, createHash } = require('node:crypto');
+const {
+  accountStatusLabel,
+  accountStatusTooltip,
+  accountMenuItems
+} = require('./account-logic.cjs');
 
 const origin = 'https://triplecode.ru';
 const providerId = 'triplecode';
@@ -80,11 +85,19 @@ function registerDesktopAccount(context) {
     }
   }
 
+  function uiState(value) {
+    if (signingIn) return 'waiting';
+    if (value) return 'signed-in';
+    return 'guest';
+  }
+
   async function updateStatus() {
     const value = await read(sessionKey);
-    status.text = value ? '$(account) TripleCode' : '$(account) Войти в TripleCode';
-    status.tooltip = value?.email || 'Войти в TripleCode';
-    status.command = value ? 'triplecode.account' : 'triplecode.signIn';
+    const state = uiState(value);
+    const icon = state === 'waiting' ? '$(sync~spin)' : '$(account)';
+    status.text = `${icon} ${accountStatusLabel(state, value?.email)}`;
+    status.tooltip = accountStatusTooltip(state, value?.email);
+    status.command = value || signingIn ? 'triplecode.account' : 'triplecode.signIn';
     const before = previous;
     previous = value;
     if (before?.id !== value?.id) {
@@ -138,6 +151,7 @@ function registerDesktopAccount(context) {
       title: 'Вход в TripleCode. Подтвердите email в браузере.',
       cancellable: true
     }, async (_progress, cancellation) => {
+      void updateStatus();
       const verifier = randomSecret();
       const state = randomSecret();
       const challenge = createHash('sha256').update(verifier).digest('base64url');
@@ -179,7 +193,10 @@ function registerDesktopAccount(context) {
         cancelListener?.dispose();
         await forgetPending(state);
       }
-    }).finally(() => { signingIn = undefined; });
+    }).finally(() => {
+      signingIn = undefined;
+      void updateStatus();
+    });
     return signingIn;
   }
 
@@ -228,17 +245,41 @@ function registerDesktopAccount(context) {
 
   async function showAccount() {
     try {
-      const value = await activeSession();
-      if (!value) {
-        await createSession();
+      if (signingIn) {
+        void vscode.window.showInformationMessage('Вход уже идёт — подтвердите email в браузере.');
         return;
       }
-      const action = await vscode.window.showQuickPick(['Выйти из TripleCode'], {
-        title: 'TripleCode · ' + value.email
+      const value = await activeSession();
+      if (!value) {
+        void updateStatus();
+        try {
+          await createSession();
+        } finally {
+          void updateStatus();
+        }
+        return;
+      }
+      const picks = accountMenuItems(value.email).map(item => ({
+        label: item.label,
+        description: item.description,
+        kind: item.kind,
+        url: item.url,
+        picked: false
+      }));
+      const action = await vscode.window.showQuickPick(picks.filter(item => item.kind !== 'header'), {
+        title: 'TripleCode · ' + value.email,
+        placeHolder: 'Кабинет, использование или выход'
       });
-      if (action === 'Выйти из TripleCode') await removeSession(value.id);
+      if (!action) return;
+      if (action.kind === 'logout') {
+        await removeSession(value.id);
+        return;
+      }
+      if (action.url) await vscode.env.openExternal(vscode.Uri.parse(action.url));
     } catch (error) {
       if (!(error instanceof vscode.CancellationError)) void vscode.window.showErrorMessage(error.message);
+    } finally {
+      void updateStatus();
     }
   }
 
