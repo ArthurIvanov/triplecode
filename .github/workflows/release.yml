@@ -1,0 +1,91 @@
+name: release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      channel:
+        description: stable or preview
+        default: preview
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  build-macos:
+    uses: ./.github/workflows/build-macos.yml
+  build-windows:
+    uses: ./.github/workflows/build-windows.yml
+  build-linux:
+    uses: ./.github/workflows/build-linux.yml
+
+  publish:
+    needs: [build-macos, build-windows, build-linux]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+      - name: Pack macOS zip and build manifest
+        env:
+          CHANNEL: ${{ github.event.inputs.channel || 'stable' }}
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          mkdir -p dist-release
+          # Normalize downloaded artifacts into dist-release/
+          find release-assets -type f \( -name '*.zip' -o -name '*.tar.gz' -o -name '*.app' \) -print || true
+          if [[ -d release-assets/TripleCode-darwin-arm64/TripleCode.app ]]; then
+            (cd release-assets/TripleCode-darwin-arm64 && zip -qr "$GITHUB_WORKSPACE/dist-release/TripleCode-darwin-arm64.zip" TripleCode.app)
+          fi
+          cp release-assets/TripleCode-linux-x64/TripleCode-linux-x64.tar.gz dist-release/ 2>/dev/null || true
+          cp release-assets/TripleCode-win32-x64/TripleCode-win32-x64.zip dist-release/ 2>/dev/null || \
+            cp release-assets/TripleCode-win32-x64/TripleCode-win32-x64.tar.gz dist-release/ 2>/dev/null || true
+          python3 - <<PY
+          import hashlib, json, os, pathlib, datetime
+          root = pathlib.Path("dist-release")
+          version = os.environ.get("GITHUB_REF_NAME", "v0.0.0").lstrip("v")
+          channel = os.environ.get("CHANNEL", "stable")
+          arts = []
+          mapping = {
+            "TripleCode-darwin-arm64.zip": ("darwin", "arm64"),
+            "TripleCode-linux-x64.tar.gz": ("linux", "x64"),
+            "TripleCode-win32-x64.zip": ("win32", "x64"),
+            "TripleCode-win32-x64.tar.gz": ("win32", "x64"),
+          }
+          for name, (os_name, arch) in mapping.items():
+            p = root / name
+            if not p.exists():
+              continue
+            digest = hashlib.sha512(p.read_bytes()).hexdigest()
+            arts.append({
+              "os": os_name,
+              "arch": arch,
+              "name": name,
+              "url": f"https://github.com/{os.environ['GITHUB_REPOSITORY']}/releases/download/v{version}/{name}",
+              "sha512": digest,
+            })
+          if not arts:
+            raise SystemExit("no artifacts found to publish")
+          manifest = {
+            "version": version,
+            "channel": channel,
+            "publishedAt": datetime.datetime.utcnow().replace(microsecond=0).isoformat() + "Z",
+            "artifacts": arts,
+          }
+          (root / "release-manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
+          print(json.dumps(manifest, indent=2))
+          PY
+          bash scripts/verify-release-manifest.sh dist-release/release-manifest.json
+      - name: GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist-release/*
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

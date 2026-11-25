@@ -1,0 +1,25 @@
+name: build-macos
+
+on:
+  workflow_dispatch:
+  workflow_call:
+
+jobs:
+  package:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: extensions/triplecode-mvp/package-lock.json
+      - name: Build macOS app
+        run: bash scripts/build-macos.sh
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: TripleCode-darwin-arm64
+          path: |
+            dist/TripleCode.app
+          if-no-files-found: error

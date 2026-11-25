@@ -1,0 +1,44 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [master, main, 'codex/**']
+
+jobs:
+  webview-and-pins:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: extensions/triplecode-mvp/package-lock.json
+      - name: Install extension deps
+        run: npm --prefix extensions/triplecode-mvp ci --no-audit --no-fund
+      - name: Typecheck and build webview
+        run: npm --prefix extensions/triplecode-mvp run build:webview
+      - name: Check workbench layout pin
+        run: bash scripts/check-layout-pin.sh
+      - name: Verify sample release manifest schema
+        run: |
+          python3 - <<'PY'
+          import json, tempfile, pathlib, subprocess
+          sample = {
+            "version": "0.0.0-test",
+            "channel": "preview",
+            "publishedAt": "2026-11-25T00:00:00Z",
+            "artifacts": [{
+              "os": "linux",
+              "arch": "x64",
+              "name": "TripleCode-linux-x64.tar.gz",
+              "url": "https://example.invalid/TripleCode-linux-x64.tar.gz",
+              "sha512": "0" * 128
+            }]
+          }
+          p = pathlib.Path("dist-ci-manifest.json")
+          p.write_text(json.dumps(sample, indent=2) + "\n")
+          PY
+          bash scripts/verify-release-manifest.sh dist-ci-manifest.json
+          rm -f dist-ci-manifest.json

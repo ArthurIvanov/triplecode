@@ -1,26 +1,59 @@
-Hello
-# Cursor и Devin — аудит сценариев и интерфейса
+# Cursor и Devin — предметный аудит сценариев и интерфейса
 
-Срез на 22 ноября 2026 года. Ведущая роль — продуктовый исследователь. Сравнение основано на открытой документации производителей и исходниках TripleCode на ветке `codex/design-system-react`, база `d0bc9ea`. Приватные аккаунты, платные функции и производительность конкурентов не проверялись в живых сессиях. Расположение указано только там, где его описывает источник. Различия по платформе, версии и тарифу нужно зафиксировать при пилоте.
+**Срез:** 25 ноября 2026 года.  
+**Роль:** продуктовый исследователь.  
+**Машина аудита:** macOS 27.3 (Build 26C5035r), Apple Silicon.  
+**Установленные приложения (Info.plist):** Cursor `3.31.15`, Devin Desktop `3.14.30833` (bundle `com.exafunction.windsurf`). Оба процесса были запущены во время среза.  
+**Источники:** публичная документация Cursor/Devin + сверка с кодом TripleCode (`extensions/triplecode-mvp`, [product-plan.md](product-plan.md), [maturity-assessment.md](maturity-assessment.md)).  
+**Ограничение сессии:** интерактивные скриншоты через Computer Use в этой сессии заблокированы политикой; визуальные кадры UI не приложены. Версии и наличие приложений подтверждены на диске. Повтор со скринами — [competitive-audit-evidence.md](competitive-audit-evidence.md).
+
+Контрольный класс задач (один и тот же для сравнения): открыть TS/Node репозиторий → Ask → Plan→Execute → multi-file Agent → Stop → @-контекст → checks/tests → (где есть) Tab/Cmd-K / cloud handoff.
 
 ## Поверхности продуктов
 
-| Поверхность | Что видит пользователь | Следствие для TripleCode |
-| --- | --- | --- |
-| Cursor IDE | Работа с файлами, отдельная панель Agent, переход от выделения к сообщению и diff. На macOS документация указывает `⌘⌃I` для открытия агента, `⌘⌃L` или `⌘⌃K` для отправки выделения. Привязки можно менять. | Оставить Workbench основным экраном. Научить кнопку Agents и палитру вести в один и тот же чат. Сохранять выделение и возвращать фокус в редактор. [Agent mode](https://cursor.com/help/ai-features/agent) · [Keyboard Shortcuts](https://cursor.com/docs/reference/keyboard-shortcuts) |
-| Cursor Agents Window | Отдельное окно параллельных сессий, доступное из палитры. Можно перейти обратно в редактор, открыть файл через `⌘P` и найти его содержимое через `⌘⇧F`. Поддерживаются локальные и удалённые среды. | Индекс сессий можно начать с раздела в существующей панели. Отдельное окно имеет смысл после проверки работы с несколькими задачами. [Agents Window](https://cursor.com/docs/agent/agents-window) · [Cursor 3](https://cursor.com/changelog/3-0) |
-| Devin Desktop | IDE с локальным агентом и облачным Devin. В Agent Command Center боковой список содержит сессии workspace. Доступны фильтрация, сортировка, группировка, переименование из контекстного меню. | Сохранить разделение между чатом, списком задач и редактором. Для каждой сессии показывать назначение и статус независимо от активного файла. [Agent Command Center](https://docs.devin.ai/desktop/agent-command-center) |
-| Devin Cloud | Задача выполняется в удалённой среде. Облачный сеанс можно вести из Desktop, продолжать на вебе и завершать передачей PR на ревью. | Описать жизненный цикл облачной задачи и связь с локальной IDE как отдельный этап. [Devin в Desktop](https://docs.devin.ai/desktop/devin) · [Передача задачи в облако](https://docs.devin.ai/cli/handoff) |
+| Поверхность | Что видит пользователь | Следствие для TripleCode | Этап |
+| --- | --- | --- | --- |
+| Cursor IDE Agent sidepane | Работа с файлами + агент; `Cmd+I` открывает Agent; инструменты (search, edit, terminal, browser, MCP) | Workbench остаётся primary. Agents → один composer. Фокус и возврат в редактор | MVP есть; tools/MCP — beta |
+| Cursor Agents Window | Отдельное окно параллельных сессий, multi-workspace, cloud/local handoff, worktrees; `Open Agents Window` из палитры | Индекс сессий в панели Agents на MVP. Отдельное окно — после доказанной multi-task потребности | Full / experiment |
+| Cursor Tab / inline | Ghost text у курсора, NES | Infra в `inline.js`, выключено до своей модели | Beta |
+| Cursor Cmd-K / selection edit | Правка из выделения | Нет в TripleCode | Beta |
+| Cursor Plan Mode | `Shift+Tab` цикл режимов; план редактируется; Build после confirm; Save to workspace | Plan + Execute есть; edit MD / save to workspace — дотянуть | MVP→beta |
+| Cursor @ / / | `@` файлы/папки/терминал/git/browser; `/` skills и Custom Modes | Сейчас Quick Pick + чипы; placeholder обещает `@` без inline-меню | MVP gap → beta polish |
+| Cursor Rules / MCP / context ring | Rules, MCP catalog, прозрачность контекста | `.triplecode/rules.md` + provider pill; MCP нет | Beta |
+| Cursor Cloud Agents / worktrees | Параллельные облачные агенты, PR, изоляция | Нет | Full |
+| Devin Desktop Agent Command Center | Список local+cloud сессий, filter/sort/group, rename, queue edit, notifications | Список чатов есть; ACC-паритет — full | Full |
+| Devin Cloud | VM, browser, continue after laptop close, PR review in editor | Нет | Full (волна E) |
+| Devin handoff CLI→cloud | `/handoff` из локального в cloud | Нет | Full |
 
-## Детали сценариев
+## Матрица сценариев
 
-| Сценарий | Документированное поведение конкурента | Состояние TripleCode и решение |
-| --- | --- | --- |
-| Открытие проекта и импорт | Cursor открывает папку через File → Open Folder и поддерживает миграцию профиля. В Devin Cloud импорт виден на Welcome внутри IDE сессии. Ручной режим доступен через палитру. | Есть Welcome и предпросмотр импорта. Проверить переход клавиатурой, возврат из диалога выбора папки, повторный импорт и читаемый отчёт о пропусках. Автоматически переносить только заявленные категории профиля. [Cursor First Project](https://prod.cursor.com/help/getting-started/first-project) · [Cursor Migration](https://cursor.com/docs/configuration/migrations/vscode) · [Devin Profiles](https://docs.devin.ai/collaborate-with-devin/vscode-profiles) |
-| Агент и фокус | В Cursor точка входа из IDE открывает агент. Ввод отправляется из composer. Cursor и Devin отдельно разводят агента и постоянный редактор. | На верхней панели есть Agents. При открытии с клавиатуры фокус должен попасть в composer. Повторное скрытие панели возвращает фокус в прежний редактор, сохраняя черновик. Подписи команд показывают актуальные клавиши. [Cursor Agent](https://cursor.com/help/ai-features/agent) · [Devin Command Center](https://docs.devin.ai/desktop/agent-command-center) |
-| Режимы | В Cursor режим выбирают из выпадающего меню composer либо циклом через `Shift+Tab`. Ask доступен для чтения, Plan содержит отдельное подтверждение перехода к правкам. Debug ориентирован на сбор фактов о проявлении ошибки. | Есть Agent, Ask, Plan. Проверить переходы и невозможность писать файлы из Ask. Для беты оформить режим диагностики с явным сбором логов и шагами воспроизведения. Не занимать `Shift+Tab` вне composer. [Cursor Agent](https://cursor.com/help/ai-features/agent) |
-| Контекст | Cursor принимает `@` внутри поля ввода для файлов и папок. Выделение попадает в composer как ссылка на строки. | Сейчас есть Quick Pick через кнопки контекста, чипы и ограничение в пять вложений. Placeholder уже обещает `@` и `/`, клавиатурного меню для этих символов в текущем composer нет. Дать `@` поиск с навигацией стрелками, удаление чипа клавиатурой и переход к источнику. До готовности `/` использовать точную подсказку. [Cursor First Project](https://prod.cursor.com/help/getting-started/first-project) · [Cursor Agent](https://cursor.com/help/ai-features/agent) |
-| Контекст провайдера | Cursor использует правила во всех режимах, Devin Desktop документирует исключения из индексирования, Tab и DeepWiki. | В composer показать выбранного провайдера, список отправляемых файлов и активные правила. Исключённый файл не должен появляться в автоматическом контексте и отправляться провайдеру. [Cursor Agent](https://cursor.com/help/ai-features/agent) · [Devin Desktop Ignore](https://docs.devin.ai/desktop/context-awareness/devin-ignore.md) |
-| План | Cursor предлагает проверить и редактировать план в чате или Markdown, затем отдельно запустить исполнение. Сохранение в workspace — явное действие. | Есть Plan и Execute plan. Добавить полнотекстовое чтение, редактирование и привязку запуска к подтверждённой версии. Пилотный тест меняет критерий в плане и проверяет, что исполнение использует новую версию. [Cursor Plan Mode](https://cursor.com/docs/agent/plan-mode) |
-| Остановка | Cursor показывает Stop во время работы. Статус, инструмент и результат относятся к конкретному ходу. | В TripleCode проверить путь закрытия панели, смены чата и тайм-аута. Добавить Stop вместо Send на время активного хода, отмену запроса и защиту от позднего результата. Сохранять черновик при ошибке. [Cursor Agent](https://cursor.com/help
-// … truncated …
+| ID | Сценарий | Конкурент (факт) | TripleCode сейчас | Обязательство | Критерий приёмки |
+| --- | --- | --- | --- | --- | --- |
+| A01 | Open folder / first project | Cursor: File→Open; Devin: Welcome/palette | Welcome + Open Folder | MVP | S01 |
+| A02 | Import VS Code profile | Cursor: Settings→General→Account one-click + Profiles | Import preview + report + rollback | MVP | S02 |
+| A03 | Ask (read-only) | Cursor Ask не пишет файлы | Ask есть; stub без AI heurистика | MVP | S03 |
+| A04 | Plan → edit → Build | Cursor Plan + markdown edit + Build | Plan + Execute; edit confirmed version | MVP | S04 |
+| A05 | Agent multi-file + review | Cursor tools+diff/checkpoints | Multi-file Review Keep/Drop | MVP | S05 |
+| A06 | Stop / queue / late result | Cursor Stop; queue Enter / Cmd+Enter steer | Stop/timeout/late guard P0 | MVP | S06 |
+| A07 | Checks / verify before accept | Cursor runs terminal tools; Devin CI/PR | Run checks + Check patch | MVP (wedge) | S07 |
+| A08 | @ context + rules | Cursor `@` menu; rules always-on | Chips + rules.md; no `@` menu | MVP→beta | S08 |
+| A09 | Account / usage | Cursor web billing + usage | PKCE login; cabinet/quotas incomplete | MVP gate | S09 |
+| A10 | Tab + Cmd-K | Cursor native | Inline off; Cmd-K missing | Beta | S10 |
+| A11 | Cloud / background / PR | Cursor Cloud + Devin Cloud | Missing | Full | S11 |
+| A12 | Agents Window / parallel isolation | Cursor 3 Agents Window + worktrees | Multi-chat local only | Full | roadmap R-E* |
+| A13 | Streaming tokens | Cursor streams | `stream: false` | Beta | roadmap R-C1 |
+| A14 | Tool-calling / MCP | Cursor tools + MCP | Text FILE/READ protocol | Beta | roadmap R-C2 |
+| A15 | Debug mode | Cursor Debug mode | Not in MVP | Beta | roadmap R-C6 |
+
+## Выводы для роадмапа
+
+1. **Wedge TripleCode** (verify-before-accept + Check patch) остаётся дифференциатором против Cursor, где модель чаще сама гоняет tools; UI проверки версии патча у нас должен быть заметнее конкурента.
+2. **Ближайший UX-разрыв с Cursor IDE:** `@`/`/` в composer, streaming, tool loop, Cmd-K, Tab — не Agents Window.
+3. **Devin** сравнивать по жизненному циклу облачной задачи, не по локальному composer; до волны E не обещать паритет.
+4. Каждая строка матрицы связана со сценарием `docs/scenarios/Sxx` или пунктом [roadmap.md](roadmap.md).
+
+## Связанные артефакты
+
+- [competitive-audit-evidence.md](competitive-audit-evidence.md) — протокол версий и повтор со скринами  
+- [roadmap.md](roadmap.md) — backlog A–E  
+- [scenarios/](scenarios/) — AC для разработки  

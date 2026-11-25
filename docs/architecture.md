@@ -32,4 +32,42 @@ Cursor подтверждает форк Code — OSS. Есть и прямое 
 | Поменять сторону Sidebar или положение Panel | Штатные настройки и команды Workbench |
 | Перенести отдельное представление или его контейнер между доступными областями | Механизм views и контейнеров. В исходниках местоположение сохраняет `ViewDescriptorService`. Допустимость переноса зависит от представления |
 | Вложить терминал под редактором, оставив соседний чат на всю высоту, если штатные варианты не дают нужную геометрию | Изменить топологию сетки Workbench и согласовать фокус, ограничения размеров, сворачивание, команды и восстановление состояния |
-| Сделать окно AI-задач с другим набором частей | Собственная композиция на уровне от
+| Сделать окно AI-задач с другим набором частей | Собственная композиция на уровне окна / `sessions` или отдельный Agents Window; для MVP TripleCode использует Secondary Side Bar + минимальный патч сетки (ADR 0002) |
+
+## Текущая архитектура TripleCode (канон на 25.11.2026)
+
+Репозиторий `triplecode` **сегодня** — не дерево исходников Code-OSS. Рабочая модель:
+
+1. **Дистрибуция** — pinned VSCodium (Code-OSS) → rebrand → встраивание `triplecode-mvp` → ad hoc подпись macOS arm64 ([ADR 0001](adr/0001-macos-mvp-distribution.md), `scripts/build-macos.sh`).
+2. **Workbench** — минимальный патч топологии сетки и chrome в minified bundle, привязанный к SHA ([ADR 0002](adr/0002-workbench-layout-patch.md)).
+3. **Продукт** — first-party extension: Agents webview, Ask/Plan/Agent, Review/diff/checks, импорт профиля ([ADR 0003](adr/0003-profile-import.md)), desktop-аккаунт.
+4. **AI transport** — Ollama и OpenRouter BYOK из extension host; бэкенд TripleCode для inference на Stage 1 не обязателен.
+5. **Целевая эволюция** — source fork и `triplecode-web` по [repositories.md](repositories.md) и [strategy.md](strategy.md); restart IDE отклонён ([ADR 0004](adr/0004-continue-vs-rewrite.md)).
+
+```text
+VSCodium zip (pinned)
+  → product.json / branding / Open VSX posture
+  → apply-macos-keychain + apply-workbench-layout
+  → embed extensions/triplecode-mvp
+  → TripleCode.app
+
+triplecode-mvp
+  ├── extension host (agent orchestration, patch, checks, import, account)
+  ├── provider (LLM HTTP)
+  ├── inline (completion scaffold, off by default)
+  └── webview React (Agents UI, design system)
+```
+
+### Границы доверия MVP
+
+- Правки модели не пишутся в workspace без Review / Keep.
+- Авто-контекст исключает пути, похожие на секреты, по имени файла.
+- Пути правок ограничены workspace.
+- Run checks относится к рабочему дереву; Check patch — к временной копии с предложением.
+- Сторонний Marketplace и Microsoft Copilot chat в дистрибутиве отключены политикой продукта.
+
+### Условия пересмотра глубины форка
+
+Переход с repackage на дерево `src/` обязателен, если сработали пороги ADR 0002, публичная бета требует регулярного upstream merge, либо обязательный UX нельзя выразить через Extension API и минимальный патч. До этого момента новые возможности AI добавляем в extension и webview, а не в минифицированный Workbench.
+
+Срез зрелости: [maturity-assessment.md](maturity-assessment.md). Продуктовые этапы: [product-plan.md](product-plan.md).

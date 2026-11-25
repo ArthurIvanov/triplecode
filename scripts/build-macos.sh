@@ -14,12 +14,13 @@ if [[ "$(uname -s)" != Darwin || "$(uname -m)" != arm64 ]]; then
   exit 1
 fi
 
-# Base: VSCodium 1.143.17232 (VS Code 1.143.1)
-# Tag SHA: ca7f7b4
-# Release: https://github.com/VSCodium/vscodium/releases/tag/1.143.17232
-version=1.143.17232
-checksum=ade8f5e0ebf47e5ea9e2478844f150c68e43def192b6f8be05d0329d25ec0917
-asset="VSCodium-darwin-arm64-$version.zip"
+# Base pin: scripts/upstream.env
+# shellcheck disable=SC1091
+source "$root/scripts/upstream.env"
+# VSCodium $VSCODIUM_VERSION (tag $VSCODIUM_TAG_SHA)
+version="$VSCODIUM_VERSION"
+checksum="$VSCODIUM_DARWIN_ARM64_SHA256"
+asset="$VSCODIUM_DARWIN_ARM64_ASSET"
 cache="$root/.triplecode-dev/downloads"
 out="$root/dist"
 app_name=TripleCode

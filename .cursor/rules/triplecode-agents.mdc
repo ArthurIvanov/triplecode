@@ -1,0 +1,15 @@
+---
+description: TripleCode agent entry — roles, scenarios, no Workbench surgery without ADR
+globs:
+alwaysApply: true
+---
+
+# TripleCode
+
+- Read root `AGENTS.md` and `docs/engineering.md` before edits.
+- Product features require `Scenario: Sxx` from `docs/scenarios/` (or explicit AC).
+- Do not rewrite the IDE or build a Monaco-only shell (ADR 0004).
+- Do not patch minified Workbench/Electron from extension tasks — use `scripts/desktop/` and ADR 0002 thresholds.
+- Strategy: `docs/strategy.md`. Roadmap: `docs/roadmap.md`.
+- Extension boundaries: `extensions/triplecode-mvp/AGENTS.md`.
+- Web/API lives in sibling repo `triplecode-web`; sync via `docs/contracts-sync.md`.
