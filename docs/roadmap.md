@@ -99,8 +99,31 @@ SoT: [competitive-visual-parity.md](competitive-visual-parity.md) · Scenario [S
 | R-V2 | Timeline/diff/queue visual language | S19 | Design | ✓ changes strip + Build + queue/live |
 | R-V3 | Session rail ACC-like + PR cards (Devin) | S11 S19 | Design + AI | ✓ rail + kind toggle + PR card |
 | R-V4 | Evidence screenshots Cursor/Devin/TripleCode | evidence | Research | ✓ Cursor+Devin 25.11; TC shot optional |
+| R-V5 | Tab ghost + Cmd-K peek polish | S19 S20 | Design + AI | beta (with R-β3) |
+| R-V6 | `@` ranked results + index status | S19 S21 | Design + AI | beta (with R-β5) |
+| R-V7 | Editable queue chip + opt-in notify | S19 | Design + AI | beta P2 |
+| R-V8 | TripleCode side-by-side evidence | evidence | Research + QA | continuous |
 
-**Цель:** сильное сходство для миграции пользователей, без clone бренда и без rewrite IDE (ADR 0004).
+**Цель:** сильное сходство для миграции пользователей, без clone бренда и без rewrite IDE (ADR 0004).  
+UI handoff: [specs/public-beta-handoff-3-5-6-7.md](specs/public-beta-handoff-3-5-6-7.md) §UI.
+
+---
+
+## Волна β — Public beta gate (Stage 2)
+
+**SoT спецификация для агентов:** [specs/public-beta-handoff-3-5-6-7.md](specs/public-beta-handoff-3-5-6-7.md)  
+Пункты из gap-листа беты (3 / 5 / 6 / 7). Пункты 1–2–4 (signing/checkout/plugins) — Wave D / web / matrix, не в этом handoff.
+
+| ID | Gap# | Outcome | Scenario | Role | Spec |
+| --- | --- | --- | --- | --- | --- |
+| **R-β3** | 3 | Tab/inline smart default-on + IntelliSense QA | [S20](scenarios/S20-tab-inline-default.md) | AI + QA | handoff §3 |
+| **R-β5** | 5 | Local `@` context index + search | [S21](scenarios/S21-context-index-search.md) | AI | handoff §5 |
+| **R-β6** | 6 | Closed pilot protocol + metrics / Stage 1 exit | [S22](scenarios/S22-closed-pilot-metrics.md) | Продакт + Аналитик | handoff §6 |
+| **R-β7** | 7 | Live QA matrix macOS (+ Win/Linux smoke) | [S23](scenarios/S23-live-qa-public-beta.md) | QA + Релизы | handoff §7 |
+
+**UI parity plan для агентов:** тот же handoff §UI (R-V5…V8) + [competitive-visual-parity.md](competitive-visual-parity.md).
+
+**Выход волны β (вместе с D signing/checkout):** критерии Stage 2 в [product-plan.md](product-plan.md).
 
 ---
 
@@ -113,3 +136,4 @@ SoT: [competitive-visual-parity.md](competitive-visual-parity.md) · Scenario [S
 | A11–A12 | R-E* |
 | CI/release gaps | R-B* R-D* |
 | Visual migration parity | R-V* |
+| Public beta gate (Tab default, index, pilot metrics, live QA) | R-β* · [handoff spec](specs/public-beta-handoff-3-5-6-7.md) |

@@ -26,5 +26,10 @@
 | [S17](S17-packaging-three-os.md) | Packaging macOS/Win/Linux | MVP→beta | B |
 | [S18](S18-signing-update-wave-d.md) | Signing + update check | beta | D |
 | [S19](S19-visual-parity-cursor-devin.md) | Visual/UX parity Cursor+Devin | beta→full | V |
+| [S20](S20-tab-inline-default.md) | Tab/inline default-on | beta gate | β |
+| [S21](S21-context-index-search.md) | Context index + `@` search | beta gate | β |
+| [S22](S22-closed-pilot-metrics.md) | Closed pilot metrics | MVP exit | β |
+| [S23](S23-live-qa-public-beta.md) | Live QA public beta matrix | beta gate | β |
 
-Индекс роадмапа: [../roadmap.md](../roadmap.md) · [competitive-visual-parity.md](../competitive-visual-parity.md).
+Индекс роадмапа: [../roadmap.md](../roadmap.md) · [competitive-visual-parity.md](../competitive-visual-parity.md).  
+**Handoff агентам (пункты 3/5/6/7 + UI):** [../specs/public-beta-handoff-3-5-6-7.md](../specs/public-beta-handoff-3-5-6-7.md).

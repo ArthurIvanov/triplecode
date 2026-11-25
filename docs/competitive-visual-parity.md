@@ -86,9 +86,9 @@
 
 ## Следующие действия
 
-1. **R-E2 runtime** — cloud VM continue (web); UI already marks awaiting cloud.  
-2. **R-A1 / S09** — cabinet quotas в `triplecode-web`.  
-3. Опционально: скрины TripleCode Agents в evidence; не строить Agents Window shell (ADR 0004).
+1. **R-V5…V8** + **R-β3/β5** — см. handoff [specs/public-beta-handoff-3-5-6-7.md](specs/public-beta-handoff-3-5-6-7.md) §UI.  
+2. R-V8: скрины TripleCode Agents в evidence.  
+3. Не строить Agents Window shell (ADR 0004); cloud VM = R-E2 Stage 3.
 
 ## Links
 

@@ -140,14 +140,14 @@ P0 уточняет условия локального пилота. P1 и P2 �
 
 ## Первая очередь работ
 
-Очередь Stage 0–1 ниже **выполнена или почти выполнена** (см. статусы выше). Актуальный критический путь после аудита 25.11.2026:
+Очередь Stage 0–1 ниже **выполнена или почти выполнена** (см. статусы выше). Floors A–D/V + кабинет Pilot BYOK (R-A1) закрыты 25.11.  
+**Актуальный критический путь к публичной бете (Stage 2):**
 
-1. **Продакт / web.** Закрыть `triplecode-web`: кабинет, квоты, учёт AI — блокер внешнего пилота ([accounts.md](accounts.md), [strategy.md](strategy.md) волна A).
-2. **QA.** Добить ручную приёмку per-file Keep/Drop, Check patch, Undo и E2E импорта реального профиля.
-3. **Инженер релизов / IDE.** CI macOS + smoke agent P0; начать модульность/`tsc` host extension (волна B).
-4. **AI.** Streaming → tool-calling/MCP → индекс/@ → Tab/Cmd-K только в порядке волны C; не параллелить с незакрытым пилотным контуром без владельца интеграции.
-5. **Архитектура.** Source fork Code-OSS — по триггерам ADR 0002/0004, не как rewrite продукта.
-6. **Cloud / Devin.** Волна E после стабильного локального runtime и учёта стоимости.
+1. **Волна β** — Tab default, `@` index, pilot metrics, live QA: [specs/public-beta-handoff-3-5-6-7.md](specs/public-beta-handoff-3-5-6-7.md) · [roadmap.md](roadmap.md) R-β*.  
+2. **Релизы.** Подпись + update rollback на 3 ОС (S18 / gap #1).  
+3. **Web.** Hosted checkout (gap #2).  
+4. **Плагины.** Расширенная матрица Win/Linux (gap #4).  
+5. **Cloud / Devin.** Волна E = Stage 3, не условие беты.
 
 Историческая первая очередь discovery (для трассировки):
 
