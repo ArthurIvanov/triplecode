@@ -22,7 +22,7 @@ type Chat = {
   status?: string;
   queued?: number;
   mode?: Mode;
-  replies?: (string | { type: 'timeline'; steps: TimelineItemProps[] })[];
+  replies?: (string | { type: 'request'; text: string } | { type: 'timeline'; steps: TimelineItemProps[] })[];
   plan?: { id: string; task: string; plan: string } | null;
   attachments?: Attachment[];
 };
@@ -225,6 +225,9 @@ export function Agent({ initial }: { initial: Initial }) {
     <section id="conversation" className="conversation" hidden={!replies.length && !patch && !progress} aria-label="Agent output">
       <div id="messages">
         {replies.map((reply, index) => {
+          if (typeof reply === 'object' && reply.type === 'request') {
+            return <p className="agent-message agent-message--request" key={index}>{reply.text}</p>;
+          }
           if (typeof reply === 'object' && reply.type === 'timeline') {
             return (
               <Accordion key={index} title="Timeline" className="agent-run agent-run--history">

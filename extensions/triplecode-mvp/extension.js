@@ -511,6 +511,9 @@ function activate(context) {
         mode: ['ask', 'plan', 'agent'].includes(chat.mode) ? chat.mode : 'agent',
         replies: Array.isArray(chat.replies) ? chat.replies.flatMap(reply => {
           if (typeof reply === 'string') return [reply];
+          if (reply && reply.type === 'request' && typeof reply.text === 'string') {
+            return [{ type: 'request', text: reply.text.slice(0, 2000) }];
+          }
           if (reply && reply.type === 'timeline' && Array.isArray(reply.steps)) {
             const steps = reply.steps
               .filter(step => step && typeof step.title === 'string')
@@ -1065,12 +1068,9 @@ function activate(context) {
 
   function recordActionStep(chat, type, title, description) {
     const step = { type, title, description, timestamp: Date.now(), status: 'completed' };
-    const last = chat.replies[chat.replies.length - 1];
-    if (last && typeof last === 'object' && last.type === 'timeline') {
-      last.steps.push(step);
-    } else {
-      chat.replies.push({ type: 'timeline', steps: [step] });
-    }
+    const last = [...chat.replies].reverse().find(item => item && typeof item === 'object' && item.type === 'timeline');
+    if (last) last.steps.push(step);
+    else chat.replies.push({ type: 'timeline', steps: [step] });
     persistChats();
     if (currentChat === chat) agent?.postMessage({ type: 'chats', ...chatState() });
   }
@@ -1110,12 +1110,12 @@ function activate(context) {
       chat.attachments = [];
     }
     chat.plan = plan;
-    if (reply) chat.replies.push(reply);
     // Persist timeline steps as part of chat history
     if (chat.timelineSteps && chat.timelineSteps.length) {
       chat.replies.push({ type: 'timeline', steps: chat.timelineSteps });
       chat.timelineSteps = [];
     }
+    if (reply) chat.replies.push(reply);
   }
 
   function answerAsk(document, request) {
@@ -1186,6 +1186,9 @@ function activate(context) {
     const { chat, document, signal } = run;
     const attachments = run.approvedPlan ? [] : chat.attachments || [];
     postProgress(run, 'Checking provider…');
+    chat.replies.push({ type: 'request', text: trimmed });
+    persistChats();
+    agent?.postMessage({ type: 'chats', ...chatState() });
     addTimelineStep(run, 'step', 'Checking provider', 'Verifying AI provider availability');
     const useAi = await aiAvailable();
     signal.throwIfAborted();

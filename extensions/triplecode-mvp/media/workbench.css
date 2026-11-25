@@ -392,6 +392,10 @@ body[data-screen="agent"] { height: 100vh; overflow: hidden; }
   font-size: 14px;
   line-height: 20px;
 }
+.agent-message--request {
+  border-color: var(--triplecode-chat-request-border, var(--triplecode-theme-focusBorder, var(--vscode-focusBorder)));
+  box-shadow: var(--triplecode-shadow-soft, 0 1px 2px rgb(0 0 0 / 12%));
+}
 .patch {
   border: 1px solid var(--triplecode-chat-request-border, var(--triplecode-theme-input-border));
   border-radius: var(--triplecode-s, 4px);
