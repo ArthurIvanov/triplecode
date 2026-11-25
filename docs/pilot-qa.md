@@ -21,6 +21,7 @@
 | Agent multi-file правки | ✅ | Keep/Drop/Undo/stale: логика вынесена в `review-logic.cjs`, smoke 25.11.2026 (`npm --prefix extensions/triplecode-mvp test`). Cross-file AI mistakes по-прежнему ловятся Review + Run checks |
 | S03 Ask no disk writes | ✅ | `agent-modes` + Ask branch 25.11 — [S03](scenarios/S03-ask-no-writes.md) |
 | S04 Plan edit → Execute → Review | ✅ | Editable plan + >8k execute payload 25.11 — [S04](scenarios/S04-plan-execute-review.md) |
+| S08 @ context + rules (MVP) | ✅ | Secret exclude + Rules badge + chips 25.11 — [S08](scenarios/S08-context-at-and-rules.md); beta inline `@` pending |
 | S05 Keep/Drop + Undo conflict | ✅ | Unit + code path 25.11.2026 — [S05](scenarios/S05-agent-multifile-keep-drop.md) |
 | S06 Stop / late response guard | ✅ | P0 22.11 + `isActiveRun` regression 25.11 — [S06](scenarios/S06-stop-timeout-late.md) |
 | S07 Run checks vs Check patch | ✅ | Isolated-copy smoke + UI labels 25.11 — [S07](scenarios/S07-run-checks-vs-check-patch.md) |

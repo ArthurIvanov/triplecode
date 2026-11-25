@@ -17,6 +17,10 @@ const {
 const {
   allowRequestLength, buildExecuteRequest, sanitizePlanEdit
 } = require('./agent-modes');
+const {
+  ATTACHMENT_LIMIT, RULES_LIMIT,
+  isSensitivePath, canAttachFile, rulesSuffix, hasRulesBadge
+} = require('./context-rules');
 
 let getSessionAccessToken = () => Promise.resolve(null);
 const { registerInlineAI } = require('./inline');
@@ -497,7 +501,7 @@ function activate(context) {
         name: chat.name || '',
         queue: (chat.queue || []).slice(0, 3).map(item => ({ request: String(item.request || '').slice(0, 500), mode: item.mode })),
         plan: chat.plan || null,
-        attachments: (chat.attachments || []).slice(0, 5).map(attachment =>
+        attachments: (chat.attachments || []).slice(0, ATTACHMENT_LIMIT).map(attachment =>
           attachment.kind === 'selection'
             ? { kind: 'selection', label: String(attachment.label || 'selection').slice(0, 120), text: String(attachment.text || '').slice(0, 4000) }
             : { kind: 'file', path: String(attachment.path || '') })
@@ -536,7 +540,7 @@ function activate(context) {
           ? { id: typeof chat.plan.id === 'string' ? chat.plan.id : randomUUID(), task: chat.plan.task, plan: chat.plan.plan }
           : null,
         attachments: Array.isArray(chat.attachments)
-          ? chat.attachments.filter(a => a && (a.kind === 'file' ? typeof a.path === 'string' : a.kind === 'selection' && typeof a.text === 'string')).slice(0, 5)
+          ? chat.attachments.filter(a => a && (a.kind === 'file' ? typeof a.path === 'string' && !isSensitivePath(a.path) : a.kind === 'selection' && typeof a.text === 'string')).slice(0, ATTACHMENT_LIMIT)
           : [],
         queue: Array.isArray(chat.queue)
           ? chat.queue.filter(item => item && typeof item.request === 'string' && item.request.trim())
@@ -895,10 +899,8 @@ function activate(context) {
       throw error;
     }
   }
-  const contextExcludePattern = /(^|[\\/])(\.env($|\.)|[^\\/]*\.(pem|key|p12|pfx)$|[^\\/]*(secret|credential)[^\\/]*|id_rsa)/i;
-
   function isContextExcluded(document) {
-    return contextExcludePattern.test(document.uri.fsPath);
+    return isSensitivePath(document.uri.fsPath);
   }
 
   const projectTreeExclude = '**/{node_modules,.git,dist,build,out,coverage,.next,.turbo,.venv,vendor}/**';
@@ -909,7 +911,7 @@ function activate(context) {
       const files = await vscode.workspace.findFiles('**/*', projectTreeExclude, limit);
       return files
         .map(uri => vscode.workspace.asRelativePath(uri))
-        .filter(rel => !contextExcludePattern.test(rel))
+        .filter(rel => !isSensitivePath(rel))
         .join('\n');
     } catch {
       return '';
@@ -920,7 +922,7 @@ function activate(context) {
     const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
     if (!root) return '';
     try {
-      return readFileSync(join(root, '.triplecode', 'rules.md'), 'utf-8').trim().slice(0, 4000);
+      return readFileSync(join(root, '.triplecode', 'rules.md'), 'utf-8').trim().slice(0, RULES_LIMIT);
     } catch {
       return '';
     }
@@ -1248,8 +1250,8 @@ function activate(context) {
     signal.throwIfAborted();
     if (run.approvedPlan && !useAi) throw new Error('The approved plan requires an AI provider. Check the connection and retry.');
     const rules = repoRules();
-    const rulesSuffix = rules ? `\n\nRepository rules (.triplecode/rules.md):\n${rules}` : '';
-    const aiRequest = trimmed + attachmentSuffix(attachments) + rulesSuffix;
+    const withRules = rulesSuffix(rules);
+    const aiRequest = trimmed + attachmentSuffix(attachments) + withRules;
     const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
     if (mode === 'ask') {
       const tree = useAi ? await projectTree(root) : '';
@@ -1296,7 +1298,7 @@ function activate(context) {
       }
       const selectionSuffix = attachments.filter(a => a.kind === 'selection')
         .map(a => `\`\`\`\n${a.text}\n\`\`\``).join('\n');
-      const agentRequest = trimmed + (selectionSuffix ? `\n\nAttached selection:\n${selectionSuffix}` : '') + rulesSuffix;
+      const agentRequest = trimmed + (selectionSuffix ? `\n\nAttached selection:\n${selectionSuffix}` : '') + withRules;
       signal.throwIfAborted();
       if (/^(analy[sz]e|explain|describe|summari[sz]e|review|what|how|why|list|show|overview|architecture|audit|inspect|examine|walk)\b/i.test(trimmed)) {
         const tree = await projectTree(root);
@@ -1683,7 +1685,7 @@ function activate(context) {
         const mode = vscode.workspace.getConfiguration('triplecode').get('ai.provider', 'auto');
         return { openrouter: 'OpenRouter', ollama: 'Ollama', stub: 'Stub' }[mode] || 'Auto';
       })(),
-      rules: Boolean(repoRules()),
+      rules: hasRulesBadge(repoRules()),
       progress: activeRun?.chat === currentChat ? activeRun.progress : null,
       status: currentChat.status || ''
     };
@@ -1823,6 +1825,7 @@ function activate(context) {
         50
       );
       for (const file of files) {
+        if (isSensitivePath(file.fsPath)) continue;
         items.push({
           label: '$(file) ' + (root && file.fsPath.startsWith(root) ? file.fsPath.slice(root.length + 1) : file.fsPath),
           description: file.fsPath,
@@ -1844,14 +1847,23 @@ function activate(context) {
 
   function pushAttachment(attachment) {
     currentChat.attachments = currentChat.attachments || [];
-    const exists = currentChat.attachments.some(existing =>
-      existing.kind === attachment.kind &&
-      (attachment.kind === 'file' ? existing.path === attachment.path : existing.text === attachment.text));
-    if (!exists && currentChat.attachments.length < 5) {
-      currentChat.attachments.push(attachment);
-      persistChats();
-      agent?.postMessage({ type: 'chats', ...chatState() });
+    if (attachment.kind === 'file') {
+      const gate = canAttachFile(attachment.path, currentChat.attachments);
+      if (!gate.ok) {
+        if (gate.reason === 'sensitive') {
+          void vscode.window.showWarningMessage('That file looks sensitive and was not attached.');
+        }
+        return;
+      }
+    } else if (currentChat.attachments.length >= ATTACHMENT_LIMIT) {
+      return;
+    } else if (currentChat.attachments.some(existing =>
+      existing.kind === attachment.kind && existing.text === attachment.text)) {
+      return;
     }
+    currentChat.attachments.push(attachment);
+    persistChats();
+    agent?.postMessage({ type: 'chats', ...chatState() });
   }
 
   function updateChats(id, close) {

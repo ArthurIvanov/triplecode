@@ -54,7 +54,7 @@
 | R-C1 | Streaming tokens in Agents UI | S04/S05 | streaming, partial message | AI + Design | provider | beta |
 | R-C2 | Tool-calling loop (read/edit/check) | S05 S07 | timeline tool steps real | AI | — | beta |
 | R-C3 | MCP host + permissions UI | — | MCP connect/deny | AI + Security | — | beta |
-| R-C4 | `@` picker + index/search context | S08 | @ menu, chips keyboard | AI + Design | — | beta |
+| R-C4 | `@` picker + index/search context | S08 | @ menu, chips keyboard | AI + Design | — | MVP chips/rules ✓; beta inline picker |
 | R-C5 | Cmd-K + enable Tab | S10 | ghost text, selection edit | AI + Design | completion model | beta |
 | R-C6 | Debug/diagnostics mode | — | debug collect logs | AI | — | beta |
 

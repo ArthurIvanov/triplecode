@@ -34,3 +34,4 @@
 - Пути правок только внутри workspace.
 - Изменения Review/apply/undo/check — обновляй `review-logic.cjs` и `npm test` (S05–S07).
 - Изменения Ask/Plan/Execute — обновляй `agent-modes.cjs` и `npm test` (S03–S04).
+- Изменения @/attachments/rules — обновляй `context-rules.cjs` и `npm test` (S08).
