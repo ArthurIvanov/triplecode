@@ -126,7 +126,8 @@ function multiFileMessages(documents, request, projectTree = '') {
       content: `Files:\n\n${context}${tree}\n\nTask: ${request}\n\n` +
         'For each file that must change, output a line FILE: followed by its workspace-relative path, ' +
         'then the COMPLETE updated file content inside one code fence. You may edit any file from ' +
-        'the project listing. Keep every untouched line identical.'
+        'the project listing. To inspect a file you have not seen, output a line READ: followed by ' +
+        'its workspace-relative path. Keep every untouched line identical.'
     }
   ];
 }
@@ -147,8 +148,13 @@ function parseMultiRewrite(text) {
       files.push({ path: match[1].trim(), content });
     }
   }
-  if (!files.length) return null;
-  return { files };
+  const reads = [];
+  const outsideFences = text.replace(/```[\s\S]*?```/g, '');
+  for (const read of outsideFences.matchAll(/^READ:[ \t]*(\S+)[ \t]*$/gm)) {
+    reads.push(read[1].trim().replace(/^['"]+|['"]+$/g, ''));
+  }
+  if (!files.length && !reads.length) return null;
+  return { files, reads };
 }
 
 function parseRewrite(text) {

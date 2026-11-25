@@ -972,39 +972,48 @@ function activate(context) {
     const tree = await projectTree(root);
     if (tree) addTimelineStep(run, 'tool', 'Project map', `Indexed ${tree.split('\n').length} project files`);
     const options = { numPredict: 8192, numCtx: 32768, feature: 'agent', run };
+    const maxContextDocs = 10;
+    const extraDocs = [];
     const knownUris = new Set(documents.map(document => document.uri.toString()));
 
     let contextDocs = documents;
-    postProgress(run, 'Waiting for model…');
-    let reply = await aiChat(provider.multiFileMessages(contextDocs, request, tree), run.signal, options);
-    run.signal.throwIfAborted();
-    let parsed = provider.parseMultiRewrite(reply);
-    if (!parsed) throw aiParseError(reply);
+    const ask = async () => {
+      postProgress(run, 'Waiting for model…');
+      const text = await aiChat(provider.multiFileMessages(contextDocs, request, tree), run.signal, options);
+      run.signal.throwIfAborted();
+      const result = provider.parseMultiRewrite(text);
+      if (!result) throw aiParseError(text);
+      return result;
+    };
+
+    let parsed = await ask();
     if (parsed.answer) return { reply: parsed.answer };
 
-    if (!parsed.noChange) {
+    for (let round = 0; round < 2 && !parsed.noChange; round++) {
+      const wanted = [...parsed.files.map(entry => entry.path), ...(parsed.reads || [])];
+      if (!wanted.length) break;
       const missing = [];
       const requested = new Set();
-      for (const entry of parsed.files.slice(0, 8)) {
+      for (const path of wanted.slice(0, 10)) {
         run.signal.throwIfAborted();
         try {
-          const document = await openModelFile(entry.path, root);
+          const document = await openModelFile(path, root);
           if (!knownUris.has(document.uri.toString()) && !requested.has(document.uri.toString())) {
             requested.add(document.uri.toString());
             missing.push(document);
           }
         } catch { /* invalid paths are rejected again on the final pass */ }
       }
-      if (missing.length) {
-        contextDocs = [...documents, ...missing].slice(0, 8);
-        postProgress(run, 'Expanding context…');
-        addTimelineStep(run, 'tool', 'Expand context', `Adding ${missing.length} file${missing.length === 1 ? '' : 's'} to context`);
-        reply = await aiChat(provider.multiFileMessages(contextDocs, request, tree), run.signal, options);
-        run.signal.throwIfAborted();
-        parsed = provider.parseMultiRewrite(reply);
-        if (!parsed) throw aiParseError(reply);
-        if (parsed.answer) return { reply: parsed.answer };
+      if (!missing.length) break;
+      for (const document of missing) {
+        extraDocs.push(document);
+        knownUris.add(document.uri.toString());
       }
+      contextDocs = [...documents, ...extraDocs].slice(0, maxContextDocs);
+      postProgress(run, 'Expanding context…');
+      addTimelineStep(run, 'tool', 'Expand context', `Round ${round + 1}: adding ${missing.length} file${missing.length === 1 ? '' : 's'} to context`);
+      parsed = await ask();
+      if (parsed.answer) return { reply: parsed.answer };
     }
     run.signal.throwIfAborted();
     const contextUris = new Set(contextDocs.map(document => document.uri.toString()));
@@ -1016,6 +1025,7 @@ function activate(context) {
     const specs = [];
     const seenPaths = new Set();
     const failedPaths = [];
+    let dropped = 0;
     for (const entry of parsed.files.slice(0, 8)) {
       run.signal.throwIfAborted();
       let document;
@@ -1026,7 +1036,11 @@ function activate(context) {
         failedPaths.push(`${entry.path} — ${error.message}`);
         continue;
       }
-      if (seenPaths.has(document.uri.toString()) || !contextUris.has(document.uri.toString())) continue;
+      if (seenPaths.has(document.uri.toString())) continue;
+      if (!contextUris.has(document.uri.toString())) {
+        dropped++;
+        continue;
+      }
       seenPaths.add(document.uri.toString());
       const eol = document.eol === vscode.EndOfLine.CRLF ? '\r\n' : '\n';
       const edit = provider.diffEdit(document.getText(), entry.content, eol);
@@ -1034,6 +1048,9 @@ function activate(context) {
     }
     if (!specs.length && failedPaths.length) {
       throw new Error(`The model referenced files that could not be opened:\n${failedPaths.join('\n')}`);
+    }
+    if (dropped) {
+      addTimelineStep(run, 'message', 'Skipped files', `${dropped} proposed file${dropped === 1 ? '' : 's'} exceeded the context limit and ${dropped === 1 ? 'was' : 'were'} not included in the patch`);
     }
     return specs.length ? { specs } : { reply: 'The model did not propose a change.' };
   }
