@@ -38,6 +38,15 @@ type Assets = Record<'close' | 'plus' | 'actions' | 'chevron' | 'context' | 'att
   'crown' | 'listTodo' | 'messageSquare' | 'check' | 'chevronDown', string>;
 type Initial = ChatState & { target: string; pending: Patch | null; assets: Assets };
 type Progress = { chat: number; text: string; startedAt: number; steps?: TimelineItemProps[] };
+type AttachCandidate = {
+  id: string;
+  label: string;
+  description?: string;
+  kind: 'file' | 'selection';
+  path?: string;
+  attachment: Attachment;
+};
+type AtMention = { start: number; query: string; end: number };
 type HostMessage =
   | { type: 'focus-composer' }
   | { type: 'target'; name: string }
@@ -45,20 +54,47 @@ type HostMessage =
   | ({ type: 'progress' } & Progress)
   | { type: 'complete' | 'error'; text: string }
   | ({ type: 'chats'; focusPrompt?: boolean } & ChatState)
-  | { type: 'timeline-step'; chat: number; item: TimelineItemProps };
+  | { type: 'timeline-step'; chat: number; item: TimelineItemProps }
+  | { type: 'attach-candidates'; id: number; items: AttachCandidate[]; open?: boolean };
 type ViewMessage =
-  | { type: 'select-chat' | 'close-chat' | 'stop' | 'attach-menu' | 'clear-queue'; id: number }
+  | { type: 'select-chat' | 'close-chat' | 'stop' | 'attach-menu' | 'clear-queue' | 'attach-query'; id: number }
   | { type: 'draft'; id: number; value: string }
   | { type: 'mode'; id: number; mode: Mode }
   | { type: 'propose'; id: number; request: string; mode: Mode }
   | { type: 'detach-context'; index: number }
   | { type: 'attach-file'; id: number; path: string }
+  | { type: 'attach-pick'; id: number; attachment: Attachment }
   | { type: 'discard-plan' | 'execute-plan'; id: number; planId: string }
   | { type: 'update-plan'; id: number; planId: string; plan: string }
   | { type: 'new-chat' | 'chat-actions' | 'check' | 'check-patch' | 'discard' | 'apply' | 'review' |
       'select-model' | 'refresh-models' | 'ready' | 'close-agent' }
   | { type: 'model'; value: string }
   | { type: 'apply-file' | 'discard-file'; id: number; index: number };
+
+/** Mirror of context-rules.parseAtQuery for the webview bundle (no CJS require). */
+function parseAtQuery(text: string, cursor: number): AtMention | null {
+  if (!Number.isInteger(cursor) || cursor < 0 || cursor > text.length) return null;
+  const before = text.slice(0, cursor);
+  const match = before.match(/(?:^|[\s])@([^\s@]*)$/);
+  if (!match) return null;
+  return { start: before.lastIndexOf('@'), query: match[1], end: cursor };
+}
+
+function stripAtQuery(text: string, mention: AtMention): string {
+  return `${text.slice(0, mention.start)}${text.slice(mention.end)}`;
+}
+
+function filterAttachCandidates(candidates: AttachCandidate[], query: string, limit = 12): AttachCandidate[] {
+  const needle = query.toLowerCase();
+  const out: AttachCandidate[] = [];
+  for (const item of candidates) {
+    const hay = `${item.label} ${item.description || ''}`.toLowerCase();
+    if (needle && !hay.includes(needle)) continue;
+    out.push(item);
+    if (out.length >= limit) break;
+  }
+  return out;
+}
 
 type VsCodeApi = { postMessage(message: ViewMessage): void };
 const vscode: VsCodeApi = (globalThis as { acquireVsCodeApi?: () => VsCodeApi }).acquireVsCodeApi?.()
@@ -246,8 +282,16 @@ export function Agent({ initial }: { initial: Initial }) {
   const [dragOver, setDragOver] = useState(false);
   const [expandedTimelines, setExpandedTimelines] = useState<ReadonlySet<number>>(new Set());
   const [activeTurn, setActiveTurn] = useState<number>();
+  const [attachPool, setAttachPool] = useState<AttachCandidate[]>([]);
+  const [atMention, setAtMention] = useState<AtMention | null>(null);
+  const [atHighlight, setAtHighlight] = useState(0);
   const prompt = useRef<HTMLTextAreaElement>(null);
   const reviewButton = useRef<HTMLButtonElement>(null);
+  const selectedRef = useRef(state.selected);
+  const draftRef = useRef(state.draft);
+  selectedRef.current = state.selected;
+  draftRef.current = state.draft;
+  const atItems = atMention ? filterAttachCandidates(attachPool, atMention.query) : [];
   const { patch, selected, mode } = state;
   const chat = state.chats.find(item => item.id === selected);
   const replies = chat?.replies || [];
@@ -304,8 +348,35 @@ export function Agent({ initial }: { initial: Initial }) {
 
   useLayoutEffect(() => {
     function receive(event: MessageEvent<HostMessage>) {
-      dispatch(event.data);
-      if (event.data.type === 'complete') setFilesOpen(true);
+      const data = event.data;
+      if (data.type === 'attach-candidates') {
+        if (data.id !== selectedRef.current) return;
+        setAttachPool(Array.isArray(data.items) ? data.items : []);
+        setAtHighlight(0);
+        if (data.open) {
+          const field = prompt.current;
+          const draft = draftRef.current;
+          const cursor = field?.selectionStart ?? draft.length;
+          const existing = parseAtQuery(draft, cursor);
+          if (!existing && field) {
+            const next = `${draft.slice(0, cursor)}@${draft.slice(cursor)}`;
+            dispatch({ type: 'edit', value: next });
+            send({ type: 'draft', id: selectedRef.current, value: next });
+            setAtMention({ start: cursor, query: '', end: cursor + 1 });
+            requestAnimationFrame(() => {
+              field.focus();
+              field.setSelectionRange(cursor + 1, cursor + 1);
+            });
+          } else if (existing) {
+            setAtMention(existing);
+          } else {
+            setAtMention({ start: cursor, query: '', end: cursor });
+          }
+        }
+        return;
+      }
+      dispatch(data);
+      if (data.type === 'complete') setFilesOpen(true);
     }
     window.addEventListener('message', receive);
     send({ type: 'ready' });
@@ -321,9 +392,39 @@ export function Agent({ initial }: { initial: Initial }) {
     }
   }, [state.focusRequest]);
 
+  useEffect(() => {
+    setAtMention(null);
+    setAttachPool([]);
+    setAtHighlight(0);
+  }, [selected]);
+
+  function syncAtMention(value: string, cursor: number) {
+    const mention = parseAtQuery(value, cursor);
+    setAtMention(mention);
+    setAtHighlight(0);
+    if (mention && !attachPool.length) send({ type: 'attach-query', id: selected });
+  }
+
+  function pickAttach(item: AttachCandidate) {
+    const field = prompt.current;
+    const mention = atMention || (field ? parseAtQuery(state.draft, field.selectionStart ?? state.draft.length) : null);
+    const next = mention ? stripAtQuery(state.draft, mention) : state.draft;
+    setAtMention(null);
+    setAtHighlight(0);
+    dispatch({ type: 'edit', value: next });
+    send({ type: 'draft', id: selected, value: next });
+    send({ type: 'attach-pick', id: selected, attachment: item.attachment });
+    requestAnimationFrame(() => {
+      if (!field) return;
+      field.focus();
+      const pos = mention ? mention.start : next.length;
+      field.setSelectionRange(pos, pos);
+    });
+  }
+
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (patch) return;
+    if (patch || atMention) return;
     if (!state.submitting) dispatch({ type: 'submit' });
     send({ type: 'propose', id: selected, request: state.draft, mode });
   }
@@ -525,35 +626,84 @@ export function Agent({ initial }: { initial: Initial }) {
           </span>;
         })}
       </div>
-      <label className="sr-only" htmlFor="prompt">Agent task</label>
-      <textarea id="prompt" ref={prompt} maxLength={500}
-        placeholder="Describe a task. Type @ for context." required disabled={!!patch}
-        value={state.draft}
-        onChange={event => {
-          const value = event.currentTarget.value;
-          dispatch({ type: 'edit', value });
-          send({ type: 'draft', id: selected, value });
-        }}
-        onKeyDown={event => {
-          if (event.nativeEvent.isComposing) return;
-          if (event.key === 'Escape') {
-            event.preventDefault();
-            if (state.submitting) send({ type: 'stop', id: selected });
-            else send({ type: 'close-agent' });
-            return;
-          }
-          const field = event.currentTarget;
-          if (event.key === '@' && !state.submitting && field.selectionStart === field.selectionEnd &&
-              (field.selectionStart === 0 || /\s/.test(field.value[field.selectionStart - 1]))) {
-            event.preventDefault();
-            send({ type: 'attach-menu', id: selected });
-            return;
-          }
-          if (event.key === 'Enter' && !event.shiftKey && !event.altKey && !event.ctrlKey && !event.metaKey) {
-            event.preventDefault();
-            if (!state.submitting) field.form?.requestSubmit();
-          }
-        }} />
+      <div className="composer-prompt">
+        {atMention && <div id="at-picker" className="at-picker" role="listbox" aria-label="Attach context">
+          {atItems.length === 0
+            ? <div className="at-picker__empty">No matches — keep typing or Esc</div>
+            : atItems.map((item, index) => (
+              <button type="button" role="option" key={item.id}
+                className={index === atHighlight ? 'at-picker__item is-active' : 'at-picker__item'}
+                aria-selected={index === atHighlight}
+                onMouseEnter={() => setAtHighlight(index)}
+                onClick={() => pickAttach(item)}>
+                <span className="at-picker__label">{item.label}</span>
+                {item.description && <span className="at-picker__desc">{item.description}</span>}
+              </button>
+            ))}
+        </div>}
+        <label className="sr-only" htmlFor="prompt">Agent task</label>
+        <textarea id="prompt" ref={prompt} maxLength={500}
+          placeholder="Describe a task. Type @ for context." required disabled={!!patch}
+          value={state.draft}
+          aria-expanded={Boolean(atMention)}
+          aria-controls={atMention ? 'at-picker' : undefined}
+          onChange={event => {
+            const value = event.currentTarget.value;
+            const cursor = event.currentTarget.selectionStart ?? value.length;
+            dispatch({ type: 'edit', value });
+            send({ type: 'draft', id: selected, value });
+            if (!state.submitting) syncAtMention(value, cursor);
+          }}
+          onKeyDown={event => {
+            if (event.nativeEvent.isComposing) return;
+            const field = event.currentTarget;
+            if (atMention) {
+              if (event.key === 'Escape') {
+                event.preventDefault();
+                setAtMention(null);
+                return;
+              }
+              if (event.key === 'ArrowDown') {
+                event.preventDefault();
+                setAtHighlight(i => atItems.length ? (i + 1) % atItems.length : 0);
+                return;
+              }
+              if (event.key === 'ArrowUp') {
+                event.preventDefault();
+                setAtHighlight(i => atItems.length ? (i - 1 + atItems.length) % atItems.length : 0);
+                return;
+              }
+              if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault();
+                const item = atItems[atHighlight] || atItems[0];
+                if (item) pickAttach(item);
+                return;
+              }
+              if (event.key === 'Tab' && atItems.length) {
+                event.preventDefault();
+                const item = atItems[atHighlight] || atItems[0];
+                if (item) pickAttach(item);
+                return;
+              }
+            }
+            if (event.key === 'Escape') {
+              event.preventDefault();
+              if (state.submitting) send({ type: 'stop', id: selected });
+              else send({ type: 'close-agent' });
+              return;
+            }
+            if (event.key === 'Backspace' && !state.submitting &&
+                field.value === '' && field.selectionStart === 0 && attachments.length) {
+              event.preventDefault();
+              send({ type: 'detach-context', index: attachments.length - 1 });
+              return;
+            }
+            if (event.key === 'Enter' && !event.shiftKey && !event.altKey && !event.ctrlKey && !event.metaKey) {
+              event.preventDefault();
+              if (!state.submitting && !atMention) field.form?.requestSubmit();
+            }
+          }} />
+      </div>
       <footer className="chat-actions">
         <div className="chat-pickers">
           <Dropdown

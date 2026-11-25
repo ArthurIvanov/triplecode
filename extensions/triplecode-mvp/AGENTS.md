@@ -34,6 +34,6 @@
 - Пути правок только внутри workspace.
 - Изменения Review/apply/undo/check — обновляй `review-logic.cjs` и `npm test` (S05–S07).
 - Изменения Ask/Plan/Execute — обновляй `agent-modes.cjs` и `npm test` (S03–S04).
-- Изменения @/attachments/rules — обновляй `context-rules.cjs` и `npm test` (S08).
+- Изменения @/attachments/rules/inline picker — обновляй `context-rules.cjs`, `webview/agent.tsx`, `npm test` + `build:webview` (S08).
 - Изменения Welcome/recent/first-launch defaults — обновляй `welcome-logic.cjs` и `npm test` (S01).
 - Изменения import/preview/rollback/секреты — обновляй `import-logic.cjs` и `npm test` (S02).

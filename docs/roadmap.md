@@ -27,7 +27,7 @@
 | R-A3 | Check patch vs Run checks labeling | S07 | Review check badge, history | QA + AI | — | MVP ✓ 25.11 |
 | R-A4 | Plan edit + Execute confirmed version | S04 | Plan card expanded/edit/execute | AI + Design | — | MVP ✓ 25.11 |
 | R-A0 | First launch Open Folder without account | S01 | Welcome empty/recent | IDE | — | MVP ✓ 25.11 |
-| R-A5 | E2E import real VS Code profile | S02 | Import preview/report/rollback | IDE + QA | — | MVP |
+| R-A5 | E2E import real VS Code profile | S02 | Import preview/report/rollback | IDE + QA | — | MVP ✓ 25.11 (live E2E optional) |
 | R-A6 | Docs SoT repaired (audit/architecture) | — | — | Продакт | — | MVP |
 
 **Визуал A:** composer (empty, drafting, running, stopped, error); Review (proposed, checking, conflict); Account chip states. Tokens: `triplecode.chat.*`, button Primary/Secondary/Tertiary.
@@ -55,7 +55,7 @@
 | R-C1 | Streaming tokens in Agents UI | S04/S05 | streaming, partial message | AI + Design | provider | beta |
 | R-C2 | Tool-calling loop (read/edit/check) | S05 S07 | timeline tool steps real | AI | — | beta |
 | R-C3 | MCP host + permissions UI | — | MCP connect/deny | AI + Security | — | beta |
-| R-C4 | `@` picker + index/search context | S08 | @ menu, chips keyboard | AI + Design | — | MVP chips/rules ✓; beta inline picker |
+| R-C4 | `@` picker + index/search context | S08 | @ menu, chips keyboard | AI + Design | — | MVP+beta ✓ 25.11 (index/search later) |
 | R-C5 | Cmd-K + enable Tab | S10 | ghost text, selection edit | AI + Design | completion model | beta |
 | R-C6 | Debug/diagnostics mode | — | debug collect logs | AI | — | beta |
 

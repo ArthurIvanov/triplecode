@@ -21,6 +21,7 @@ const {
   ATTACHMENT_LIMIT, RULES_LIMIT,
   isSensitivePath, canAttachFile, rulesSuffix, hasRulesBadge
 } = require('./context-rules');
+// parseAtQuery / filterAttachCandidates live in context-rules for webview tests; host uses listAttachCandidates below.
 const {
   shouldShowWelcome, updateRecentFolders, filterExistingRecent
 } = require('./welcome-logic');
@@ -735,9 +736,22 @@ function activate(context) {
             break;
           case 'attach-menu':
             if (message.id !== currentChat.id) break;
-            await showAttachMenu();
+            await showAttachMenu({ preferInline: Boolean(agent) });
             if (message.id === currentChat.id && view.visible) {
               agent?.postMessage({ type: 'chats', ...chatState(), focusPrompt: true });
+            }
+            break;
+          case 'attach-query':
+            if (message.id !== currentChat.id || activeRun || pending) break;
+            agent?.postMessage({
+              type: 'attach-candidates',
+              id: currentChat.id,
+              items: await listAttachCandidates()
+            });
+            break;
+          case 'attach-pick':
+            if (!activeRun && !pending && message.id === currentChat.id && message.attachment) {
+              pushAttachment(message.attachment);
             }
             break;
           case 'detach-context':
@@ -1773,18 +1787,17 @@ function activate(context) {
     }
   }
 
-  async function showAttachMenu() {
-    if (activeRun) return;
-    if (pending) {
-      await vscode.window.showInformationMessage('Apply or discard the current patch first.');
-      return;
-    }
-    const chat = currentChat;
+  async function listAttachCandidates() {
     const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || '';
     const items = [];
-    if (activeDocument && !activeDocument.isClosed && activeDocument.uri.scheme === 'file') {
+    if (activeDocument && !activeDocument.isClosed && activeDocument.uri.scheme === 'file' &&
+        !isSensitivePath(activeDocument.uri.fsPath)) {
       items.push({
-        label: '$(file) Active file', description: fileName(activeDocument),
+        id: 'active-file',
+        label: 'Active file',
+        description: fileName(activeDocument),
+        kind: 'file',
+        path: activeDocument.uri.fsPath,
         attachment: { kind: 'file', path: activeDocument.uri.fsPath }
       });
     }
@@ -1792,8 +1805,10 @@ function activate(context) {
     if (editor && !editor.selection.isEmpty) {
       const text = editor.document.getText(editor.selection).slice(0, 4000);
       items.push({
-        label: '$(selection) Current selection',
+        id: 'selection',
+        label: 'Current selection',
         description: `${fileName(editor.document)} · lines ${editor.selection.start.line + 1}–${editor.selection.end.line + 1}`,
+        kind: 'selection',
         attachment: {
           kind: 'selection',
           label: `selection · ${fileName(editor.document)}`,
@@ -1803,27 +1818,51 @@ function activate(context) {
     }
     try {
       const files = await vscode.workspace.findFiles(
-        '**/*.{ts,tsx,js,jsx,mjs,cjs}',
-        ['**/node_modules/**', '**/.git/**', '**/dist/**', '**/out/**'],
+        '**/*.{ts,tsx,js,jsx,mjs,cjs,py,go,rs,java,md,json}',
+        ['**/node_modules/**', '**/.git/**', '**/dist/**', '**/out/**', '**/media/**'],
         50
       );
       for (const file of files) {
         if (isSensitivePath(file.fsPath)) continue;
+        const rel = root && file.fsPath.startsWith(root) ? file.fsPath.slice(root.length + 1) : file.fsPath;
         items.push({
-          label: '$(file) ' + (root && file.fsPath.startsWith(root) ? file.fsPath.slice(root.length + 1) : file.fsPath),
+          id: `file:${file.fsPath}`,
+          label: rel,
           description: file.fsPath,
+          kind: 'file',
+          path: file.fsPath,
           attachment: { kind: 'file', path: file.fsPath }
         });
       }
     } catch { /* workspace search unavailable */ }
+    return items;
+  }
+
+  async function showAttachMenu({ preferInline = false } = {}) {
+    if (activeRun) return;
+    if (pending) {
+      await vscode.window.showInformationMessage('Apply or discard the current patch first.');
+      return;
+    }
+    const chat = currentChat;
+    const items = await listAttachCandidates();
     if (currentChat !== chat || activeRun) return;
     if (!items.length) {
       await vscode.window.showInformationMessage('Nothing to attach — open a source file or workspace folder first.');
       return;
     }
-    const picked = await vscode.window.showQuickPick(items, {
-      placeHolder: `Attach context to the next request (${currentChat.attachments?.length || 0}/5)`
-    });
+    if (preferInline && agent) {
+      agent.postMessage({ type: 'attach-candidates', id: currentChat.id, items, open: true });
+      return;
+    }
+    const picked = await vscode.window.showQuickPick(
+      items.map(item => ({
+        label: item.kind === 'selection' ? `$(selection) ${item.label}` : `$(file) ${item.label}`,
+        description: item.description,
+        attachment: item.attachment
+      })),
+      { placeHolder: `Attach context to the next request (${currentChat.attachments?.length || 0}/5)` }
+    );
     if (!picked?.attachment || currentChat !== chat || activeRun || pending) return;
     pushAttachment(picked.attachment);
   }
