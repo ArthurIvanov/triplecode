@@ -7,7 +7,7 @@ const { homedir } = require('node:os');
 const {
   classifySettings, emptyImportReport, importReportMessage,
   hasRollbackMaterial, previewCounts
-} = require('./import-logic');
+} = require('./import-logic.cjs');
 
 const VS_CODE_PATHS = [
   '/Applications/Visual Studio Code.app',

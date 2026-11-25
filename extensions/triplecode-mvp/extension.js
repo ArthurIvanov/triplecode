@@ -9,22 +9,22 @@ const { commentEdit, supportsComments } = require('./patch');
 const { registerDesktopAccount } = require('./desktop-account');
 const {
   applyEdit, selectFiles, classifyUndo, isStale, isActiveRun, remainingAfterApply, describeEditHunk
-} = require('./review-logic');
+} = require('./review-logic.cjs');
 const {
   allowRequestLength, buildExecuteRequest, sanitizePlanEdit
-} = require('./agent-modes');
+} = require('./agent-modes.cjs');
 const {
   ATTACHMENT_LIMIT, RULES_LIMIT,
   isSensitivePath, rulesSuffix, hasRulesBadge
-} = require('./context-rules');
-const { buildAttachCandidates, appendAttachment } = require('./attach-logic');
-const { execCheck, checkResultEntry, runIsolatedPatchCheck } = require('./check-logic');
+} = require('./context-rules.cjs');
+const { buildAttachCandidates, appendAttachment } = require('./attach-logic.cjs');
+const { execCheck, checkResultEntry, runIsolatedPatchCheck } = require('./check-logic.cjs');
 const {
   shouldShowWelcome, updateRecentFolders, filterExistingRecent
-} = require('./welcome-logic');
+} = require('./welcome-logic.cjs');
 const {
   showImportPreview, showFileImport, rollbackImport
-} = require('./import-host');
+} = require('./import-host.cjs');
 
 let getSessionAccessToken = () => Promise.resolve(null);
 const { registerInlineAI } = require('./inline');
