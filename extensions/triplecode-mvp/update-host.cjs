@@ -1,8 +1,20 @@
 'use strict';
 
+const fs = require('node:fs');
+const path = require('node:path');
 const {
-  decideUpdateState, platformTriple, formatAboutLines, compareVersions
+  decideUpdateState, platformTriple, formatAboutLines, compareVersions,
+  resolveUpdateUrl, shouldAutoCheck
 } = require('./update-logic.cjs');
+
+function readProductUpdateUrl(appRoot) {
+  try {
+    const product = JSON.parse(fs.readFileSync(path.join(appRoot, 'product.json'), 'utf8'));
+    return String(product?.updateUrl || '').trim();
+  } catch {
+    return '';
+  }
+}
 
 async function fetchManifest(url, { fetchImpl = fetch, timeoutMs = 15000 } = {}) {
   const response = await fetchImpl(url, { signal: AbortSignal.timeout(timeoutMs) });
@@ -13,11 +25,15 @@ async function fetchManifest(url, { fetchImpl = fetch, timeoutMs = 15000 } = {})
 function registerUpdateCommands(vscode, context, {
   getProductVersion,
   appendLog = () => {},
-  fetchImpl = fetch
+  fetchImpl = fetch,
+  readProductJson = () => readProductUpdateUrl(vscode.env?.appRoot || '')
 } = {}) {
   function resolveManifestUrl() {
     const config = vscode.workspace.getConfiguration('triplecode');
-    return String(config.get('update.manifestUrl', '') || '').trim();
+    return resolveUpdateUrl({
+      settingUrl: config.get('update.manifestUrl', ''),
+      productUpdateUrl: readProductJson()
+    });
   }
 
   async function checkUpdates({ silent = false } = {}) {
@@ -58,7 +74,7 @@ function registerUpdateCommands(vscode, context, {
           await vscode.env.openExternal(vscode.Uri.parse(decision.artifact.url));
         }
       } else if (decision.state === 'error') {
-        await vscode.window.showWarningMessage(decision.message);
+        if (!silent) await vscode.window.showWarningMessage(decision.message);
       } else if (!silent) {
         await vscode.window.showInformationMessage(decision.message);
       }
@@ -69,6 +85,11 @@ function registerUpdateCommands(vscode, context, {
       if (!silent) await vscode.window.showWarningMessage(message);
       return { state: 'error', message };
     }
+  }
+
+  async function maybeAutoCheck() {
+    if (!resolveManifestUrl()) return null;
+    return autoCheck();
   }
 
   async function showAbout() {
@@ -85,12 +106,19 @@ function registerUpdateCommands(vscode, context, {
     await vscode.window.showInformationMessage(lines.join('\n'), { modal: true });
   }
 
+  async function autoCheck({ intervalMs = 24 * 60 * 60 * 1000 } = {}) {
+    const last = Number(await context.globalState.get('triplecode.update.lastCheck', 0)) || 0;
+    if (!shouldAutoCheck({ lastCheckAt: last, intervalMs })) return null;
+    await context.globalState.update('triplecode.update.lastCheck', Date.now());
+    return checkUpdates({ silent: true });
+  }
+
   context.subscriptions.push(
     vscode.commands.registerCommand('triplecode.checkUpdates', () => checkUpdates({ silent: false })),
     vscode.commands.registerCommand('triplecode.about', showAbout)
   );
 
-  return { checkUpdates, showAbout, compareVersions };
+  return { checkUpdates, showAbout, compareVersions, autoCheck, maybeAutoCheck, resolveManifestUrl };
 }
 
 module.exports = {

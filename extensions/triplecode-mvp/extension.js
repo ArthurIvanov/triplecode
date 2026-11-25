@@ -1954,10 +1954,11 @@ function activate(context) {
     }
   });
 
-  registerUpdateCommands(vscode, context, {
+  const updateHost = registerUpdateCommands(vscode, context, {
     getProductVersion: () => context.extension?.packageJSON?.version || '0.0.1',
     appendLog: (level, message) => debugLog.appendLog(level, message)
   });
+  setTimeout(() => { void updateHost.maybeAutoCheck().catch(() => {}); }, 15000);
 
   sessionHost = registerSessionHost(vscode, context, {
     getChats: () => chats.slice(),

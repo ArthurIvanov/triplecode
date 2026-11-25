@@ -39,7 +39,8 @@
 ## Обновления (R-D2)
 
 - Сборка может выставить `product.updateUrl` через `TRIPLECODE_UPDATE_URL`.
-- В IDE: `triplecode.update.manifestUrl` + **Check for Updates** / **About** (см. S18).
+- В IDE: `triplecode.update.manifestUrl` имеет приоритет; если пуст — берётся `product.updateUrl` из сборки. **Check for Updates** / **About** (см. S18).
+- При настроенном URL выполняется silent auto-check при активации расширения, не чаще раза в 24 часа (`globalState triplecode.update.lastCheck`); уведомление показывается только при доступном/откатном обновлении.
 - Откат канала = манифест с меньшим `version` после `verify-release-manifest.sh`.
 
 ## Связь с web

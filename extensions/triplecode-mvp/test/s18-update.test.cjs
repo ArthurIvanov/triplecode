@@ -10,7 +10,9 @@ const {
   pickArtifact,
   decideUpdateState,
   platformTriple,
-  formatAboutLines
+  formatAboutLines,
+  resolveUpdateUrl,
+  shouldAutoCheck
 } = require('../update-logic.cjs');
 
 const repoRoot = join(__dirname, '..', '..', '..');
@@ -43,6 +45,25 @@ describe('S18 / R-D2 update-logic', () => {
   it('formats about lines and maps platform', () => {
     assert.deepEqual(platformTriple('darwin', 'arm64'), { os: 'darwin', arch: 'arm64' });
     assert.match(formatAboutLines({ version: '0.0.1', channel: 'preview' }).join('\n'), /preview/);
+  });
+
+  it('resolves manifest url from setting or baked product.updateUrl', () => {
+    assert.equal(resolveUpdateUrl({
+      settingUrl: 'https://example.invalid/setting.json',
+      productUpdateUrl: 'https://example.invalid/product.json'
+    }), 'https://example.invalid/setting.json');
+    assert.equal(resolveUpdateUrl({
+      settingUrl: '',
+      productUpdateUrl: ' https://example.invalid/product.json '
+    }), 'https://example.invalid/product.json');
+    assert.equal(resolveUpdateUrl({ settingUrl: ' ', productUpdateUrl: '' }), '');
+  });
+
+  it('throttles auto checks to the configured interval', () => {
+    const day = 24 * 60 * 60 * 1000;
+    assert.equal(shouldAutoCheck({ lastCheckAt: 0, now: 1000 }), true);
+    assert.equal(shouldAutoCheck({ lastCheckAt: 1000, now: 1000 + day - 1, intervalMs: day }), false);
+    assert.equal(shouldAutoCheck({ lastCheckAt: 1000, now: 1000 + day, intervalMs: day }), true);
   });
 
   it('package contributes update commands; fork threshold stays green', () => {

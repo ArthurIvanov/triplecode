@@ -72,6 +72,18 @@ function platformTriple(platform = process.platform, arch = process.arch) {
   return { os, arch: mappedArch };
 }
 
+function resolveUpdateUrl({ settingUrl, productUpdateUrl } = {}) {
+  const setting = String(settingUrl || '').trim();
+  if (setting) return setting;
+  const product = String(productUpdateUrl || '').trim();
+  return product || '';
+}
+
+function shouldAutoCheck({ lastCheckAt = 0, now = Date.now(), intervalMs = 24 * 60 * 60 * 1000 } = {}) {
+  const last = Number(lastCheckAt) || 0;
+  return !last || (now - last) >= intervalMs;
+}
+
 function formatAboutLines({
   productName = 'TripleCode',
   version,
@@ -92,5 +104,7 @@ module.exports = {
   pickArtifact,
   decideUpdateState,
   platformTriple,
+  resolveUpdateUrl,
+  shouldAutoCheck,
   formatAboutLines
 };
