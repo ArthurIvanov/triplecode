@@ -8,7 +8,7 @@
 | Roadmap | **R-β6** |
 | Spec | [public-beta-handoff-3-5-6-7.md](../specs/public-beta-handoff-3-5-6-7.md) §6 |
 | Depends | S09 usage floor ✓ |
-| Status | Spec opened 25.11.2026 |
+| Status | Tooling ready 25.11.2026 — field results pending |
 
 ## Goal
 
@@ -23,10 +23,10 @@ Measure Stage 1 exit from [product-plan.md](../product-plan.md): ≥80% complete
 
 ## Acceptance
 
-- [ ] Protocol + run-card template committed.  
-- [ ] Event schema documented (no PII/code).  
-- [ ] Field results **or** explicit No-Go.  
-- [ ] product-plan / roadmap Stage 1 exit dated.
+- [x] Protocol + run-card template committed. (`docs/pilot/README.md`, `run-card.md`, `memo.md`)
+- [x] Event schema documented (no PII/code). (`docs/pilot/events.md` + `triplecode-web` contracts README; `pilot_events` table + `pilotSummary`)
+- [ ] Field results **or** explicit No-Go. (6–8 участников не проведены — tooling ready)
+- [ ] product-plan / roadmap Stage 1 exit dated. (после field results)
 
 ## Negative
 

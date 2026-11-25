@@ -41,6 +41,7 @@ const { registerCmdK } = require('./cmdk-host.cjs');
 const { registerDebugDiagnostics } = require('./debug-host.cjs');
 const { registerUpdateCommands } = require('./update-host.cjs');
 const { registerSessionHost } = require('./session-host.cjs');
+const { PILOT_STEPS, isPilotStep, sanitizePilotTaskId, pilotEventPayload } = require('./pilot-logic.cjs');
 const provider = require('./provider');
 
 function showDesignSystem(context) {
@@ -500,7 +501,62 @@ function activate(context) {
     }
     return aiProbe;
   }
-  function reportUsage({ feature, provider: providerName, model, durationMs, outcome }) {
+  async function pilotTaskId() {
+    const configured = sanitizePilotTaskId(
+      vscode.workspace.getConfiguration('triplecode').get('pilot.taskId', '')
+    );
+    if (configured) return configured;
+    return sanitizePilotTaskId(context.globalState.get('triplecode.pilot.taskId', ''));
+  }
+
+  async function pilotMarkedSteps(taskId) {
+    const all = context.globalState.get('triplecode.pilot.marked', {}) || {};
+    return Array.isArray(all[taskId]) ? all[taskId] : [];
+  }
+
+  async function markPilotStep(step, { manual = false } = {}) {
+    if (!isPilotStep(step)) return false;
+    const taskId = await pilotTaskId();
+    if (!taskId) return false;
+    if (!manual && (await pilotMarkedSteps(taskId)).includes(step)) return false;
+    const pilot = pilotEventPayload(taskId, step);
+    if (!pilot) return false;
+    reportUsage({ feature: 'other', provider: null, model: null, durationMs: 0, outcome: 'ok', pilot });
+    if (!manual) {
+      const all = context.globalState.get('triplecode.pilot.marked', {}) || {};
+      all[taskId] = [...new Set([...(all[taskId] || []), step])];
+      await context.globalState.update('triplecode.pilot.marked', all);
+    }
+    debugLog.appendLog('info', `pilot step=${step} task=${taskId}`);
+    return true;
+  }
+
+  function autoPilotStep(step) {
+    void markPilotStep(step).catch(() => {});
+  }
+
+  async function promptPilotStep() {
+    const picked = await vscode.window.showQuickPick(PILOT_STEPS, {
+      placeHolder: 'Mark closed-pilot step (S22)'
+    });
+    if (!picked) return;
+    let taskId = await pilotTaskId();
+    if (!taskId) {
+      const entered = await vscode.window.showInputBox({
+        prompt: 'Pilot task id (letters, digits, - _; e.g. P01)',
+        validateInput: value => sanitizePilotTaskId(value) ? null : 'Use 1–64 chars: A–Z, 0–9, - _'
+      });
+      taskId = sanitizePilotTaskId(entered);
+      if (!taskId) return;
+      await context.globalState.update('triplecode.pilot.taskId', taskId);
+    }
+    const sent = await markPilotStep(picked.id, { manual: true });
+    if (sent) {
+      await vscode.window.showInformationMessage(`Pilot step "${picked.label}" recorded for task ${taskId}.`);
+    }
+  }
+
+  function reportUsage({ feature, provider: providerName, model, durationMs, outcome, pilot }) {
     getSessionAccessToken().then(token => {
       if (!token) {
         console.warn('[TripleCode usage] no access token, skipping report');
@@ -510,7 +566,11 @@ function activate(context) {
       fetch('https://triplecode.ru/api/usage/event', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
-        body: JSON.stringify({ feature, provider: providerName, model, duration_ms: durationMs, outcome }),
+        body: JSON.stringify({
+          feature, provider: providerName, model,
+          duration_ms: durationMs, outcome,
+          ...(pilot ? { pilot } : {})
+        }),
         signal: AbortSignal.timeout(5000)
       }).catch(error => {
         console.warn('[TripleCode usage] report failed', error.message);
@@ -532,10 +592,15 @@ function activate(context) {
     const mode = await aiSetting('ai.provider', 'auto');
     const feature = options.feature || 'other';
     const stream = options.stream !== false;
-    const report = (providerName, model, outcome) => reportUsage({
-      feature, provider: providerName, model,
-      durationMs: Date.now() - started, outcome
-    });
+    const report = (providerName, model, outcome) => {
+      reportUsage({
+        feature, provider: providerName, model,
+        durationMs: Date.now() - started, outcome
+      });
+      if (outcome === 'ok' && (feature === 'agent' || feature === 'plan')) {
+        autoPilotStep('first_agent');
+      }
+    };
     const addStep = (type, title, description) => {
       if (options.run) addTimelineStep(options.run, type, title, description);
     };
@@ -1331,6 +1396,7 @@ function activate(context) {
     if (!await vscode.workspace.applyEdit(workspaceEdit)) throw new Error('The editor could not apply the patch.');
     recordActionStep(currentChat, 'edit', 'Apply patch', `Applied ${targets.length} file${targets.length === 1 ? '' : 's'}`);
     reportUsage({ feature: 'agent', provider: null, model: null, durationMs: 0, outcome: 'accepted' });
+    autoPilotStep('review_keep');
     appliedOps.push({
       request: patch.request,
       files: targets.map(file => ({
@@ -1898,8 +1964,11 @@ function activate(context) {
     vscode.commands.registerCommand('triplecode.newChat', newChat),
     vscode.commands.registerCommand('triplecode.checkHistory', showCheckHistory),
     vscode.commands.registerCommand('triplecode.undoLastApply', undoLastApply),
-    vscode.commands.registerCommand('triplecode.importFromVSCode', () => showImportPreview(context)),
-    vscode.commands.registerCommand('triplecode.importFromFile', () => showFileImport(context)),
+    vscode.commands.registerCommand('triplecode.importFromVSCode', () =>
+      showImportPreview(context, { onImportComplete: () => autoPilotStep('import') })),
+    vscode.commands.registerCommand('triplecode.importFromFile', () =>
+      showFileImport(context, { onImportComplete: () => autoPilotStep('import') })),
+    vscode.commands.registerCommand('triplecode.pilotStep', promptPilotStep),
     vscode.commands.registerCommand('triplecode.rollbackImport', () => rollbackImport(context)),
     vscode.commands.registerCommand('triplecode.designSystem', () => showDesignSystem(context)),
     vscode.commands.registerCommand('triplecode.setApiKey', setApiKey),

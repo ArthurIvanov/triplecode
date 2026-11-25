@@ -1,5 +1,7 @@
 # Pilot QA log — контрольный проект `~/Desktop/test`
 
+> Закрытый пилот Stage 1 exit: протокол и метрики — [docs/pilot/](pilot/README.md) (S22 / R-β6).
+
 Прогон на TripleCode.app (Code-OSS 1.143.1 arm64), macOS. Дата: 2026-11-22.
 
 ## Стенд

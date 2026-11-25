@@ -122,6 +122,10 @@
       {
         "command": "triplecode.deliverPr",
         "title": "TripleCode: Deliver / Open PR"
+      },
+      {
+        "command": "triplecode.pilotStep",
+        "title": "TripleCode: Mark Pilot Step"
       }
     ],
     "configuration": {
@@ -227,6 +231,11 @@
           "enum": ["stable", "preview"],
           "default": "stable",
           "description": "Preferred update channel when checking the release manifest."
+        },
+        "triplecode.pilot.taskId": {
+          "type": "string",
+          "default": "",
+          "description": "Closed-pilot task id (e.g. P01) for S22 step events. Leave empty to skip pilot telemetry; the Mark Pilot Step command can also prompt and store it per install."
         }
       }
     },

@@ -118,7 +118,7 @@ UI handoff: [specs/public-beta-handoff-3-5-6-7.md](specs/public-beta-handoff-3-5
 | --- | --- | --- | --- | --- | --- |
 | **R-β3** | 3 | Tab/inline smart default-on + IntelliSense QA | [S20](scenarios/S20-tab-inline-default.md) | AI + QA | handoff §3 |
 | **R-β5** | 5 | Local `@` context index + search | [S21](scenarios/S21-context-index-search.md) | AI | handoff §5 |
-| **R-β6** | 6 | Closed pilot protocol + metrics / Stage 1 exit | [S22](scenarios/S22-closed-pilot-metrics.md) | Продакт + Аналитик | handoff §6 |
+| **R-β6** | 6 | Closed pilot protocol + metrics / Stage 1 exit | [S22](scenarios/S22-closed-pilot-metrics.md) | Продакт + Аналитик | handoff §6 · tooling ready 25.11 (`docs/pilot/` + pilot_events); field pending |
 | **R-β7** | 7 | Live QA matrix macOS (+ Win/Linux smoke) | [S23](scenarios/S23-live-qa-public-beta.md) | QA + Релизы | handoff §7 |
 
 **UI parity plan для агентов:** тот же handoff §UI (R-V5…V8) + [competitive-visual-parity.md](competitive-visual-parity.md).

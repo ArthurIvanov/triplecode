@@ -256,7 +256,7 @@ async function rollbackImport(context) {
   });
 }
 
-function presentImportPreview(data, context) {
+function presentImportPreview(data, context, hooks = {}) {
   const { settings, keybindings, snippets, extensions } = data;
   const media = vscode.Uri.joinPath(context.extensionUri, 'media');
   const previewPanel = vscode.window.createWebviewPanel(
@@ -282,6 +282,7 @@ function presentImportPreview(data, context) {
     if (message.type === 'import') {
       const report = await performImport(message.selectedCategories, { settings, keybindings, snippets, extensions }, context);
       previewPanel.dispose();
+      try { await hooks.onImportComplete?.(report); } catch { /* pilot hook must not break import */ }
       vscode.window.showInformationMessage(importReportMessage(report), 'Restart', 'Rollback').then(selection => {
         if (selection === 'Restart') {
           vscode.commands.executeCommand('workbench.action.reloadWindow');
@@ -291,7 +292,7 @@ function presentImportPreview(data, context) {
       });
     } else if (message.type === 'import-file') {
       previewPanel.dispose();
-      await showFileImport(context);
+      await showFileImport(context, hooks);
     } else if (message.type === 'rollback') {
       await rollbackImport(context);
       previewPanel.dispose();
@@ -301,7 +302,7 @@ function presentImportPreview(data, context) {
   });
 }
 
-async function showImportPreview(context) {
+async function showImportPreview(context, hooks = {}) {
   const vsCodePath = await findVSCodeInstallation();
   if (!vsCodePath) {
     const action = await vscode.window.showWarningMessage(
@@ -309,7 +310,7 @@ async function showImportPreview(context) {
       'Import from File',
       'Cancel'
     );
-    if (action === 'Import from File') await showFileImport(context);
+    if (action === 'Import from File') await showFileImport(context, hooks);
     return;
   }
 
@@ -320,10 +321,10 @@ async function showImportPreview(context) {
     readVSCodeExtensions()
   ]);
 
-  presentImportPreview({ source: vsCodePath, settings, keybindings, snippets, extensions }, context);
+  presentImportPreview({ source: vsCodePath, settings, keybindings, snippets, extensions }, context, hooks);
 }
 
-async function showFileImport(context) {
+async function showFileImport(context, hooks = {}) {
   const selected = await vscode.window.showOpenDialog({
     canSelectFiles: true,
     canSelectFolders: false,
@@ -355,7 +356,7 @@ async function showFileImport(context) {
       }
     } catch { /* no sibling snippets */ }
   }
-  presentImportPreview({ source: selected[0].fsPath, settings, keybindings, snippets, extensions: null }, context);
+  presentImportPreview({ source: selected[0].fsPath, settings, keybindings, snippets, extensions: null }, context, hooks);
 }
 
 module.exports = {
