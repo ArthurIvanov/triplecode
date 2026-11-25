@@ -8,7 +8,7 @@
 | Roadmap | **R-β5** (+ UI **R-V6**) |
 | Spec | [public-beta-handoff-3-5-6-7.md](../specs/public-beta-handoff-3-5-6-7.md) §5 |
 | Depends | S08 picker ✓ |
-| Status | Spec opened 25.11.2026 |
+| Status | Implemented 25.11.2026 — unit-tested; live QA pending |
 
 ## Preconditions
 
@@ -24,11 +24,11 @@
 
 ## Acceptance
 
-- [ ] Local file index + incremental updates.  
-- [ ] Warm `@` query latency logged in QA.  
-- [ ] Sensitive path exclude unchanged.  
-- [ ] Unit tests for rank/exclude/update.  
-- [ ] Optional Phase B symbols = follow-up ID if deferred.
+- [x] Local file index + incremental updates. (`context-index.cjs` + `index-host.cjs`: findFiles build, FileSystemWatcher create/delete/rename, folder-change rebuild)
+- [ ] Warm `@` query latency logged in QA. (unit: 5k files ≈9ms; p95 на ≥2k workspace — в live QA)
+- [x] Sensitive path exclude unchanged. (`isSensitivePath` в `shouldIndexRelativePath` + defense в `buildAttachCandidates`)
+- [x] Unit tests for rank/exclude/update. (`test/s21-context-index.test.cjs`, 83/83 total)
+- [x] Optional Phase B symbols = follow-up ID if deferred. (отложено — нужен отдельный Scenario)
 
 ## Code paths
 

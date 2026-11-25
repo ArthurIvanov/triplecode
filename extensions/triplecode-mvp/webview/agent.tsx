@@ -75,8 +75,10 @@ type AttachCandidate = {
   description?: string;
   kind: 'file' | 'selection';
   path?: string;
+  score?: number;
   attachment: Attachment;
 };
+type IndexInfo = { state: 'cold' | 'indexing' | 'ready' | string; count: number };
 type AtMention = { start: number; query: string; end: number };
 type HostMessage =
   | { type: 'focus-composer' }
@@ -87,10 +89,13 @@ type HostMessage =
   | ({ type: 'chats'; focusPrompt?: boolean } & ChatState)
   | { type: 'timeline-step'; chat: number; item: TimelineItemProps }
   | { type: 'stream-delta'; chat: number; text: string }
-  | { type: 'attach-candidates'; id: number; items: AttachCandidate[]; open?: boolean }
+  | { type: 'attach-candidates'; id: number; items: AttachCandidate[]; open?: boolean; index?: IndexInfo }
+  | { type: 'attach-results'; id: number; query: string; items: AttachCandidate[]; index?: IndexInfo }
+  | { type: 'attach-index'; index: IndexInfo }
   | { type: 'mcp-permission'; id: string; chat: number; server: string; tool: string; argsPreview: string };
 type ViewMessage =
   | { type: 'select-chat' | 'close-chat' | 'stop' | 'attach-menu' | 'clear-queue' | 'attach-query'; id: number }
+  | { type: 'attach-search'; id: number; query: string }
   | { type: 'mcp-permission-response'; id: string; decision: 'once' | 'always' | 'deny' }
   | { type: 'draft'; id: number; value: string }
   | { type: 'mode'; id: number; mode: Mode }
@@ -444,6 +449,8 @@ export function Agent({ initial }: { initial: Initial }) {
   const [attachPool, setAttachPool] = useState<AttachCandidate[]>([]);
   const [attachReady, setAttachReady] = useState(false);
   const [attachLoading, setAttachLoading] = useState(false);
+  const [indexInfo, setIndexInfo] = useState<IndexInfo | null>(null);
+  const [searchItems, setSearchItems] = useState<AttachCandidate[] | null>(null);
   const [atMention, setAtMention] = useState<AtMention | null>(null);
   const [atHighlight, setAtHighlight] = useState(0);
   const prompt = useRef<HTMLTextAreaElement>(null);
@@ -452,7 +459,10 @@ export function Agent({ initial }: { initial: Initial }) {
   const draftRef = useRef(state.draft);
   selectedRef.current = state.selected;
   draftRef.current = state.draft;
-  const atItems = atMention ? filterAttachCandidates(attachPool, atMention.query) : [];
+  const indexReady = indexInfo?.state === 'ready';
+  const atItems = atMention
+    ? (indexReady && searchItems ? searchItems : filterAttachCandidates(attachPool, atMention.query))
+    : [];
   const { patch, selected, mode } = state;
   const chat = state.chats.find(item => item.id === selected);
   const replies = chat?.replies || [];
@@ -524,6 +534,7 @@ export function Agent({ initial }: { initial: Initial }) {
         setAttachPool(Array.isArray(data.items) ? data.items : []);
         setAttachReady(true);
         setAttachLoading(false);
+        if (data.index) setIndexInfo(data.index);
         setAtHighlight(0);
         if (data.open) {
           const field = prompt.current;
@@ -545,6 +556,17 @@ export function Agent({ initial }: { initial: Initial }) {
             setAtMention({ start: cursor, query: '', end: cursor });
           }
         }
+        return;
+      }
+      if (data.type === 'attach-results') {
+        if (data.id !== selectedRef.current) return;
+        setSearchItems(Array.isArray(data.items) ? data.items : []);
+        if (data.index) setIndexInfo(data.index);
+        setAtHighlight(0);
+        return;
+      }
+      if (data.type === 'attach-index') {
+        setIndexInfo(data.index);
         return;
       }
       dispatch(data);
@@ -569,8 +591,19 @@ export function Agent({ initial }: { initial: Initial }) {
     setAttachPool([]);
     setAttachReady(false);
     setAttachLoading(false);
+    setIndexInfo(null);
+    setSearchItems(null);
     setAtHighlight(0);
   }, [selected]);
+
+  useEffect(() => {
+    if (!atMention) return;
+    const query = atMention.query;
+    const timer = setTimeout(() => {
+      send({ type: 'attach-search', id: selected, query });
+    }, 80);
+    return () => clearTimeout(timer);
+  }, [atMention?.query, atMention?.start, selected]);
 
   function syncAtMention(value: string, cursor: number) {
     const mention = parseAtQuery(value, cursor);
@@ -1034,8 +1067,16 @@ export function Agent({ initial }: { initial: Initial }) {
                 onClick={() => pickAttach(item)}>
                 <span className="at-picker__label">{item.label}</span>
                 {item.description && <span className="at-picker__desc">{item.description}</span>}
+                {item.score ? <span className="at-picker__score">score {item.score}</span> : null}
               </button>
             ))}
+          {indexInfo && (indexInfo.state === 'indexing' || indexInfo.state === 'ready') && (
+            <div className="at-picker__footer">
+              {indexInfo.state === 'indexing'
+                ? 'Indexing…'
+                : `Index ready (${indexInfo.count} files)`}
+            </div>
+          )}
         </div>}
         <label className="sr-only" htmlFor="prompt">Agent task</label>
         <textarea id="prompt" ref={prompt} maxLength={500}

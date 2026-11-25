@@ -41,6 +41,7 @@ const { registerCmdK } = require('./cmdk-host.cjs');
 const { registerDebugDiagnostics } = require('./debug-host.cjs');
 const { registerUpdateCommands } = require('./update-host.cjs');
 const { registerSessionHost } = require('./session-host.cjs');
+const { registerContextIndex } = require('./index-host.cjs');
 const provider = require('./provider');
 
 function showDesignSystem(context) {
@@ -410,7 +411,18 @@ function activate(context) {
             agent?.postMessage({
               type: 'attach-candidates',
               id: currentChat.id,
-              items: await listAttachCandidates()
+              items: await listAttachCandidates(),
+              index: contextIndex.stats()
+            });
+            break;
+          case 'attach-search':
+            if (message.id !== currentChat.id || activeRun || pending) break;
+            agent?.postMessage({
+              type: 'attach-results',
+              id: currentChat.id,
+              query: String(message.query || '').slice(0, 200),
+              items: await searchAttachItems(message.query),
+              index: contextIndex.stats()
             });
             break;
           case 'attach-pick':
@@ -1692,17 +1704,8 @@ function activate(context) {
     }
   }
 
-  async function listAttachCandidates() {
+  function attachSourceContext() {
     const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || '';
-    let workspaceFiles = [];
-    try {
-      const files = await vscode.workspace.findFiles(
-        '**/*.{ts,tsx,js,jsx,mjs,cjs,py,go,rs,java,md,json}',
-        ['**/node_modules/**', '**/.git/**', '**/dist/**', '**/out/**', '**/media/**'],
-        50
-      );
-      workspaceFiles = files.map(file => file.fsPath);
-    } catch { /* workspace search unavailable */ }
     const editor = vscode.window.activeTextEditor;
     const selection = editor && !editor.selection.isEmpty
       ? {
@@ -1714,7 +1717,54 @@ function activate(context) {
     const activeFile = activeDocument && !activeDocument.isClosed && activeDocument.uri.scheme === 'file'
       ? { path: activeDocument.uri.fsPath, name: fileName(activeDocument) }
       : null;
+    return { root, selection, activeFile };
+  }
+
+  async function listAttachCandidates() {
+    const { root, selection, activeFile } = attachSourceContext();
+    const stats = contextIndex.stats();
+    let workspaceFiles = [];
+    if (stats.state === 'ready' && stats.count > 0) {
+      workspaceFiles = contextIndex.search('', { limit: 60 }).hits.map(hit => hit.path);
+    } else {
+      try {
+        const files = await vscode.workspace.findFiles(
+          '**/*.{ts,tsx,js,jsx,mjs,cjs,py,go,rs,java,md,json}',
+          ['**/node_modules/**', '**/.git/**', '**/dist/**', '**/out/**', '**/media/**'],
+          50
+        );
+        workspaceFiles = files.map(file => file.fsPath);
+      } catch { /* workspace search unavailable */ }
+    }
     return buildAttachCandidates({ root, activeFile, selection, workspaceFiles });
+  }
+
+  async function searchAttachItems(query) {
+    const q = String(query || '').trim();
+    const { root, selection, activeFile } = attachSourceContext();
+    const stats = contextIndex.stats();
+    if (stats.state !== 'ready') {
+      return listAttachCandidates();
+    }
+    const scoreByPath = new Map();
+    let workspaceFiles;
+    if (q) {
+      const hits = contextIndex.search(q, { limit: 30 }).hits;
+      for (const hit of hits) scoreByPath.set(hit.path, hit.score);
+      workspaceFiles = hits.map(hit => hit.path);
+    } else {
+      workspaceFiles = contextIndex.search('', { limit: 60 }).hits.map(hit => hit.path);
+    }
+    const items = buildAttachCandidates({
+      root,
+      activeFile: q ? null : activeFile,
+      selection: q ? null : selection,
+      workspaceFiles
+    });
+    for (const item of items) {
+      if (item.kind === 'file' && scoreByPath.has(item.path)) item.score = scoreByPath.get(item.path);
+    }
+    return items;
   }
 
   async function showAttachMenu({ preferInline = false } = {}) {
@@ -1881,6 +1931,10 @@ function activate(context) {
     persistChats,
     appendLog: (level, message) => debugLog.appendLog(level, message),
     postChats: () => agent?.postMessage({ type: 'chats', ...chatState() })
+  });
+
+  const contextIndex = registerContextIndex(vscode, context, {
+    onStatus: info => agent?.postMessage({ type: 'attach-index', index: info })
   });
 
   context.subscriptions.push(
