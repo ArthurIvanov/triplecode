@@ -98,7 +98,7 @@ SoT: [competitive-visual-parity.md](competitive-visual-parity.md) · Scenario [S
 | R-V1 | Composer mode/@ keyboard parity (Cursor sidepane) | S19 | Design + AI | beta polish |
 | R-V2 | Timeline/diff/queue visual language | S19 | Design | beta |
 | R-V3 | Session rail ACC-like + PR cards (Devin) | S11 S19 | Design + AI | full |
-| R-V4 | Evidence screenshots Cursor/Devin/TripleCode | evidence | Research | continuous |
+| R-V4 | Evidence screenshots Cursor/Devin/TripleCode | evidence | Research | ✓ Cursor+Devin 25.11; TC shot optional |
 
 **Цель:** сильное сходство для миграции пользователей, без clone бренда и без rewrite IDE (ADR 0004).
 

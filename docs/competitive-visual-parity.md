@@ -15,8 +15,8 @@
 | --- | --- |
 | Официальные docs Cursor (Agents Window, Plan, Agent overview) | Прочитаны 25.11 |
 | Официальные docs Devin (ACC, Desktop, handoff, changelog) | Прочитаны 25.11 |
-| Локальные apps | Cursor `3.31.15`, Devin `3.14.30833` запущены; Computer Use **не смог** сделать скриншоты (нужны Accessibility + Screen Recording для Cursor Computer Use) |
-| Evidence | [competitive-audit-evidence.md](competitive-audit-evidence.md) — follow-up со скринами вручную |
+| Локальные apps | Cursor `3.32.4` (Pro); Devin `3.14.30833` / CLI `1.141.2` (Free). Снято `screencapture` evening 25.11 (CU не трогает Cursor) |
+| Evidence | Pack: [docs/evidence/2026-11-25/](evidence/2026-11-25/) (Cursor + Devin) · индекс [competitive-audit-evidence.md](competitive-audit-evidence.md) |
 
 ## Что копируем как язык (не бренд)
 
@@ -46,18 +46,49 @@
 
 | ID | Outcome | Scenario | Stage |
 | --- | --- | --- | --- |
-| R-V1 | Composer/mode/@ keyboard parity with Cursor sidepane | S19 | beta polish |
+| R-V1 | Composer/mode/@ keyboard parity with Cursor sidepane | S19 | beta polish **next** |
 | R-V2 | Timeline/diff/queue visual language (Cursor 2/3 cues) | S19 | beta |
-| R-V3 | Session rail ACC-like (Devin) + PR/handoff cards | S11+S19 | full |
-| R-V4 | Evidence pack: screenshots Cursor+Devin+TripleCode side-by-side | evidence | continuous |
+| R-V3 | Session rail ACC-like (Devin) + PR/handoff cards | S11+S19 | full (session bar stub ✓) |
+| R-V4 | Evidence pack screenshots | evidence | ✓ Cursor+Devin 25.11; TripleCode side-by-side optional |
 
 **Принцип:** сходство для миграции ≠ клон. Бренд TripleCode, layout IDE-first (ADR 0004), wedge Check patch остаётся дифференциатором.
 
+## Findings from evidence pack (25.11 evening)
+
+Индекс файлов: [evidence/2026-11-25/README.md](evidence/2026-11-25/README.md).
+
+### Cursor — наблюдаемый UI-язык
+
+1. **Два контура:** IDE+sidepane (`cursor-ide-agent`) и отдельный **Agents Window** (multi-repo rail + center transcript + right tool tabs Files/Changes/Terminal/Browser).  
+2. **Composer:** явная mode pill (**Ask** / Agent), hint `Plan, Build, / for skills, @ for context`, Auto, mic, attach.  
+3. **Plan:** editable plan + todo progress («3 of 3») + оранжевый **Build**.  
+4. **Changes:** dedicated Changes surface + Create Branch & Commit (не только Monaco diff).  
+5. **Empty IDE:** shortcut CTA (⌘L New Agent, maximize chat) + Tab/Agent stats in status bar.
+
+### Devin — наблюдаемый UI-язык
+
+1. **ACC Home:** sessions rail + Local/Cloud toggle + ⌘K tip + onboarding checklist.  
+2. **Session:** status «awaiting instructions», strip **N files changed +/−**, **Quick review** / **View changes**, Bypass Permissions, model picker in composer.  
+3. **IDE Cascade:** agent sidepane over classic explorer/editor/terminal; Changes as first-class tab.  
+4. **Правая tool-rail** в ACC: Changes / Progress / Files / Browser / Terminal — близко к Cursor Agents Window.
+
+### Gaps vs TripleCode (приоритет для V1–V3)
+
+| # | Gap | Конкурент | Наш сейчас | Wave |
+| --- | --- | --- | --- | --- |
+| 1 | Mode pill + Shift+Tab cycle visibly | Cursor Ask/Plan/Agent | Mode есть, слабый visual/keyboard | **V1** |
+| 2 | Composer hints `@` `/` Plan·Build | Cursor | Частично S08 | **V1** |
+| 3 | Files-changed strip + Quick review над input | Devin | Review block отдельно | **V2** |
+| 4 | Plan → Build primary CTA | Cursor | Execute plan | **V2** |
+| 5 | Session rail (not only tabs) + Local/Cloud | Devin ACC | Session bar stub | **V3** |
+| 6 | Changes as tool tab beside chat | Both | Monaco Review | **V2/V3** |
+| 7 | Empty-state shortcut CTA | Cursor | Welcome/empty chat | **V1** |
+
 ## Следующие действия
 
-1. Включить Accessibility + Screen Recording → доснятие evidence.  
-2. Реализовать R-V1 (mode cycle + @ empty/loading) поверх текущего Agents panel.  
-3. Не начинать отдельный Agents Window shell до триггера ADR 0006 / Wave E cloud.
+1. **R-V1** — mode pill + keyboard cycle + `@` empty/loading/no-results + empty Agents CTA.  
+2. Опционально: 1–2 скрина **TripleCode** Agents (empty + review) в тот же evidence folder.  
+3. Не строить отдельный Agents Window shell до ADR 0006 / cloud E.
 
 ## Links
 

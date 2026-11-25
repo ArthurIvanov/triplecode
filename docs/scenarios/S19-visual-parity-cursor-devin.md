@@ -18,7 +18,7 @@
 - [ ] **R-V1:** mode cycle keyboard + `@` empty/loading/no-results как у Cursor sidepane.
 - [ ] **R-V2:** timeline/tool/queue визуальный язык ближе Cursor 2/3; Check patch заметнее.
 - [ ] **R-V3:** session rail ACC-like (Devin): filter/group later; badge + PR card now.
-- [ ] **R-V4:** evidence pack side-by-side в `docs/evidence/`.
+- [x] **R-V4:** evidence pack Cursor+Devin в `docs/evidence/2026-11-25/` (TripleCode side-by-side optional).
 
 ## Negative
 
