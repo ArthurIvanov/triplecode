@@ -25,5 +25,6 @@
 | [S16](S16-debug-diagnostics.md) | Debug / diagnostics collect | beta | C |
 | [S17](S17-packaging-three-os.md) | Packaging macOS/Win/Linux | MVP→beta | B |
 | [S18](S18-signing-update-wave-d.md) | Signing + update check | beta | D |
+| [S19](S19-visual-parity-cursor-devin.md) | Visual/UX parity Cursor+Devin | beta→full | V |
 
-Индекс роадмапа: [../roadmap.md](../roadmap.md).
+Индекс роадмапа: [../roadmap.md](../roadmap.md) · [competitive-visual-parity.md](../competitive-visual-parity.md).

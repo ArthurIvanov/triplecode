@@ -7,27 +7,45 @@
 | Stage | full |
 | Roadmap | R-E1–E3 |
 | Audit | A11 |
+| Status | Partial 25.11.2026 — local worktree / background badge / idempotent PR open; true cloud VM later |
 
 ## Preconditions
 
-- Волна E; локальный runtime стабилен; учёт стоимости есть.
-- Изолированная среда / worktree.
+- Локальный git workspace.
+- Волна E floor: session bar в Agents.
 
-## Steps (target)
+## Steps (local floor — done)
 
-1. Создать задачу с env prep (repo, branch, install).
-2. Уйти в background/cloud; закрыть IDE.
-3. Вернуться — статус, логи, артефакты.
-4. Доставить один PR; повторная доставка не дублирует PR.
-5. Handoff коллеге с историей checks.
+1. **Worktree** → `.triplecode/worktrees/…` + branch `triplecode/…` (изоляция копии).
+2. **Background** → badge Background (локальный stub; процесс не переживает reboot/cloud).
+3. **PR** → открыть compare/create URL; повтор с тем же ключом reuse.
+
+## Steps (cloud — remaining)
+
+1. Уйти в cloud runtime; закрыть IDE.
+2. Вернуться — статус/логи/артефакты с сервера.
+3. Handoff коллеге с историей checks.
 
 ## Acceptance
 
-- [ ] Сессия продолжается после закрытия IDE.
-- [ ] Две задачи не делят одну рабочую копию.
-- [ ] PR идемпотентен.
-- [ ] Права на репозиторий проверены сервером.
+- [x] Две задачи могут получить разные worktree (не делят одну копию по умолчанию).
+- [x] PR handoff идемпотентен по `prKey`.
+- [x] Session badge Local / Background / Cloud в UI.
+- [ ] Сессия продолжается после закрытия IDE (нужен cloud — R-E2).
+- [ ] Права на репозиторий проверены сервером (web).
 
-## Notes
+## Code paths
 
-До волны E файл — AC-заглушка. Не реализовывать в MVP/beta без решения продакта.
+- `session-logic.cjs`, `session-host.cjs`, `webview/agent.tsx` session-bar
+- `test/s11-session.test.cjs`
+
+## Verify
+
+```bash
+npm --prefix extensions/triplecode-mvp test
+npm --prefix extensions/triplecode-mvp run build:webview
+```
+
+## Links
+
+- [roadmap.md](../roadmap.md) R-E* · [competitive-visual-parity.md](../competitive-visual-parity.md)

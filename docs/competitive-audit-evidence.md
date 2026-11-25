@@ -34,7 +34,10 @@ During the audit session both apps were running (Computer Use `computer_apps` li
 
 ## Follow-up for full visual evidence
 
-1. Manually capture Cursor: Agent panel modes, `@` menu, Plan Build, Stop, Agents Window, Tab, Cmd-K.  
-2. Manually capture Devin: Agent Command Center, cloud session, queue, PR handoff.  
-3. Store PNGs under `docs/evidence/2026-11-25/` (git-lfs or compressed) and link from the matrix rows in [competitive-audit-cursor-devin.md](competitive-audit-cursor-devin.md).  
-4. Record Cursor/Devin account tier used (Pro/Teams/etc.) in this file when capturing.
+1. Enable **Accessibility + Screen Recording** for Cursor Computer Use (required to capture Devin/other apps; Cursor itself may still be blocked).  
+2. Manually capture Cursor: Agent panel modes, `@` menu, Plan Build, Stop, Agents Window, Tab, Cmd-K.  
+3. Manually capture Devin: Agent Command Center, cloud session, queue, PR handoff.  
+4. Store PNGs under `docs/evidence/2026-11-25/` and link from [competitive-visual-parity.md](competitive-visual-parity.md) + audit matrix.  
+5. Record Cursor/Devin account tier used (Pro/Teams/etc.) when capturing.
+
+**25.11 evening:** Wave E session bar shipped; visual parity plan opened as roadmap **Wave V** / S19.

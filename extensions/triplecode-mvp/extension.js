@@ -40,6 +40,7 @@ const { registerInlineAI } = require('./inline');
 const { registerCmdK } = require('./cmdk-host.cjs');
 const { registerDebugDiagnostics } = require('./debug-host.cjs');
 const { registerUpdateCommands } = require('./update-host.cjs');
+const { registerSessionHost } = require('./session-host.cjs');
 const provider = require('./provider');
 
 function showDesignSystem(context) {
@@ -78,6 +79,7 @@ function activate(context) {
   registerInlineAI(context);
   const cmdkContent = new Map();
   let debugLog = { appendLog() {} };
+  let sessionHost;
   const account = registerDesktopAccount(context);
   if (account?.sessionAccessToken) getSessionAccessToken = account.sessionAccessToken;
   const patches = new Map();
@@ -331,6 +333,15 @@ function activate(context) {
             waiter.resolve(decision);
             break;
           }
+          case 'session-prepare':
+            await sessionHost.prepareWorktree();
+            break;
+          case 'session-background':
+            await sessionHost.markBackground();
+            break;
+          case 'session-pr':
+            await sessionHost.deliverPr();
+            break;
           case 'clear-queue':
             if (message.id === currentChat.id && currentChat.queue?.length) {
               currentChat.queue = [];
@@ -1544,11 +1555,13 @@ function activate(context) {
   }
 
   function chatState() {
+    const extras = sessionHost?.chatStateExtras(currentChat) || { session: null, sessions: [] };
     return {
       chats: chats.map(chat => ({
         id: chat.id, mode: chat.mode, replies: chat.replies,
         name: chat.name || '', status: chat.status || '', queued: chat.queue?.length || 0,
-        plan: chat.plan || null, attachments: chat.attachments || []
+        plan: chat.plan || null, attachments: chat.attachments || [],
+        session: chat.session || null
       })),
       selected: currentChat.id,
       draft: currentChat.draft,
@@ -1563,7 +1576,9 @@ function activate(context) {
       })(),
       rules: hasRulesBadge(repoRules()),
       progress: activeRun?.chat === currentChat ? activeRun.progress : null,
-      status: currentChat.status || ''
+      status: currentChat.status || '',
+      session: extras.session,
+      sessions: extras.sessions
     };
   }
 
@@ -1841,6 +1856,13 @@ function activate(context) {
   registerUpdateCommands(vscode, context, {
     getProductVersion: () => context.extension?.packageJSON?.version || '0.0.1',
     appendLog: (level, message) => debugLog.appendLog(level, message)
+  });
+
+  sessionHost = registerSessionHost(vscode, context, {
+    getChats: () => [currentChat, ...chats.filter(chat => chat !== currentChat)],
+    persistChats,
+    appendLog: (level, message) => debugLog.appendLog(level, message),
+    postChats: () => agent?.postMessage({ type: 'chats', ...chatState() })
   });
 
   context.subscriptions.push(

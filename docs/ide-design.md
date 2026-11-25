@@ -19,8 +19,9 @@
 | Бета | Streaming + tool timeline | Частичный ответ, running tool step, ошибка tool, stop | Timeline DS + streaming cursor в сообщении |
 | Бета | Cmd-K selection edit | Preview, apply, discard, конфликт IntelliSense | Peek/overlay на Monaco |
 | Бета | MCP permissions | Connect, deny, list servers | Диалог разрешений |
-| Полный релиз | Фоновые и облачные сессии | Очередь, выполняется, ждёт пользователя, завершена, возобновление и открытие PR | Список сессий, статусы, действия. Отдельное окно зависит от эксперимента с Workbench |
+| Полный релиз | Фоновые и облачные сессии | Очередь, выполняется, ждёт пользователя, завершена, возобновление и открытие PR | Session bar (Local/Background/Cloud) + Worktree/PR; ACC rail — волна V |
 | Полный релиз | Update dialog | Available, downloading, ready to restart, rollback | About / notification — ADR 0005 |
+| Бета→full | Visual parity Cursor/Devin | Mode/@/timeline/session rail близки конкурентам для миграции | См. [competitive-visual-parity.md](competitive-visual-parity.md) · S19 |
 
 Обязательные состояния Agents panel (MVP→beta): `empty`, `drafting`, `loading`/`streaming`, `error`, `stopped`, `review`, `conflict`. Что кастомное TripleCode vs upstream — см. [roadmap.md](roadmap.md) визуальные блоки волн A/C.
 

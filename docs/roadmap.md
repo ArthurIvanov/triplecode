@@ -80,12 +80,27 @@
 
 | ID | Outcome | Scenario | Screen | Role | Stage |
 | --- | --- | --- | --- | --- | --- |
-| R-E1 | Isolated worktrees / env prep | S11 | session prep card | Архитектор + AI | full |
-| R-E2 | Background/cloud continue after IDE close | S11 | cloud status | AI + web | full |
-| R-E3 | PR delivery + team handoff | S11 | PR card, history | AI + web | full |
+| R-E1 | Isolated worktrees / env prep | S11 | session prep card | Архитектор + AI | full ✓ 25.11 local worktree |
+| R-E2 | Background/cloud continue after IDE close | S11 | cloud status | AI + web | full (badge stub ✓; cloud runtime later) |
+| R-E3 | PR delivery + team handoff | S11 | PR card, history | AI + web | full ✓ 25.11 idempotent open URL |
 | R-E4 | Team quotas / audit | — | cabinet admin | web + analytics | full |
 
-**Визуал E:** session list ACC-like; cloud badge; handoff CTA; PR link. Не начинать макеты до закрытия C/D без явного решения продакта.
+**Визуал E:** session bar badge + Worktree/Background/PR; ACC rail → R-V3.
+
+---
+
+## Волна V — Visual / UX parity (Cursor + Devin)
+
+SoT: [competitive-visual-parity.md](competitive-visual-parity.md) · Scenario [S19](scenarios/S19-visual-parity-cursor-devin.md)
+
+| ID | Outcome | Scenario | Role | Stage |
+| --- | --- | --- | --- | --- |
+| R-V1 | Composer mode/@ keyboard parity (Cursor sidepane) | S19 | Design + AI | beta polish |
+| R-V2 | Timeline/diff/queue visual language | S19 | Design | beta |
+| R-V3 | Session rail ACC-like + PR cards (Devin) | S11 S19 | Design + AI | full |
+| R-V4 | Evidence screenshots Cursor/Devin/TripleCode | evidence | Research | continuous |
+
+**Цель:** сильное сходство для миграции пользователей, без clone бренда и без rewrite IDE (ADR 0004).
 
 ---
 
@@ -97,3 +112,4 @@
 | A10, A13–A15 | R-C* |
 | A11–A12 | R-E* |
 | CI/release gaps | R-B* R-D* |
+| Visual migration parity | R-V* |

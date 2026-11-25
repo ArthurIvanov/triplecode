@@ -106,6 +106,18 @@
       {
         "command": "triplecode.about",
         "title": "TripleCode: About"
+      },
+      {
+        "command": "triplecode.prepareWorktree",
+        "title": "TripleCode: Prepare Session Worktree"
+      },
+      {
+        "command": "triplecode.markBackgroundSession",
+        "title": "TripleCode: Mark Session Background"
+      },
+      {
+        "command": "triplecode.deliverPr",
+        "title": "TripleCode: Deliver / Open PR"
       }
     ],
     "configuration": {

@@ -28,7 +28,11 @@ type Chat = {
   attachments?: Attachment[];
 };
 type ModelChoice = { value: string; label: string };
-type ChatState = { chats: Chat[]; selected: number; draft: string; model: string; modelValue?: string; models?: ModelChoice[]; provider?: string; rules?: boolean; progress?: Progress | null; status?: string };
+type ChatState = {
+  chats: Chat[]; selected: number; draft: string; model: string; modelValue?: string; models?: ModelChoice[];
+  provider?: string; rules?: boolean; progress?: Progress | null; status?: string;
+  session?: SessionInfo | null; sessions?: SessionInfo[];
+};
 type DiffLine = { type: 'ctx' | 'add' | 'del'; text: string; line?: number };
 type PatchFile = {
   name: string;
@@ -94,7 +98,19 @@ type ViewMessage =
   | { type: 'new-chat' | 'chat-actions' | 'check' | 'check-patch' | 'discard' | 'apply' | 'review' |
       'select-model' | 'refresh-models' | 'ready' | 'close-agent' }
   | { type: 'model'; value: string }
-  | { type: 'apply-file' | 'discard-file'; id: number; index: number };
+  | { type: 'apply-file' | 'discard-file'; id: number; index: number }
+  | { type: 'session-prepare' | 'session-background' | 'session-pr' };
+
+type SessionInfo = {
+  id: string;
+  title?: string;
+  kind?: string;
+  status?: string;
+  badge?: string;
+  branch?: string;
+  prUrl?: string;
+  worktreePath?: string;
+};
 
 /** Mirror of context-rules.parseAtQuery for the webview bundle (no CJS require). */
 function parseAtQuery(text: string, cursor: number): AtMention | null {
@@ -148,6 +164,8 @@ type State = ChatState & {
   models: ModelChoice[];
   modelValue: string;
   mcpPermission: McpPermissionPrompt | null;
+  session: SessionInfo | null;
+  sessions: SessionInfo[];
 };
 type Action = HostMessage |
   { type: 'edit'; value: string } |
@@ -186,6 +204,8 @@ function update(state: State, action: Action): State {
         submitting: Boolean(action.progress), progress: action.progress ? { ...action.progress, steps: state.progress?.steps || [] } : null,
         streamText: action.progress ? state.streamText : '',
         mcpPermission: action.progress ? state.mcpPermission : null,
+        session: (action as ChatState & { session?: SessionInfo | null }).session ?? state.session,
+        sessions: (action as ChatState & { sessions?: SessionInfo[] }).sessions ?? state.sessions,
         focusRequest: state.focusRequest + (action.focusPrompt ? 1 : 0)
       };
     case 'error':
@@ -383,7 +403,9 @@ export function Agent({ initial }: { initial: Initial }) {
     focusRequest: 0,
     provider: initial.provider || 'Auto', rules: Boolean(initial.rules),
     models: initial.models || [], modelValue: initial.modelValue || '',
-    mcpPermission: null
+    mcpPermission: null,
+    session: (initial as ChatState & { session?: SessionInfo | null }).session ?? null,
+    sessions: (initial as ChatState & { sessions?: SessionInfo[] }).sessions ?? []
   });
   const [filesOpen, setFilesOpen] = useState(true);
   const [expandedPlanId, setExpandedPlanId] = useState<string>();
@@ -765,6 +787,26 @@ export function Agent({ initial }: { initial: Initial }) {
           </div>)}
         </div>
       </div>}
+      <div className="session-bar" aria-label="Session handoff">
+        <div className="session-bar__meta">
+          <span className="session-bar__badge">{state.session?.badge || 'Local'}</span>
+          <span className="session-bar__status">
+            {state.session?.status || 'idle'}
+            {state.session?.branch ? ` · ${state.session.branch}` : ''}
+          </span>
+        </div>
+        <div className="session-bar__actions">
+          <ActionButton rounding="full" text="Worktree" disabled={state.submitting || !!patch}
+            title="Prepare an isolated git worktree for this session"
+            onClick={() => send({ type: 'session-prepare' })} />
+          <ActionButton rounding="full" text="Background" disabled={state.submitting || !!patch}
+            title="Mark session as background (local stub until cloud runtime)"
+            onClick={() => send({ type: 'session-background' })} />
+          <ActionButton rounding="full" text="PR" disabled={state.submitting}
+            title="Open idempotent PR create/compare URL"
+            onClick={() => send({ type: 'session-pr' })} />
+        </div>
+      </div>
       {plan && <div id="plan-bar" className="composer-header plan-bar">
         <div className="review-row">
           <button type="button" className="plan-toggle" aria-expanded={planOpen}

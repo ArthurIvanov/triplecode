@@ -42,6 +42,8 @@
 - Изменения Tab/Cmd-K — `inline-logic.cjs`, `inline.js`, `cmdk-logic.cjs`, `cmdk-host.cjs`, `npm test` (S10).
 - Изменения diagnostics — `debug-logic.cjs`, `debug-host.cjs`, `npm test` (S16); не включать промпты/секреты в отчёт.
 - Изменения update/signing — `update-logic.cjs`, `update-host.cjs`, `scripts/sign-artifact.sh`, `npm test` (S18); fork threshold — `check-fork-threshold.sh` + ADR 0006.
+- Изменения session/worktree/PR handoff — `session-logic.cjs`, `session-host.cjs`, session-bar UI, `npm test` (S11).
+- Визуальный паритет Cursor/Devin — [docs/competitive-visual-parity.md](../../docs/competitive-visual-parity.md) + S19; не клонировать бренд.
 - Изменения Ask/Plan/Execute — обновляй `agent-modes.cjs` и `npm test` (S03–S04).
 - Изменения @/attachments/rules/inline picker — обновляй `context-rules.cjs`, `webview/agent.tsx`, `npm test` + `build:webview` (S08).
 - Изменения Welcome/recent/first-launch defaults — обновляй `welcome-logic.cjs` и `npm test` (S01).
