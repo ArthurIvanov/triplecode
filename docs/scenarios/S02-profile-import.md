@@ -45,7 +45,7 @@
 ## Code paths
 
 - `extensions/triplecode-mvp/import-logic.cjs` — classify / report / preview counts  
-- `extensions/triplecode-mvp/extension.js` — `showImportPreview`, `performImport`, `rollbackImport`  
+- `extensions/triplecode-mvp/import-host.cjs` — `showImportPreview`, `performImport`, `rollbackImport`  
 - `extensions/triplecode-mvp/webview/import-preview.tsx`  
 - `extensions/triplecode-mvp/test/s02-import.test.cjs`
 

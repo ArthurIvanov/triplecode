@@ -6,7 +6,7 @@
 
 | Слой | Путь | Ответственность |
 | --- | --- | --- |
-| Extension host | `extension.js`, `desktop-account.js`, `patch.js` | Команды, чаты, apply/undo, checks, import, account |
+| Extension host | `extension.js`, `import-host.cjs`, `desktop-account.js`, `patch.js` | Команды, чаты, apply/undo, checks, import, account |
 | Provider | `provider.js` | HTTP к Ollama/OpenRouter; промпты; parse multi-file |
 | Inline | `inline.js` | InlineCompletion; default off |
 | Webview UI | `webview/**` | React Agents UI, design-system gallery |

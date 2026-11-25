@@ -17,11 +17,11 @@ jobs:
           cache-dependency-path: extensions/triplecode-mvp/package-lock.json
       - name: Install extension deps
         run: npm --prefix extensions/triplecode-mvp ci --no-audit --no-fund
-      - name: Typecheck and build webview
+      - name: Typecheck and build webview (tsc)
         run: npm --prefix extensions/triplecode-mvp run build:webview
-      - name: S05–S07 review smoke tests
+      - name: Unit tests (scenarios + patch dry-check)
         run: npm --prefix extensions/triplecode-mvp test
-      - name: Check workbench layout pin
+      - name: Workbench layout pin dry-check
         run: bash scripts/check-layout-pin.sh
       - name: Verify sample release manifest schema
         run: |

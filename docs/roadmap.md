@@ -38,10 +38,10 @@
 
 | ID | Outcome | Scenario | Screen | Role | Deps | Stage |
 | --- | --- | --- | --- | --- | --- | --- |
-| R-B1 | CI PR: tsc webview + patch dry-check | — | — | Релизы | `.github/workflows` | MVP |
+| R-B1 | CI PR: tsc webview + patch dry-check | — | — | Релизы | `.github/workflows` | MVP ✓ 25.11 |
 | R-B2 | Build artifacts macOS/Win/Linux | — | — | Релизы | upstream.env | MVP→beta |
 | R-B3 | Smoke stop/apply/undo/Ask | S03 S05 S06 | — | QA | CI | MVP ✓ S03/S05/S06 |
-| R-B4 | Modularize/type `extension.js` | — | — | AI/IDE | — | MVP |
+| R-B4 | Modularize/type `extension.js` | — | — | AI/IDE | — | MVP (import-host extracted 25.11; more TBD) |
 | R-B5 | Release manifest + verify script | — | — | Релизы | ADR 0005 | beta |
 
 **Визуал B:** нет новых экранов; галерея DS остаётся синхронной со Storybook.
