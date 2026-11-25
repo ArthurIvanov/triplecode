@@ -509,7 +509,20 @@ function activate(context) {
         name: typeof chat.name === 'string' ? chat.name.slice(0, 80) : '',
         draft: typeof chat.draft === 'string' ? chat.draft.slice(0, 500) : '',
         mode: ['ask', 'plan', 'agent'].includes(chat.mode) ? chat.mode : 'agent',
-        replies: Array.isArray(chat.replies) ? chat.replies.filter(reply => typeof reply === 'string').slice(-50) : [],
+        replies: Array.isArray(chat.replies) ? chat.replies.flatMap(reply => {
+          if (typeof reply === 'string') return [reply];
+          if (reply && reply.type === 'timeline' && Array.isArray(reply.steps)) {
+            const steps = reply.steps
+              .filter(step => step && typeof step.title === 'string')
+              .map(step => ({
+                ...step,
+                title: step.title.slice(0, 200),
+                description: typeof step.description === 'string' ? step.description.slice(0, 2000) : undefined
+              }));
+            return steps.length ? [{ type: 'timeline', steps }] : [];
+          }
+          return [];
+        }).slice(-50) : [],
         plan: chat.plan && typeof chat.plan.task === 'string' && typeof chat.plan.plan === 'string'
           ? { id: typeof chat.plan.id === 'string' ? chat.plan.id : randomUUID(), task: chat.plan.task, plan: chat.plan.plan }
           : null,
@@ -766,6 +779,8 @@ function activate(context) {
             if (pending) {
               reportUsage({ feature: 'agent', provider: null, model: null, durationMs: 0, outcome: 'rejected' });
               recordHistory('discard', `${pending.request} — ${pending.files.length} file${pending.files.length === 1 ? '' : 's'}`);
+              recordActionStep(currentChat, 'edit', 'Discard patch',
+                `Dropped ${pending.files.length} file${pending.files.length === 1 ? '' : 's'}`);
             }
             await clearPatch('Changes discarded.');
             break;
@@ -818,17 +833,12 @@ function activate(context) {
     const started = Date.now();
     const mode = await aiSetting('ai.provider', 'auto');
     const feature = options.feature || 'other';
-    const chatId = options.chatId;
     const report = (providerName, model, outcome) => reportUsage({
       feature, provider: providerName, model,
       durationMs: Date.now() - started, outcome
     });
     const addStep = (type, title, description) => {
-      if (chatId) agent?.postMessage({
-        type: 'timeline-step',
-        chat: chatId,
-        item: { type, title, description, timestamp: Date.now(), status: 'completed' }
-      });
+      if (options.run) addTimelineStep(options.run, type, title, description);
     };
     try {
       if (mode === 'openrouter') {
@@ -941,7 +951,7 @@ function activate(context) {
     documents.splice(6);
     if (!documents.length) throw new Error('Open a source file first.');
     const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-    const options = { numPredict: 8192, numCtx: 16384, feature: 'agent', chatId: run.chat.id };
+    const options = { numPredict: 8192, numCtx: 16384, feature: 'agent', run };
     const knownUris = new Set(documents.map(document => document.uri.toString()));
 
     let contextDocs = documents;
@@ -1053,6 +1063,18 @@ function activate(context) {
     }
   }
 
+  function recordActionStep(chat, type, title, description) {
+    const step = { type, title, description, timestamp: Date.now(), status: 'completed' };
+    const last = chat.replies[chat.replies.length - 1];
+    if (last && typeof last === 'object' && last.type === 'timeline') {
+      last.steps.push(step);
+    } else {
+      chat.replies.push({ type: 'timeline', steps: [step] });
+    }
+    persistChats();
+    if (currentChat === chat) agent?.postMessage({ type: 'chats', ...chatState() });
+  }
+
   function drainQueue(chat) {
     const item = chat.queue?.shift();
     if (!item) return;
@@ -1066,6 +1088,10 @@ function activate(context) {
     clearTimeout(run.timeout);
     activeRun = undefined;
     run.chat.status = status;
+    if (run.chat.timelineSteps?.length) {
+      run.chat.replies.push({ type: 'timeline', steps: run.chat.timelineSteps });
+      run.chat.timelineSteps = [];
+    }
     persistChats();
     if (currentChat === run.chat) agent?.postMessage({ type: 'chats', ...chatState() });
     if (!pending && run.chat === currentChat) drainQueue(run.chat);
@@ -1173,7 +1199,7 @@ function activate(context) {
         ? await aiOrFallback(signal, () => {
           postProgress(run, 'Waiting for model…');
           addTimelineStep(run, 'tool', 'Ask request', 'Sending ask-mode request to AI');
-          return aiChat(provider.askMessages(document, aiRequest), signal, { feature: 'ask', chatId: chat.id });
+          return aiChat(provider.askMessages(document, aiRequest), signal, { feature: 'ask', run });
         }, fallback)
         : fallback();
       signal.throwIfAborted();
@@ -1188,7 +1214,7 @@ function activate(context) {
       }
       postProgress(run, 'Waiting for model…');
       addTimelineStep(run, 'tool', 'Plan request', 'Sending plan-mode request to AI');
-      const plan = await aiChat(provider.planMessages(document, aiRequest), signal, { feature: 'plan', chatId: chat.id });
+      const plan = await aiChat(provider.planMessages(document, aiRequest), signal, { feature: 'plan', run });
       signal.throwIfAborted();
       addTimelineStep(run, 'message', 'Plan response', 'Received plan from AI');
       completeChatTurn(chat, plan, { id: randomUUID(), task: trimmed, plan });
@@ -1259,10 +1285,10 @@ function activate(context) {
       patches.set(modified.toString(), before.slice(0, spec.edit.offset) + spec.edit.insertion + before.slice(spec.edit.offset + deleteLength));
       return { document, before, edit: spec.edit, original, modified, column: vscode.window.activeTextEditor?.viewColumn };
     });
-    completeChatTurn(chat, undefined, null, run.approvedPlan);
     pending = { request: trimmed, files, checks: [] };
     recordHistory('propose', `${trimmed} — ${files.length} file${files.length === 1 ? '' : 's'}`);
     addTimelineStep(run, 'message', 'Review ready', `Patch with ${files.length} file${files.length === 1 ? '' : 's'} ready for review`);
+    completeChatTurn(chat, undefined, null, run.approvedPlan);
     agent?.postMessage({ type: 'pending', patch: describePatch(pending) });
   }
 
@@ -1302,7 +1328,6 @@ function activate(context) {
       ? indices.map(index => patch.files[index]).filter(Boolean)
       : patch.files;
     if (!targets.length) return;
-    addTimelineStep({ chat: { id: currentChat.id } }, 'edit', 'Apply patch', `Applying ${targets.length} file${targets.length === 1 ? '' : 's'}`);
     const workspaceEdit = new vscode.WorkspaceEdit();
     for (const file of targets) {
       const document = await vscode.workspace.openTextDocument(file.document.uri);
@@ -1315,6 +1340,7 @@ function activate(context) {
     }
     if (pending !== patch) return;
     if (!await vscode.workspace.applyEdit(workspaceEdit)) throw new Error('The editor could not apply the patch.');
+    recordActionStep(currentChat, 'edit', 'Apply patch', `Applied ${targets.length} file${targets.length === 1 ? '' : 's'}`);
     reportUsage({ feature: 'agent', provider: null, model: null, durationMs: 0, outcome: 'accepted' });
     appliedOps.push({
       request: patch.request,
@@ -1354,7 +1380,7 @@ function activate(context) {
     const patch = pending;
     if (!patch || !patch.files[index]) return;
     const [file] = patch.files.splice(index, 1);
-    addTimelineStep({ chat: { id: currentChat.id } }, 'edit', 'Discard file', `Dropping ${fileName(file.document)}`);
+    recordActionStep(currentChat, 'edit', 'Discard file', `Dropped ${fileName(file.document)}`);
     reportUsage({ feature: 'agent', provider: null, model: null, durationMs: 0, outcome: 'rejected' });
     recordHistory('discard', `${patch.request} — dropped ${fileName(file.document)} from patch`);
     patches.delete(file.original.toString());
@@ -1413,6 +1439,8 @@ function activate(context) {
     }
     if (conflicted.length) appliedOps.push({ request: batch.request, files: conflicted });
     recordHistory('undo', `${batch.request} — restored ${restored} of ${batch.files.length} file${batch.files.length === 1 ? '' : 's'}`);
+    recordActionStep(currentChat, 'edit', 'Undo last apply',
+      `Restored ${restored} of ${batch.files.length} file${batch.files.length === 1 ? '' : 's'}`);
     if (conflicted.length) {
       const names = conflicted.map(file => file.uri.path.split('/').pop());
       await vscode.window.showWarningMessage(
@@ -1430,9 +1458,10 @@ function activate(context) {
     const command = vscode.workspace.getConfiguration('triplecode').get('checkCommand', 'npm test');
     patch.checking = true;
     agent?.postMessage({ type: 'pending', patch: describePatch(patch) });
-    addTimelineStep({ chat: { id: currentChat.id } }, 'command', 'Run checks', `Executing: ${command}`);
     try {
-      recordCheck(patch, command, await execCheck(command, folder.uri.fsPath), 'working-tree');
+      const result = await execCheck(command, folder.uri.fsPath);
+      recordCheck(patch, command, result, 'working-tree');
+      recordActionStep(currentChat, 'command', 'Run checks', `${command} — exit ${result.code}`);
     } finally {
       patch.checking = false;
       if (pending === patch) agent?.postMessage({ type: 'pending', patch: describePatch(patch) });
@@ -1449,7 +1478,6 @@ function activate(context) {
     const scratch = await mkdtemp(join(tmpdir(), 'triplecode-patch-'));
     patch.checking = true;
     agent?.postMessage({ type: 'pending', patch: describePatch(patch) });
-    addTimelineStep({ chat: { id: currentChat.id } }, 'command', 'Check patch', `Isolated copy: ${command}`);
     try {
       await cp(root, scratch, {
         recursive: true,
@@ -1472,7 +1500,9 @@ function activate(context) {
           file.before.slice(file.edit.offset + deleteLength);
         await writeFile(target, content, 'utf-8');
       }
-      recordCheck(patch, command, await execCheck(command, scratch), 'proposed-patch');
+      const result = await execCheck(command, scratch);
+      recordCheck(patch, command, result, 'proposed-patch');
+      recordActionStep(currentChat, 'command', 'Check patch', `${command} — exit ${result.code} (isolated copy)`);
     } finally {
       patch.checking = false;
       await rm(scratch, { recursive: true, force: true }).catch(() => {});
