@@ -6,6 +6,7 @@ import { ActionButton, ActionButtonIcon } from './design-system/components/actio
 import { Dropdown, DropdownItem } from './design-system/components/dropdown';
 import { Accordion } from './design-system/components/accordion';
 import type { TimelineItemProps } from './design-system/components/timeline';
+import { Markdown } from './markdown';
 
 const modes = { ask: 'Ask', plan: 'Plan', agent: 'Agent' } as const;
 type Mode = keyof typeof modes;
@@ -22,17 +23,38 @@ type Chat = {
   status?: string;
   queued?: number;
   mode?: Mode;
-  replies?: (string | { type: 'request'; text: string } | { type: 'timeline'; steps: TimelineItemProps[] })[];
+  replies?: Reply[];
   plan?: { id: string; task: string; plan: string } | null;
   attachments?: Attachment[];
 };
 type ModelChoice = { value: string; label: string };
 type ChatState = { chats: Chat[]; selected: number; draft: string; model: string; modelValue?: string; models?: ModelChoice[]; provider?: string; rules?: boolean; progress?: Progress | null; status?: string };
+type DiffLine = { type: 'ctx' | 'add' | 'del'; text: string; line?: number };
+type PatchFile = {
+  name: string;
+  start: number;
+  removed: number;
+  added?: number;
+  hunk?: DiffLine[];
+  lines?: string[];
+};
 type Patch = {
   request: string;
-  files: { name: string; lines: string[]; start: number; removed: number }[];
+  files: PatchFile[];
   checking?: boolean;
   checks?: { command: string; code: number; output?: string; target: 'working-tree' | 'proposed-patch' }[];
+};
+type Reply =
+  | string
+  | { type: 'request'; text: string }
+  | { type: 'timeline'; steps: TimelineItemProps[] };
+type Turn = {
+  id: number;
+  request: string;
+  steps?: TimelineItemProps[];
+  stepsIndex?: number;
+  answer?: string;
+  answerIndex?: number;
 };
 type Assets = Record<'close' | 'plus' | 'actions' | 'chevron' | 'context' | 'attach' | 'send' |
   'crown' | 'listTodo' | 'messageSquare' | 'check' | 'chevronDown', string>;
@@ -219,11 +241,61 @@ function AgentRunSteps({ steps, expandDetails = true, live = false }: { steps: T
 
 function ProgressIndicator({ progress }: { progress: Progress }) {
   return (
-    <Accordion title={progress.text} defaultExpanded className="agent-run">
-      {progress.steps && progress.steps.length > 0 && (
-        <AgentRunSteps steps={progress.steps} live />
-      )}
-    </Accordion>
+    <div className="agent-turn agent-turn--live">
+      <div className="agent-turn__label">Working</div>
+      <Accordion title={progress.text} defaultExpanded className="agent-run">
+        {progress.steps && progress.steps.length > 0 && (
+          <AgentRunSteps steps={progress.steps} live />
+        )}
+      </Accordion>
+    </div>
+  );
+}
+
+/** Group flat replies into Request → Steps → Answer turns (S12). */
+function groupTurns(replies: Reply[]): Turn[] {
+  const turns: Turn[] = [];
+  for (let index = 0; index < replies.length; index += 1) {
+    const reply = replies[index];
+    if (typeof reply === 'object' && reply.type === 'request') {
+      const turn: Turn = { id: index, request: reply.text };
+      let cursor = index + 1;
+      if (cursor < replies.length) {
+        const next = replies[cursor];
+        if (typeof next === 'object' && next.type === 'timeline') {
+          turn.steps = next.steps;
+          turn.stepsIndex = cursor;
+          cursor += 1;
+        }
+      }
+      if (cursor < replies.length && typeof replies[cursor] === 'string') {
+        turn.answer = replies[cursor] as string;
+        turn.answerIndex = cursor;
+      }
+      turns.push(turn);
+    }
+  }
+  return turns;
+}
+
+function DiffHunk({ hunk, legacyLines, start }: { hunk?: DiffLine[]; legacyLines?: string[]; start: number }) {
+  const lines: DiffLine[] = hunk?.length
+    ? hunk
+    : (legacyLines || []).map(text => ({ type: 'add' as const, text }));
+  return (
+    <pre className="patch-lines" aria-label="Diff preview">
+      {lines.map((line, index) => {
+        const mark = line.type === 'add' ? '+' : line.type === 'del' ? '-' : ' ';
+        const lineNo = line.line ?? (line.type === 'add' ? undefined : start + index);
+        return (
+          <div key={index} className={`patch-line patch-line--${line.type}`}>
+            <span className="patch-line__no">{lineNo ?? ''}</span>
+            <span className="patch-line__mark">{mark}</span>
+            <span className="patch-line__text">{line.text}</span>
+          </div>
+        );
+      })}
+    </pre>
   );
 }
 
@@ -301,18 +373,21 @@ export function Agent({ initial }: { initial: Initial }) {
   const progress = state.progress && state.progress.chat === selected ? state.progress : null;
   const { assets } = initial;
 
-  const turns = replies.reduce<{ index: number; text: string; steps: number }[]>((acc, reply, index) => {
-    if (typeof reply === 'object' && reply?.type === 'request') {
-      let steps = 0;
-      for (let j = index + 1; j < replies.length; j++) {
-        const next = replies[j];
-        if (typeof next === 'object' && next?.type === 'request') break;
-        if (typeof next === 'object' && next?.type === 'timeline') { steps = next.steps.length; break; }
-      }
-      acc.push({ index, text: reply.text, steps });
-    }
-    return acc;
-  }, []);
+  const turns = groupTurns(replies);
+  const navTurns = turns.map(turn => ({
+    index: turn.id,
+    text: turn.request,
+    steps: turn.steps?.length || 0
+  }));
+  const orphanReplies = replies
+    .map((reply, index) => ({ reply, index }))
+    .filter(({ reply, index }) => {
+      if (typeof reply === 'object' && reply.type === 'request') return false;
+      return !turns.some(turn =>
+        turn.stepsIndex === index || turn.answerIndex === index
+      );
+    });
+  const reviewBelongsToLast = Boolean(patch && turns.length && !progress);
 
   useEffect(() => {
     setExpandedTimelines(new Set());
@@ -322,28 +397,24 @@ export function Agent({ initial }: { initial: Initial }) {
   function jumpToTurn(turnIndex: number) {
     document.getElementById(`msg-${turnIndex}`)?.scrollIntoView({ block: 'start', behavior: 'smooth' });
     setActiveTurn(turnIndex);
-    for (let j = turnIndex + 1; j < replies.length; j++) {
-      const next = replies[j];
-      if (typeof next === 'object' && next?.type === 'request') break;
-      if (typeof next === 'object' && next?.type === 'timeline') {
-        setExpandedTimelines(prev => new Set(prev).add(j));
-        break;
-      }
+    const turn = turns.find(item => item.id === turnIndex);
+    if (turn?.stepsIndex != null) {
+      setExpandedTimelines(prev => new Set(prev).add(turn.stepsIndex!));
     }
   }
 
   function trackScroll(event: ReactUIEvent<HTMLElement>) {
-    if (!turns.length) return;
+    if (!navTurns.length) return;
     const container = event.currentTarget;
     const markerTop = container.getBoundingClientRect().top + 24;
     let current: number | undefined;
-    for (const turn of turns) {
+    for (const turn of navTurns) {
       const element = document.getElementById(`msg-${turn.index}`);
       if (!element) continue;
       if (element.getBoundingClientRect().top <= markerTop) current = turn.index;
       else break;
     }
-    setActiveTurn(current ?? turns[0].index);
+    setActiveTurn(current ?? navTurns[0].index);
   }
 
   useLayoutEffect(() => {
@@ -445,19 +516,53 @@ export function Agent({ initial }: { initial: Initial }) {
       <ActionButton text={null} start={<ActionButtonIcon href={assets.actions} />} aria-label="Agent actions" data-action="chat-actions"
         onClick={() => send({ type: 'chat-actions' })} />
       <ActionButton text={null} start={<ActionButtonIcon href={assets.listTodo} dimension={14} />} aria-label="Request history"
-        aria-pressed={navOpen} disabled={!!patch || turns.length === 0}
+        aria-pressed={navOpen} disabled={!!patch || navTurns.length === 0}
         onClick={() => setNavOpen(open => !open)} />
     </header>
     <div className="conversation-wrap">
     <section id="conversation" className="conversation" hidden={!replies.length && !patch && !progress} aria-label="Agent output" onScroll={trackScroll}>
       <div id="messages">
-        {replies.map((reply, index) => {
-          if (typeof reply === 'object' && reply.type === 'request') {
-            return <p className="agent-message agent-message--request" id={`msg-${index}`} key={index}>{reply.text}</p>;
-          }
+        {turns.map((turn, turnPos) => {
+          const isLast = turnPos === turns.length - 1;
+          return (
+            <article className="agent-turn" key={turn.id} aria-label={`Turn ${turnPos + 1}`}>
+              <p className="agent-message agent-message--request" id={`msg-${turn.id}`}>{turn.request}</p>
+              {turn.steps && turn.steps.length > 0 && turn.stepsIndex != null && (
+                <Accordion
+                  title={`${turn.steps.length} step${turn.steps.length === 1 ? '' : 's'}`}
+                  className="agent-run agent-run--history"
+                  expanded={expandedTimelines.has(turn.stepsIndex)}
+                  onExpandedChange={open => setExpandedTimelines(prev => {
+                    const next = new Set(prev);
+                    if (open) next.add(turn.stepsIndex!); else next.delete(turn.stepsIndex!);
+                    return next;
+                  })}>
+                  <AgentRunSteps steps={turn.steps} expandDetails={false} />
+                </Accordion>
+              )}
+              {turn.answer != null && (
+                <div className="agent-bubble">
+                  <Markdown source={turn.answer} className="agent-message agent-message--md" />
+                  <button type="button" className="agent-copy" title="Copy response" aria-label="Copy response"
+                    onClick={() => void copyText(turn.answer!)}>
+                    <CopyIcon />
+                  </button>
+                </div>
+              )}
+              {isLast && reviewBelongsToLast && patch && (
+                <div className="agent-turn__review">
+                  <div className="agent-turn__label">Review</div>
+                  <p id="task" className="agent-message request">{patch.request}</p>
+                </div>
+              )}
+            </article>
+          );
+        })}
+        {orphanReplies.map(({ reply, index }) => {
           if (typeof reply === 'object' && reply.type === 'timeline') {
             return (
-              <Accordion key={index} title="Timeline" className="agent-run agent-run--history"
+              <Accordion key={index} title={`${reply.steps.length} step${reply.steps.length === 1 ? '' : 's'}`}
+                className="agent-run agent-run--history"
                 expanded={expandedTimelines.has(index)}
                 onExpandedChange={open => setExpandedTimelines(prev => {
                   const next = new Set(prev);
@@ -468,45 +573,55 @@ export function Agent({ initial }: { initial: Initial }) {
               </Accordion>
             );
           }
-          return (
-            <div className="agent-bubble" key={index}>
-              <p className="agent-message">{reply as string}</p>
-              <button type="button" className="agent-copy" title="Copy response" aria-label="Copy response"
-                onClick={() => void copyText(reply as string)}>
-                <CopyIcon />
-              </button>
-            </div>
-          );
+          if (typeof reply === 'string') {
+            return (
+              <div className="agent-bubble" key={index}>
+                <Markdown source={reply} className="agent-message agent-message--md" />
+                <button type="button" className="agent-copy" title="Copy response" aria-label="Copy response"
+                  onClick={() => void copyText(reply)}>
+                  <CopyIcon />
+                </button>
+              </div>
+            );
+          }
+          return null;
         })}
         {progress && <ProgressIndicator progress={progress} />}
       </div>
       {patch && <>
-        <p id="task" className="agent-message request">{patch.request}</p>
+        {!reviewBelongsToLast && <p id="task" className="agent-message request">{patch.request}</p>}
         <div id="patch" className="patch" hidden={!filesOpen}>
           <div id="patch-files">
-            {patch.files.map((file, index) => <div className="patch" key={file.name}>
-              <div className="patch-file">
-                <span>{file.name}</span>
-                <span className="patch-file-actions">
-                  <span>+{file.lines.length}{file.removed ? ` -${file.removed}` : ''}</span>
-                  <ActionButton size="base" rounding="full" text="Keep" disabled={patch.checking}
-                    title="Apply only this file"
-                    onClick={() => send({ type: 'apply-file', id: selected, index })} />
-                  <ActionButton size="base" rounding="full" text="Drop" disabled={patch.checking}
-                    title="Drop this file from the patch"
-                    onClick={() => send({ type: 'discard-file', id: selected, index })} />
-                </span>
-              </div>
-              <pre className="patch-lines">{file.lines.map((line, index) => `${file.start + index}  +  ${line}`).join('\n')}</pre>
-            </div>)}
+            {patch.files.map((file, index) => {
+              const added = file.added ?? file.lines?.length ?? 0;
+              const removed = file.removed || 0;
+              return (
+                <div className="patch" key={`${file.name}-${index}`}>
+                  <div className="patch-file">
+                    <button type="button" className="patch-file__name" title="Open full diff"
+                      onClick={() => send({ type: 'review' })}>{file.name}</button>
+                    <span className="patch-file-actions">
+                      <span className="patch-stat">+{added}{removed ? ` −${removed}` : ''}</span>
+                      <ActionButton size="base" rounding="full" text="Keep" disabled={patch.checking}
+                        title="Apply only this file"
+                        onClick={() => send({ type: 'apply-file', id: selected, index })} />
+                      <ActionButton size="base" rounding="full" text="Drop" disabled={patch.checking}
+                        title="Drop this file from the patch"
+                        onClick={() => send({ type: 'discard-file', id: selected, index })} />
+                    </span>
+                  </div>
+                  <DiffHunk hunk={file.hunk} legacyLines={file.lines} start={file.start} />
+                </div>
+              );
+            })}
           </div>
         </div>
       </>}
     </section>
-    {navOpen && turns.length > 0 && (
+    {navOpen && navTurns.length > 0 && (
       <aside className="agent-nav" aria-label="Request history">
         <div className="agent-nav__title">Requests</div>
-        {turns.map((turn, position) => (
+        {navTurns.map((turn, position) => (
           <button type="button" key={turn.index}
             className={activeTurn === turn.index ? 'agent-nav__item is-active' : 'agent-nav__item'}
             title={turn.text} aria-current={activeTurn === turn.index || undefined}

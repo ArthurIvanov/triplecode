@@ -6,6 +6,6 @@
     "jsx": "react-jsx",
     "strict": true
   },
-  "include": ["*.tsx", "design-system/**/*.ts", "design-system/**/*.tsx"],
+  "include": ["*.tsx", "*.ts", "design-system/**/*.ts", "design-system/**/*.tsx"],
   "exclude": ["**/*.stories.tsx"]
 }

@@ -30,7 +30,8 @@
 | R-A5 | E2E import real VS Code profile | S02 | Import preview/report/rollback | IDE + QA | — | MVP ✓ 25.11 (live E2E optional) |
 | R-A6 | Docs SoT repaired (audit/architecture) | — | — | Продакт | — | MVP |
 
-**Визуал A:** composer (empty, drafting, running, stopped, error); Review (proposed, checking, conflict); Account chip states. Tokens: `triplecode.chat.*`, button Primary/Secondary/Tertiary.
+**Визуал A:** composer (empty, drafting, running, stopped, error); Review (proposed, checking, conflict); Account chip states. Tokens: `triplecode.chat.*`, button Primary/Secondary/Tertiary.  
+**S12 (25.11):** turn chronology + Markdown answers + unified diff preview in Agents (Monaco remains full Review).
 
 ---
 
@@ -52,8 +53,8 @@
 
 | ID | Outcome | Scenario | Screen / states | Role | Deps | Stage |
 | --- | --- | --- | --- | --- | --- | --- |
-| R-C1 | Streaming tokens in Agents UI | S04/S05 | streaming, partial message | AI + Design | provider | beta |
-| R-C2 | Tool-calling loop (read/edit/check) | S05 S07 | timeline tool steps real | AI | — | beta |
+| R-C1 | Streaming tokens in Agents UI | S04/S05 | streaming, partial message | AI + Design | provider | beta (S12: chronology/MD shell without stream) |
+| R-C2 | Tool-calling loop (read/edit/check) | S05 S07 S12 | timeline tool steps real | AI | — | beta (S12: turn+steps UX; real tools later) |
 | R-C3 | MCP host + permissions UI | — | MCP connect/deny | AI + Security | — | beta |
 | R-C4 | `@` picker + index/search context | S08 | @ menu, chips keyboard | AI + Design | — | MVP+beta ✓ 25.11 (index/search later) |
 | R-C5 | Cmd-K + enable Tab | S10 | ghost text, selection edit | AI + Design | completion model | beta |

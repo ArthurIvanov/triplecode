@@ -8,7 +8,7 @@ const { normalize, isAbsolute, relative } = require('node:path');
 const { commentEdit, supportsComments } = require('./patch');
 const { registerDesktopAccount } = require('./desktop-account');
 const {
-  applyEdit, selectFiles, classifyUndo, isStale, isActiveRun, remainingAfterApply
+  applyEdit, selectFiles, classifyUndo, isStale, isActiveRun, remainingAfterApply, describeEditHunk
 } = require('./review-logic');
 const {
   allowRequestLength, buildExecuteRequest, sanitizePlanEdit
@@ -983,15 +983,18 @@ function activate(context) {
       checks: patch.checks,
       checking: Boolean(patch.checking),
       files: patch.files.map(file => {
-        const removed = file.edit.deleteLength
-          ? file.before.slice(file.edit.offset, file.edit.offset + file.edit.deleteLength).replace(/\n$/, '').split('\n').length
-          : 0;
-        const lines = file.edit.insertion.replace(/\r/g, '').trimEnd().split('\n');
+        const preview = describeEditHunk(file.before, file.edit, 3);
+        const hunk = preview.hunk.length > 400
+          ? [...preview.hunk.slice(0, 400), { type: 'ctx', text: '…' }]
+          : preview.hunk;
         return {
           name: fileName(file.document),
-          lines: lines.length > 300 ? [...lines.slice(0, 300), '…'] : lines,
-          removed,
-          start: file.document.positionAt(file.edit.offset).line + 1
+          start: preview.startLine,
+          added: preview.added,
+          removed: preview.removed,
+          hunk,
+          // legacy add-only lines kept for older webview caches
+          lines: preview.hunk.filter(line => line.type === 'add').map(line => line.text)
         };
       })
     };
