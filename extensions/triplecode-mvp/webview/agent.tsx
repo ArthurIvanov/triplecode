@@ -43,6 +43,7 @@ type HostMessage =
   | { type: 'target'; name: string }
   | { type: 'pending'; patch: Patch }
   | ({ type: 'progress' } & Progress)
+  | { type: 'stream'; chat: number; text: string }
   | { type: 'complete' | 'error'; text: string }
   | ({ type: 'chats'; focusPrompt?: boolean } & ChatState)
   | { type: 'timeline-step'; chat: number; item: TimelineItemProps };
@@ -70,6 +71,7 @@ type State = ChatState & {
   status: string;
   submitting: boolean;
   progress: Progress | null;
+  stream: { chat: number; text: string } | null;
   focusRequest: number;
   provider: string;
   rules: boolean;
@@ -92,13 +94,17 @@ function update(state: State, action: Action): State {
     case 'target':
       return { ...state, target: action.name };
     case 'pending':
-      return { ...state, patch: action.patch, status: '', submitting: false, progress: null };
+      return { ...state, patch: action.patch, status: '', submitting: false, progress: null, stream: null };
     case 'progress':
       return action.chat === state.selected
         ? { ...state, submitting: true, progress: { ...action, steps: state.progress?.steps || [] } }
         : state;
+    case 'stream':
+      return action.chat === state.selected
+        ? { ...state, stream: { chat: action.chat, text: action.text } }
+        : state;
     case 'complete':
-      return { ...state, patch: null, status: action.text, submitting: false, progress: null };
+      return { ...state, patch: null, status: action.text, submitting: false, progress: null, stream: null };
     case 'chats':
       return {
         ...state, chats: action.chats, selected: action.selected, draft: action.draft,
@@ -106,10 +112,11 @@ function update(state: State, action: Action): State {
         provider: action.provider || state.provider, rules: Boolean(action.rules),
         models: action.models ?? state.models, modelValue: action.modelValue ?? state.modelValue,
         submitting: Boolean(action.progress), progress: action.progress ? { ...action.progress, steps: state.progress?.steps || [] } : null,
-        focusRequest: state.focusRequest + (action.focusPrompt ? 1 : 0)
+        focusRequest: state.focusRequest + (action.focusPrompt ? 1 : 0),
+        stream: action.progress ? state.stream : null
       };
     case 'error':
-      return { ...state, status: action.text, submitting: false, progress: null };
+      return { ...state, status: action.text, submitting: false, progress: null, stream: null };
     case 'timeline-step':
       if (action.chat === state.selected && state.progress) {
         const steps = [...(state.progress.steps || []), action.item];
@@ -162,7 +169,7 @@ export function Agent({ initial }: { initial: Initial }) {
     chats: initial.chats, selected: initial.selected, draft: initial.draft,
     model: initial.model || 'Model', target: initial.target, patch: initial.pending,
     mode: selectedMode(initial), status: initial.status || '',
-    submitting: Boolean(initial.progress), progress: initial.progress ?? null, focusRequest: 0,
+    submitting: Boolean(initial.progress), progress: initial.progress ?? null, stream: null, focusRequest: 0,
     provider: initial.provider || 'Auto', rules: Boolean(initial.rules),
     models: initial.models || [], modelValue: initial.modelValue || ''
   });
@@ -234,6 +241,8 @@ export function Agent({ initial }: { initial: Initial }) {
           }
           return <p className="agent-message" key={index}>{reply as string}</p>;
         })}
+        {state.stream && state.stream.chat === selected &&
+          <p className="agent-message agent-message--stream">{state.stream.text}</p>}
         {progress && <ProgressIndicator progress={progress} />}
       </div>
       {patch && <>

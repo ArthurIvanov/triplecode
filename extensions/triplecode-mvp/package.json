@@ -124,6 +124,11 @@
           "default": true,
           "description": "Include a compact workspace file tree and project digest (package.json, README) in AI requests so the model can reason about the whole project, not only open files."
         },
+        "triplecode.ai.projectSearch": {
+          "type": "boolean",
+          "default": true,
+          "description": "Lexically search the workspace for Ask-mode requests and include excerpts of the most relevant files in the model context."
+        },
         "triplecode.ai.openrouterEndpoint": {
           "type": "string",
           "default": "https://openrouter.ai/api/v1",
@@ -397,6 +402,7 @@
   },
   "scripts": {
     "build:webview": "tsc --noEmit -p webview && esbuild webview/agent.tsx webview/import-preview.tsx webview/design-system.tsx webview/design-system/design-system-components.css --bundle --minify --jsx=automatic --define:process.env.NODE_ENV=\\\"production\\\" --outdir=media",
+    "eval:ai": "node eval/run.mjs",
     "storybook": "storybook dev -p 6006 --no-open",
     "build-storybook": "storybook build"
   }

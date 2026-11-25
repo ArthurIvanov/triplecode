@@ -864,7 +864,8 @@ function activate(context) {
         messages,
         signal,
         numPredict: options.numPredict,
-        numCtx: options.numCtx ?? await aiSetting('ai.numCtx', 16384)
+        numCtx: options.numCtx ?? await aiSetting('ai.numCtx', 16384),
+        onDelta: options.onDelta
       });
       report('ollama', model, 'ok');
       addStep('message', 'Ollama response', `Received ${reply.length} chars`);
@@ -974,6 +975,141 @@ function activate(context) {
     if (!tree && !digest) return '';
     const treePart = tree ? `Workspace files:\n${tree}\n\n` : '';
     return `Project: ${root.name}\n${treePart}${digest}`;
+  }
+
+  function chatStreamer(chatId) {
+    let text = '';
+    let lastSent = '';
+    let timer = null;
+    const send = () => {
+      timer = null;
+      if (text !== lastSent && agent) {
+        lastSent = text;
+        agent.postMessage({ type: 'stream', chat: chatId, text });
+      }
+    };
+    return {
+      delta(next) {
+        text = next;
+        if (!timer) timer = setTimeout(send, 80);
+      },
+      flush() {
+        if (timer) { clearTimeout(timer); timer = null; }
+        send();
+      }
+    };
+  }
+
+  function languageIdForPath(fsPath) {
+    const ext = fsPath.split('.').pop()?.toLowerCase() || '';
+    return {
+      js: 'javascript', jsx: 'javascriptreact', mjs: 'javascript', cjs: 'javascript',
+      ts: 'typescript', tsx: 'typescriptreact', json: 'json', md: 'markdown',
+      py: 'python', rs: 'rust', go: 'go', java: 'java', kt: 'kotlin', swift: 'swift',
+      c: 'c', h: 'c', cpp: 'cpp', cc: 'cpp', cxx: 'cpp', hpp: 'cpp', cs: 'csharp',
+      rb: 'ruby', php: 'php', html: 'html', css: 'css', scss: 'scss', less: 'less',
+      yml: 'yaml', yaml: 'yaml', toml: 'toml', sh: 'shellscript', bash: 'shellscript',
+      zsh: 'shellscript', sql: 'sql', graphql: 'graphql', proto: 'protobuf',
+      vue: 'vue', svelte: 'svelte', lua: 'lua', dart: 'dart', ex: 'elixir',
+      exs: 'elixir', erl: 'erlang', hs: 'haskell', scala: 'scala', clj: 'clojure',
+      fs: 'fsharp', fsx: 'fsharp', r: 'r', jl: 'julia', zig: 'zig'
+    }[ext] || 'text';
+  }
+
+  const SEARCH_STOPWORDS = new Set([
+    'the', 'and', 'for', 'with', 'how', 'what', 'where', 'when', 'why', 'are', 'was',
+    'were', 'this', 'that', 'from', 'into', 'does', 'did', 'can', 'could', 'should',
+    'would', 'your', 'you', 'our', 'its', 'about', 'please', 'show', 'tell', 'explain',
+    'find', 'check', 'look', 'need', 'want', 'make', 'add', 'use', 'using', 'used',
+    'get', 'got', 'all', 'any', 'some', 'each', 'per', 'vs', 'etc', 'doesn', 'don',
+    'isn', 'aren', 'wasn', 'weren', 'hasn', 'haven', 'hadn', 'won', 'wouldn',
+    'что', 'как', 'где', 'когда', 'почему', 'зачем', 'для', 'это', 'тот', 'эта',
+    'этот', 'эти', 'тоже', 'уже', 'или', 'нет', 'все', 'всё', 'над', 'под', 'при',
+    'без', 'его', 'её', 'их', 'нам', 'вам', 'мне', 'тебе', 'свой', 'своя', 'чем',
+    'чтобы', 'если', 'так', 'какой', 'какая', 'какие', 'какое', 'каких', 'есть',
+    'был', 'была', 'были', 'будет', 'быть', 'можно', 'нужно', 'надо', 'ли', 'бы'
+  ]);
+  const SEARCH_FILE_LIMIT = 200;
+  const SEARCH_RESULT_LIMIT = 2;
+  const SEARCH_LINE_RADIUS = 6;
+  const SEARCH_MAX_EXCERPT_LINES = 140;
+  const SEARCH_MAX_FILE_BYTES = 200000;
+
+  // Lexical project search for Ask mode: returns lightweight pseudo-documents
+  // whose text is an excerpt around matching lines, so relevant files outside
+  // the open tabs still reach the model within the context budget.
+  async function workspaceSearchDocuments(query, signal) {
+    const root = vscode.workspace.workspaceFolders?.[0];
+    if (!root) return [];
+    const tokens = [...new Set(String(query).toLowerCase().match(/[a-zа-яё0-9_]{3,}/g) || [])]
+      .filter(token => !SEARCH_STOPWORDS.has(token)).slice(0, 6);
+    if (!tokens.length) return [];
+    let uris;
+    try {
+      uris = await vscode.workspace.findFiles('**/*', [
+        '**/node_modules/**', '**/.git/**', '**/dist/**', '**/out/**', '**/build/**',
+        '**/*.min.js', '**/*.map', '**/*.lock', '**/package-lock.json', '**/yarn.lock',
+        '**/pnpm-lock.yaml', '**/Cargo.lock', '**/Gemfile.lock', '**/poetry.lock',
+        '**/.next/**', '**/.nuxt/**', '**/coverage/**'
+      ], SEARCH_FILE_LIMIT + 100);
+    } catch {
+      return [];
+    }
+    const candidates = uris.filter(uri => {
+      const ext = uri.path.split('.').pop()?.toLowerCase() || '';
+      return !BINARY_EXTENSIONS.has(ext);
+    }).slice(0, SEARCH_FILE_LIMIT);
+    const scored = [];
+    for (let i = 0; i < candidates.length; i += 50) {
+      signal?.throwIfAborted();
+      const batch = await Promise.all(candidates.slice(i, i + 50).map(async uri => {
+        try {
+          const stat = await vscode.workspace.fs.stat(uri);
+          if (stat.size > SEARCH_MAX_FILE_BYTES) return null;
+          const raw = await vscode.workspace.fs.readFile(uri);
+          const text = Buffer.from(raw).toString('utf-8');
+          if (text.includes('\u0000')) return null;
+          const lines = text.split('\n');
+          const hits = [];
+          const name = uri.path.split('/').pop().toLowerCase();
+          let score = tokens.some(token => name.includes(token)) ? 2 : 0;
+          for (let line = 0; line < lines.length; line++) {
+            const lower = lines[line].toLowerCase();
+            if (tokens.some(token => lower.includes(token))) {
+              hits.push(line);
+              score += 1;
+            }
+          }
+          return hits.length ? { uri, lines, hits, score } : null;
+        } catch {
+          return null;
+        }
+      }));
+      scored.push(...batch.filter(Boolean));
+    }
+    scored.sort((a, b) => b.score - a.score);
+    return scored.slice(0, SEARCH_RESULT_LIMIT).map(({ uri, lines, hits }) => {
+      const windows = [];
+      for (const hit of hits) {
+        const start = Math.max(0, hit - SEARCH_LINE_RADIUS);
+        const end = Math.min(lines.length, hit + SEARCH_LINE_RADIUS + 1);
+        const last = windows[windows.length - 1];
+        if (last && start <= last.end) last.end = Math.max(last.end, end);
+        else windows.push({ start, end });
+      }
+      const excerptLines = [];
+      for (const window of windows) {
+        if (excerptLines.length + (window.end - window.start) > SEARCH_MAX_EXCERPT_LINES) break;
+        if (excerptLines.length) excerptLines.push('  …');
+        excerptLines.push(...lines.slice(window.start, window.end));
+      }
+      return {
+        uri,
+        isClosed: false,
+        languageId: languageIdForPath(uri.fsPath),
+        getText: () => `Matches for: ${tokens.join(', ')}\n\n${excerptLines.join('\n')}`
+      };
+    });
   }
 
   function recordExchange(chat, request, reply) {
@@ -1325,11 +1461,21 @@ function activate(context) {
           addTimelineStep(run, 'tool', 'Ask request', 'Sending ask-mode request to AI');
           const project = await projectContextFor(trimmed, document);
           const extraDocs = await attachmentDocuments(attachments, signal);
+          const searchDocs = (await aiSetting('ai.projectSearch', true))
+            ? await workspaceSearchDocuments(trimmed, signal)
+            : [];
+          const seenUris = new Set(
+            [document, ...extraDocs].filter(Boolean).map(item => item.uri.toString()));
+          const contextDocs = [...extraDocs,
+            ...searchDocs.filter(item => !seenUris.has(item.uri.toString()))
+          ].slice(0, 6);
           const fileBudget = Math.min(24000, Math.max(4000, promptChars - 6000));
+          const streamer = chatStreamer(chat.id);
           const text = await aiChat(provider.askMessages(document, aiRequest, {
-            history: chat.history, rules, project, documents: extraDocs, pathFor: displayPath,
+            history: chat.history, rules, project, documents: contextDocs, pathFor: displayPath,
             maxChars: fileBudget
-          }), signal, { feature: 'ask', chatId: chat.id, numCtx });
+          }), signal, { feature: 'ask', chatId: chat.id, numCtx, onDelta: streamer.delta });
+          streamer.flush();
           recordExchange(chat, trimmed, text);
           return text;
         }, fallback)
@@ -1349,10 +1495,12 @@ function activate(context) {
       const project = await projectContextFor(trimmed, document);
       const extraDocs = await attachmentDocuments(attachments, signal);
       const fileBudget = Math.min(20000, Math.max(4000, promptChars - 5000));
+      const streamer = chatStreamer(chat.id);
       const plan = await aiChat(provider.planMessages(document, aiRequest, {
         history: chat.history, rules, project, documents: extraDocs, pathFor: displayPath,
         maxChars: fileBudget
-      }), signal, { feature: 'plan', chatId: chat.id, numCtx });
+      }), signal, { feature: 'plan', chatId: chat.id, numCtx, onDelta: streamer.delta });
+      streamer.flush();
       recordExchange(chat, trimmed, plan);
       signal.throwIfAborted();
       addTimelineStep(run, 'message', 'Plan response', 'Received plan from AI');

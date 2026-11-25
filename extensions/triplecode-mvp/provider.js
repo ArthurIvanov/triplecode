@@ -9,7 +9,8 @@ async function probe(endpoint, timeoutMs = 2000) {
   }
 }
 
-async function chat({ endpoint, model, messages, timeoutMs = 120000, signal, numPredict = 2048, numCtx = 8192 }) {
+async function chat({ endpoint, model, messages, timeoutMs = 120000, signal, numPredict = 2048, numCtx = 8192, onDelta }) {
+  if (onDelta) return chatStream({ endpoint, model, messages, timeoutMs, signal, numPredict, numCtx, onDelta });
   const response = await fetch(`${endpoint}/api/chat`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
@@ -26,6 +27,54 @@ async function chat({ endpoint, model, messages, timeoutMs = 120000, signal, num
   const text = data?.message?.content;
   if (typeof text !== 'string' || !text.trim()) throw new Error('Model returned an empty response.');
   return text.trim();
+}
+
+// Streams Ollama's NDJSON response and reports the accumulated text via
+// onDelta so the UI can render partial replies.
+async function chatStream({ endpoint, model, messages, timeoutMs = 120000, signal, numPredict = 2048, numCtx = 8192, onDelta }) {
+  const response = await fetch(`${endpoint}/api/chat`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      model,
+      messages,
+      stream: true,
+      options: { temperature: 0.2, num_predict: numPredict, num_ctx: numCtx }
+    }),
+    signal: signal ?? AbortSignal.timeout(timeoutMs)
+  });
+  if (!response.ok) throw new Error(`Model request failed (HTTP ${response.status}).`);
+  if (!response.body) throw new Error('Model returned an empty response.');
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let text = '';
+  const flush = () => {
+    const lines = buffer.split('\n');
+    buffer = lines.pop() || '';
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      try {
+        const chunk = JSON.parse(trimmed);
+        const piece = chunk?.message?.content;
+        if (typeof piece === 'string') text += piece;
+      } catch { /* partial JSON line — wait for the rest */ }
+    }
+  };
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    flush();
+    if (text) onDelta(text);
+  }
+  buffer += decoder.decode();
+  flush();
+  if (text) onDelta(text);
+  const trimmed = text.trim();
+  if (!trimmed) throw new Error('Model returned an empty response.');
+  return trimmed;
 }
 
 async function chatCompletions({ baseUrl, apiKey, model, messages, timeoutMs = 120000, signal, maxTokens = 4096 }) {
@@ -332,7 +381,7 @@ function diffEdit(before, after, eol = '\n') {
 }
 
 module.exports = {
-  probe, chat, chatCompletions, listOllamaModels,
+  probe, chat, chatStream, chatCompletions, listOllamaModels,
   estimateTokens, clampHistory, truncateMiddle, fileBlock,
   askMessages, planMessages, rewriteMessages, multiFileMessages,
   parseRewrite, parseMultiRewrite, diffEdit
