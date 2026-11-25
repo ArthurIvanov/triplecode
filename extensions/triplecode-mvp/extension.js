@@ -6,7 +6,7 @@ const { readFile, access, readdir } = require('node:fs/promises');
 const { join } = require('node:path');
 const { homedir, tmpdir } = require('node:os');
 const { exec } = require('node:child_process');
-const { readFileSync } = require('node:fs');
+const { readFileSync, existsSync } = require('node:fs');
 const { writeFile, mkdir, unlink, mkdtemp, cp, symlink, rm } = require('node:fs/promises');
 const { dirname, normalize, isAbsolute, relative, sep } = require('node:path');
 const { commentEdit, supportsComments } = require('./patch');
@@ -21,6 +21,9 @@ const {
   ATTACHMENT_LIMIT, RULES_LIMIT,
   isSensitivePath, canAttachFile, rulesSuffix, hasRulesBadge
 } = require('./context-rules');
+const {
+  shouldShowWelcome, updateRecentFolders, filterExistingRecent
+} = require('./welcome-logic');
 
 let getSessionAccessToken = () => Promise.resolve(null);
 const { registerInlineAI } = require('./inline');
@@ -589,7 +592,11 @@ function activate(context) {
       return;
     }
     welcome = vscode.window.createWebviewPanel('triplecodeWelcome', 'Welcome', vscode.ViewColumn.One);
-    const recent = context.globalState.get('recentFolders', []);
+    const stored = context.globalState.get('recentFolders', []);
+    const recent = filterExistingRecent(stored, existsSync);
+    if (recent.length !== stored.length) {
+      void context.globalState.update('recentFolders', recent);
+    }
     setup(welcome.webview, 'welcome', { recent });
     welcome.onDidDispose(() => { welcome = undefined; });
     welcome.webview.onDidReceiveMessage(async message => {
@@ -597,7 +604,8 @@ function activate(context) {
         const options = { canSelectFolders: true, canSelectFiles: false, canSelectMany: false, openLabel: 'Open project' };
         if (message.type === 'open') {
           const selected = await vscode.window.showOpenDialog(options);
-          if (selected) await openFolder(selected[0]);
+          // Cancel → stay on Welcome, no error toast.
+          if (selected?.[0]) await openFolder(selected[0]);
         } else if (message.type === 'recent' && Number.isInteger(message.index) && recent[message.index]) {
           await openFolder(vscode.Uri.file(recent[message.index]));
         } else if (message.type === 'clone') {
@@ -614,9 +622,13 @@ function activate(context) {
   }
 
   async function openFolder(uri) {
-    await vscode.workspace.fs.stat(uri);
+    try {
+      await vscode.workspace.fs.stat(uri);
+    } catch {
+      throw new Error(`Folder not found: ${uri.fsPath}`);
+    }
     const recent = context.globalState.get('recentFolders', []);
-    await context.globalState.update('recentFolders', [uri.fsPath, ...recent.filter(path => path !== uri.fsPath)].slice(0, 8));
+    await context.globalState.update('recentFolders', updateRecentFolders(recent, uri.fsPath));
     await vscode.commands.executeCommand('vscode.openFolder', uri, { forceReuseWindow: true });
   }
 
@@ -1951,7 +1963,7 @@ function activate(context) {
     })
   );
   updateTarget(vscode.window.activeTextEditor);
-  if (!vscode.workspace.workspaceFolders?.length) showWelcome();
+  if (shouldShowWelcome(vscode.workspace.workspaceFolders?.length || 0)) showWelcome();
   else prepareWorkspace();
 
   function prepareWorkspace() {

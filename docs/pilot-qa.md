@@ -19,6 +19,7 @@
 | Lint/format/test pipeline | ✅ | `npx eslint .`, `npx prettier`, `npm test` — все зелёные; `.vscode/settings.json` настроен (formatOnSave + prettier + eslint fixAll) |
 | SonarLint | ✅ | Анализ файла отработал («1 source file analyzed, 0 issues»); ранняя LSP-ошибка была транзиентной |
 | Agent multi-file правки | ✅ | Keep/Drop/Undo/stale: логика вынесена в `review-logic.cjs`, smoke 25.11.2026 (`npm --prefix extensions/triplecode-mvp test`). Cross-file AI mistakes по-прежнему ловятся Review + Run checks |
+| S01 First launch → Open Folder | ✅ | Welcome/recent/no Copilot defaults 25.11 — [S01](scenarios/S01-first-launch-open-folder.md) |
 | S03 Ask no disk writes | ✅ | `agent-modes` + Ask branch 25.11 — [S03](scenarios/S03-ask-no-writes.md) |
 | S04 Plan edit → Execute → Review | ✅ | Editable plan + >8k execute payload 25.11 — [S04](scenarios/S04-plan-execute-review.md) |
 | S08 @ context + rules (MVP) | ✅ | Secret exclude + Rules badge + chips 25.11 — [S08](scenarios/S08-context-at-and-rules.md); beta inline `@` pending |

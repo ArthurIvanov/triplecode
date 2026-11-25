@@ -26,6 +26,7 @@
 | R-A2 | Per-file Keep/Drop + Undo QA | S05 | Review list, conflict, stale | QA + IDE | — | MVP ✓ 25.11 |
 | R-A3 | Check patch vs Run checks labeling | S07 | Review check badge, history | QA + AI | — | MVP ✓ 25.11 |
 | R-A4 | Plan edit + Execute confirmed version | S04 | Plan card expanded/edit/execute | AI + Design | — | MVP ✓ 25.11 |
+| R-A0 | First launch Open Folder without account | S01 | Welcome empty/recent | IDE | — | MVP ✓ 25.11 |
 | R-A5 | E2E import real VS Code profile | S02 | Import preview/report/rollback | IDE + QA | — | MVP |
 | R-A6 | Docs SoT repaired (audit/architecture) | — | — | Продакт | — | MVP |
 
