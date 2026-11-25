@@ -1,5 +1,5 @@
-import { useLayoutEffect, useReducer, useRef, useState } from 'react';
-import type { FormEvent } from 'react';
+import { useEffect, useLayoutEffect, useReducer, useRef, useState } from 'react';
+import type { FormEvent, UIEvent as ReactUIEvent } from 'react';
 import { flushSync } from 'react-dom';
 import { createRoot } from 'react-dom/client';
 import { ActionButton, ActionButtonIcon } from './design-system/components/action-button';
@@ -168,6 +168,9 @@ export function Agent({ initial }: { initial: Initial }) {
   });
   const [filesOpen, setFilesOpen] = useState(true);
   const [expandedPlanId, setExpandedPlanId] = useState<string>();
+  const [navOpen, setNavOpen] = useState(false);
+  const [expandedTimelines, setExpandedTimelines] = useState<ReadonlySet<number>>(new Set());
+  const [activeTurn, setActiveTurn] = useState<number>();
   const prompt = useRef<HTMLTextAreaElement>(null);
   const reviewButton = useRef<HTMLButtonElement>(null);
   const { patch, selected, mode } = state;
@@ -179,6 +182,51 @@ export function Agent({ initial }: { initial: Initial }) {
   const progress = state.progress && state.progress.chat === selected ? state.progress : null;
   const target = state.target || 'Open a source file';
   const { assets } = initial;
+
+  const turns = replies.reduce<{ index: number; text: string; steps: number }[]>((acc, reply, index) => {
+    if (typeof reply === 'object' && reply?.type === 'request') {
+      let steps = 0;
+      for (let j = index + 1; j < replies.length; j++) {
+        const next = replies[j];
+        if (typeof next === 'object' && next?.type === 'request') break;
+        if (typeof next === 'object' && next?.type === 'timeline') { steps = next.steps.length; break; }
+      }
+      acc.push({ index, text: reply.text, steps });
+    }
+    return acc;
+  }, []);
+
+  useEffect(() => {
+    setExpandedTimelines(new Set());
+    setActiveTurn(undefined);
+  }, [selected]);
+
+  function jumpToTurn(turnIndex: number) {
+    document.getElementById(`msg-${turnIndex}`)?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    setActiveTurn(turnIndex);
+    for (let j = turnIndex + 1; j < replies.length; j++) {
+      const next = replies[j];
+      if (typeof next === 'object' && next?.type === 'request') break;
+      if (typeof next === 'object' && next?.type === 'timeline') {
+        setExpandedTimelines(prev => new Set(prev).add(j));
+        break;
+      }
+    }
+  }
+
+  function trackScroll(event: ReactUIEvent<HTMLElement>) {
+    if (!turns.length) return;
+    const container = event.currentTarget;
+    const markerTop = container.getBoundingClientRect().top + 24;
+    let current: number | undefined;
+    for (const turn of turns) {
+      const element = document.getElementById(`msg-${turn.index}`);
+      if (!element) continue;
+      if (element.getBoundingClientRect().top <= markerTop) current = turn.index;
+      else break;
+    }
+    setActiveTurn(current ?? turns[0].index);
+  }
 
   useLayoutEffect(() => {
     function receive(event: MessageEvent<HostMessage>) {
@@ -221,16 +269,26 @@ export function Agent({ initial }: { initial: Initial }) {
         onClick={() => send({ type: 'new-chat' })} />
       <ActionButton text={null} start={<ActionButtonIcon href={assets.actions} />} aria-label="Agent actions" data-action="chat-actions"
         onClick={() => send({ type: 'chat-actions' })} />
+      <ActionButton text={null} start={<ActionButtonIcon href={assets.listTodo} dimension={14} />} aria-label="Request history"
+        aria-pressed={navOpen} disabled={!!patch || turns.length === 0}
+        onClick={() => setNavOpen(open => !open)} />
     </header>
-    <section id="conversation" className="conversation" hidden={!replies.length && !patch && !progress} aria-label="Agent output">
+    <div className="conversation-wrap">
+    <section id="conversation" className="conversation" hidden={!replies.length && !patch && !progress} aria-label="Agent output" onScroll={trackScroll}>
       <div id="messages">
         {replies.map((reply, index) => {
           if (typeof reply === 'object' && reply.type === 'request') {
-            return <p className="agent-message agent-message--request" key={index}>{reply.text}</p>;
+            return <p className="agent-message agent-message--request" id={`msg-${index}`} key={index}>{reply.text}</p>;
           }
           if (typeof reply === 'object' && reply.type === 'timeline') {
             return (
-              <Accordion key={index} title="Timeline" className="agent-run agent-run--history">
+              <Accordion key={index} title="Timeline" className="agent-run agent-run--history"
+                expanded={expandedTimelines.has(index)}
+                onExpandedChange={open => setExpandedTimelines(prev => {
+                  const next = new Set(prev);
+                  if (open) next.add(index); else next.delete(index);
+                  return next;
+                })}>
                 <AgentRunSteps steps={reply.steps} expandDetails={false} />
               </Accordion>
             );
@@ -262,6 +320,24 @@ export function Agent({ initial }: { initial: Initial }) {
         </div>
       </>}
     </section>
+    {navOpen && turns.length > 0 && (
+      <aside className="agent-nav" aria-label="Request history">
+        <div className="agent-nav__title">Requests</div>
+        {turns.map((turn, position) => (
+          <button type="button" key={turn.index}
+            className={activeTurn === turn.index ? 'agent-nav__item is-active' : 'agent-nav__item'}
+            title={turn.text} aria-current={activeTurn === turn.index || undefined}
+            onClick={() => jumpToTurn(turn.index)}>
+            <span className="agent-nav__num">{position + 1}</span>
+            <span className="agent-nav__text">
+              {turn.text.length > 80 ? `${turn.text.slice(0, 80)}…` : turn.text}
+              {turn.steps > 0 && <span className="agent-nav__steps"> · {turn.steps} step{turn.steps === 1 ? '' : 's'}</span>}
+            </span>
+          </button>
+        ))}
+      </aside>
+    )}
+    </div>
     <p id="status" role="status" hidden={!state.status}>{state.status}</p>
     <form id="request" className="composer" onSubmit={submit}>
       {patch && <div id="review" className="composer-header">

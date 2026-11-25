@@ -113,10 +113,80 @@ button.link:hover:not(:disabled) { color: var(--triplecode-theme-textLink-active
 body[data-screen="agent"] { height: 100vh; overflow: hidden; }
 #agent-root { height: 100%; }
 .agent {
+  position: relative;
   display: flex;
   flex-direction: column;
   height: 100%;
   background: var(--triplecode-editor-widget-background, var(--triplecode-theme-sideBar-background));
+}
+.conversation-wrap {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+.agent-nav {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 200px;
+  max-width: 72%;
+  padding: 8px;
+  overflow-y: auto;
+  background: var(--triplecode-theme-sideBar-background, var(--vscode-sideBar-background));
+  border-left: 1px solid var(--triplecode-side-bar-border, var(--triplecode-theme-editorGroup-border));
+  box-shadow: var(--triplecode-shadow-soft, -4px 0 12px rgb(0 0 0 / 18%));
+}
+.agent-nav__title {
+  margin: 0 0 4px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: var(--triplecode-theme-descriptionForeground);
+}
+.agent-nav__item {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 5px 6px;
+  border: 0;
+  border-radius: var(--triplecode-s, 4px);
+  background: transparent;
+  color: var(--triplecode-theme-foreground);
+  font-size: 12px;
+  line-height: 16px;
+  text-align: left;
+  cursor: pointer;
+}
+.agent-nav__item:hover { background: var(--triplecode-theme-list-hoverBackground, var(--vscode-list-hoverBackground)); }
+.agent-nav__item.is-active {
+  background: var(--triplecode-theme-list-activeSelectionBackground, var(--vscode-list-activeSelectionBackground));
+  color: var(--triplecode-theme-list-activeSelectionForeground, var(--vscode-list-activeSelectionForeground));
+}
+.agent-nav__num {
+  flex: 0 0 auto;
+  min-width: 16px;
+  font-weight: 600;
+  color: var(--triplecode-theme-descriptionForeground);
+}
+.agent-nav__item.is-active .agent-nav__num { color: inherit; }
+.agent-nav__text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.agent-nav__steps {
+  color: var(--triplecode-theme-descriptionForeground);
+  font-size: 11px;
 }
 .chat-header, #chats, .chat-tab {
   display: flex;
