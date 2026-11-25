@@ -7,6 +7,7 @@
 | Stage | MVP |
 | Roadmap | R-A3 |
 | Audit | A07 |
+| QA | **Closed 25.11.2026** — isolated-copy smoke + UI scope labels in agent.tsx |
 
 ## Preconditions
 
@@ -22,13 +23,19 @@
 
 ## Acceptance
 
-- [ ] Области проверки явно подписаны в Review и истории.
-- [ ] Временная копия удаляется после Check patch.
+- [x] Области проверки явно подписаны в Review (`working-tree` / `proposed-patch` → UI copy).
+- [x] Временная копия удаляется после Check patch (`rm` in `runPatchCheck` finally).
+- [x] Smoke: патч валит check на копии, исходное дерево остаётся зелёным.
 
 ## Code paths
 
-- `extension.js` `runCheck`, `runPatchCheck`  
+- `extension.js` `runCheck`, `runPatchCheck`, `recordCheck`  
+- `webview/agent.tsx` check-scope copy  
+- `review-logic.cjs` `checkScopeLabel`, `applyEdit`  
+- `test/s05-s07-smoke.test.cjs`
 
 ## Verify
 
-`TRIPLECODE_CHECK_SCOPE=1` ui-check или ручной прогон.
+```bash
+npm --prefix extensions/triplecode-mvp test
+```

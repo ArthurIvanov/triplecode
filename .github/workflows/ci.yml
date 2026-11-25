@@ -19,6 +19,8 @@ jobs:
         run: npm --prefix extensions/triplecode-mvp ci --no-audit --no-fund
       - name: Typecheck and build webview
         run: npm --prefix extensions/triplecode-mvp run build:webview
+      - name: S05–S07 review smoke tests
+        run: npm --prefix extensions/triplecode-mvp test
       - name: Check workbench layout pin
         run: bash scripts/check-layout-pin.sh
       - name: Verify sample release manifest schema

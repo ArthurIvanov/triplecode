@@ -18,7 +18,10 @@
 | Run checks (`npm test`) | ✅ | `node --check index.ts` — настроено для кнопки Run checks в Agent-панели |
 | Lint/format/test pipeline | ✅ | `npx eslint .`, `npx prettier`, `npm test` — все зелёные; `.vscode/settings.json` настроен (formatOnSave + prettier + eslint fixAll) |
 | SonarLint | ✅ | Анализ файла отработал («1 source file analyzed, 0 issues»); ранняя LSP-ошибка была транзиентной |
-| Agent multi-file правки | ⚠️ | Ранее подтверждено; замечен кейс: AI-рефактор переименовал/убрал функцию, которую использовал `index.ts` — diff review должен был это показать (ручная проверка) |
+| Agent multi-file правки | ✅ | Keep/Drop/Undo/stale: логика вынесена в `review-logic.cjs`, smoke 25.11.2026 (`npm --prefix extensions/triplecode-mvp test`). Cross-file AI mistakes по-прежнему ловятся Review + Run checks |
+| S05 Keep/Drop + Undo conflict | ✅ | Unit + code path 25.11.2026 — [S05](scenarios/S05-agent-multifile-keep-drop.md) |
+| S06 Stop / late response guard | ✅ | P0 22.11 + `isActiveRun` regression 25.11 — [S06](scenarios/S06-stop-timeout-late.md) |
+| S07 Run checks vs Check patch | ✅ | Isolated-copy smoke + UI labels 25.11 — [S07](scenarios/S07-run-checks-vs-check-patch.md) |
 | Расширения (10 шт.) | ✅ | Все 10 активированы без ошибок в exthost.log — см. extensions-pilot-matrix.md |
 
 ## Найденные проблемы

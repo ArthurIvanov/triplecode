@@ -15,6 +15,7 @@
 ```bash
 npm --prefix extensions/triplecode-mvp ci
 npm --prefix extensions/triplecode-mvp run build:webview
+npm --prefix extensions/triplecode-mvp test   # S05–S07 review-logic smoke
 bash scripts/check-layout-pin.sh
 bash scripts/build-macos.sh          # Apple Silicon
 bash scripts/run-macos-qa.sh
@@ -23,7 +24,7 @@ bash scripts/verify-release-manifest.sh path/to/release-manifest.json
 
 ## Scenario smoke (ручной / ui-check)
 
-См. [docs/scenarios/README.md](docs/scenarios/README.md). Минимум перед tag: S03, S05, S06, S07 на macOS.
+См. [docs/scenarios/README.md](docs/scenarios/README.md). **S05–S07** закрыты автотестами `review-logic` (25.11.2026). Перед tag дополнительно: S03 Ask на macOS GUI.
 
 | Env (если harness доступен) | Сценарий |
 | --- | --- |

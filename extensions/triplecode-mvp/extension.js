@@ -11,6 +11,9 @@ const { writeFile, mkdir, unlink, mkdtemp, cp, symlink, rm } = require('node:fs/
 const { dirname, normalize, isAbsolute, relative, sep } = require('node:path');
 const { commentEdit, supportsComments } = require('./patch');
 const { registerDesktopAccount } = require('./desktop-account');
+const {
+  applyEdit, selectFiles, classifyUndo, isStale, isActiveRun, remainingAfterApply
+} = require('./review-logic');
 
 let getSessionAccessToken = () => Promise.resolve(null);
 const { registerInlineAI } = require('./inline');
@@ -1125,7 +1128,7 @@ function activate(context) {
   }
 
   function finishRun(run, status = '') {
-    if (activeRun !== run) return;
+    if (!isActiveRun(activeRun, run)) return;
     clearTimeout(run.timeout);
     activeRun = undefined;
     run.chat.status = status;
@@ -1339,8 +1342,7 @@ function activate(context) {
       const original = base.with({ path: base.path.replace(`/${id}/`, `/${id}/original/`) });
       const modified = original.with({ path: original.path.replace('/original/', '/proposed/') });
       patches.set(original.toString(), before);
-      const deleteLength = spec.edit.deleteLength || 0;
-      patches.set(modified.toString(), before.slice(0, spec.edit.offset) + spec.edit.insertion + before.slice(spec.edit.offset + deleteLength));
+      patches.set(modified.toString(), applyEdit(before, spec.edit));
       return { document, before, edit: spec.edit, original, modified, column: vscode.window.activeTextEditor?.viewColumn };
     });
     pending = { request: trimmed, files, checks: [] };
@@ -1382,14 +1384,12 @@ function activate(context) {
     const patch = pending;
     if (!patch) return;
     if (patch.checking) throw new Error('Wait for the current working tree check to finish.');
-    const targets = indices
-      ? indices.map(index => patch.files[index]).filter(Boolean)
-      : patch.files;
+    const targets = selectFiles(patch.files, indices);
     if (!targets.length) return;
     const workspaceEdit = new vscode.WorkspaceEdit();
     for (const file of targets) {
       const document = await vscode.workspace.openTextDocument(file.document.uri);
-      if (document.getText() !== file.before) {
+      if (isStale(file.before, document.getText())) {
         throw new Error(`${fileName(file.document)} changed after review. Discard that file from the patch and try again.`);
       }
       const start = document.positionAt(file.edit.offset);
@@ -1402,21 +1402,17 @@ function activate(context) {
     reportUsage({ feature: 'agent', provider: null, model: null, durationMs: 0, outcome: 'accepted' });
     appliedOps.push({
       request: patch.request,
-      files: targets.map(file => {
-        const deleteLength = file.edit.deleteLength || 0;
-        return {
-          uri: file.document.uri,
-          before: file.before,
-          after: file.before.slice(0, file.edit.offset) + file.edit.insertion +
-            file.before.slice(file.edit.offset + deleteLength)
-        };
-      })
+      files: targets.map(file => ({
+        uri: file.document.uri,
+        before: file.before,
+        after: applyEdit(file.before, file.edit)
+      }))
     });
     if (appliedOps.length > 10) appliedOps.shift();
     const total = patch.files.length;
     const applied = new Set(targets);
     recordHistory('apply', `${patch.request} — ${targets.length} of ${total} file${total === 1 ? '' : 's'} applied`);
-    patch.files = patch.files.filter(file => !applied.has(file));
+    patch.files = remainingAfterApply(patch.files, applied);
     for (const file of targets) {
       patches.delete(file.original.toString());
       patches.delete(file.modified.toString());
@@ -1478,29 +1474,38 @@ function activate(context) {
       await vscode.window.showInformationMessage('No AI-applied changes to undo.');
       return;
     }
-    const workspaceEdit = new vscode.WorkspaceEdit();
-    const conflicted = [];
-    let restored = 0;
+    const texts = new Map();
     for (const file of batch.files) {
       const document = await vscode.workspace.openTextDocument(file.uri);
-      if (document.getText() === file.after) {
-        const end = document.positionAt(document.getText().length);
-        workspaceEdit.replace(file.uri, new vscode.Range(document.positionAt(0), end), file.before);
-        restored++;
-      } else {
-        conflicted.push(file);
-      }
+      texts.set(file.uri.toString(), document.getText());
     }
+    const { restorable, conflicted } = classifyUndo(
+      batch.files.map(file => ({ ...file, uri: file.uri.toString() })),
+      uri => texts.get(uri)
+    );
+    const workspaceEdit = new vscode.WorkspaceEdit();
+    for (const file of restorable) {
+      const document = await vscode.workspace.openTextDocument(batch.files.find(item => item.uri.toString() === file.uri).uri);
+      const end = document.positionAt(document.getText().length);
+      workspaceEdit.replace(document.uri, new vscode.Range(document.positionAt(0), end), file.before);
+    }
+    const restored = restorable.length;
     if (restored && !await vscode.workspace.applyEdit(workspaceEdit)) {
       appliedOps.push(batch);
       throw new Error('The editor could not undo the patch.');
     }
-    if (conflicted.length) appliedOps.push({ request: batch.request, files: conflicted });
+    if (conflicted.length) {
+      const conflictedUris = new Set(conflicted.map(file => file.uri));
+      appliedOps.push({
+        request: batch.request,
+        files: batch.files.filter(file => conflictedUris.has(file.uri.toString()))
+      });
+    }
     recordHistory('undo', `${batch.request} — restored ${restored} of ${batch.files.length} file${batch.files.length === 1 ? '' : 's'}`);
     recordActionStep(currentChat, 'edit', 'Undo last apply',
       `Restored ${restored} of ${batch.files.length} file${batch.files.length === 1 ? '' : 's'}`);
     if (conflicted.length) {
-      const names = conflicted.map(file => file.uri.path.split('/').pop());
+      const names = conflicted.map(file => file.uri.split('/').pop());
       await vscode.window.showWarningMessage(
         `Undo skipped ${conflicted.length} file${conflicted.length === 1 ? '' : 's'} changed since apply: ${names.join(', ')}`);
     } else {
@@ -1553,10 +1558,7 @@ function activate(context) {
         if (rel.startsWith('..') || isAbsolute(rel)) continue;
         const target = join(scratch, rel);
         await mkdir(dirname(target), { recursive: true });
-        const deleteLength = file.edit.deleteLength || 0;
-        const content = file.before.slice(0, file.edit.offset) + file.edit.insertion +
-          file.before.slice(file.edit.offset + deleteLength);
-        await writeFile(target, content, 'utf-8');
+        await writeFile(target, applyEdit(file.before, file.edit), 'utf-8');
       }
       const result = await execCheck(command, scratch);
       recordCheck(patch, command, result, 'proposed-patch');

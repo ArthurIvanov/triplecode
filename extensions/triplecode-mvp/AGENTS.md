@@ -32,3 +32,4 @@
 - AC сценария закрыты или явно отложены со ссылкой.
 - Ask не пишет файлы; Stop не применяет late result.
 - Пути правок только внутри workspace.
+- Изменения Review/apply/undo/check — обновляй `review-logic.cjs` и `npm test` (S05–S07).
