@@ -191,7 +191,12 @@
         "triplecode.ai.inlineEnabled": {
           "type": "boolean",
           "default": false,
-          "description": "Show inline AI completions (ghost text) in supported editors. Uses the dedicated inline model settings below."
+          "markdownDescription": "**Inline / Tab completions** — ghost text in supported editors (TypeScript/JavaScript/Python/Go/Rust).\\n\\nWhen never set manually, TripleCode auto-enables this if an inline backend probe succeeds (see `triplecode.ai.inlineAutoEnable`)."
+        },
+        "triplecode.ai.inlineAutoEnable": {
+          "type": "boolean",
+          "default": true,
+          "description": "Smart default for Tab completions: while triplecode.ai.inlineEnabled has never been set explicitly, enable inline completions automatically when Ollama is reachable or an inline API key + model are configured. Explicit on/off always wins."
         },
         "triplecode.ai.inlineProvider": {
           "type": "string",

@@ -685,6 +685,7 @@ export function Agent({ initial }: { initial: Initial }) {
             <li><kbd>Enter</kbd> send · <kbd>Shift+Enter</kbd> newline</li>
             <li><kbd>@</kbd> attach context</li>
             <li><kbd>Shift+Tab</kbd> cycle Ask / Plan / Agent</li>
+            <li>Tab accepts ghost text · Cmd/Ctrl+K edits selection</li>
           </ul>
           <p className="agent-empty__mode">Current mode: {modes[mode]}</p>
         </div>

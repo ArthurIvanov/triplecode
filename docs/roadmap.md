@@ -116,7 +116,7 @@ UI handoff: [specs/public-beta-handoff-3-5-6-7.md](specs/public-beta-handoff-3-5
 
 | ID | Gap# | Outcome | Scenario | Role | Spec |
 | --- | --- | --- | --- | --- | --- |
-| **R-β3** | 3 | Tab/inline smart default-on + IntelliSense QA | [S20](scenarios/S20-tab-inline-default.md) | AI + QA | handoff §3 |
+| **R-β3** | 3 | Tab/inline smart default-on + IntelliSense QA | [S20](scenarios/S20-tab-inline-default.md) | AI + QA | handoff §3 · implemented 25.11 (smart default + usage outcomes), live QA pending |
 | **R-β5** | 5 | Local `@` context index + search | [S21](scenarios/S21-context-index-search.md) | AI | handoff §5 |
 | **R-β6** | 6 | Closed pilot protocol + metrics / Stage 1 exit | [S22](scenarios/S22-closed-pilot-metrics.md) | Продакт + Аналитик | handoff §6 |
 | **R-β7** | 7 | Live QA matrix macOS (+ Win/Linux smoke) | [S23](scenarios/S23-live-qa-public-beta.md) | QA + Релизы | handoff §7 |

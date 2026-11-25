@@ -76,7 +76,10 @@ function showDesignSystem(context) {
 }
 
 function activate(context) {
-  registerInlineAI(context);
+  registerInlineAI(context, {
+    reportUsage: (event) => reportUsage(event),
+    debugLog: () => debugLog
+  });
   const cmdkContent = new Map();
   let debugLog = { appendLog() {} };
   let sessionHost;
@@ -1940,6 +1943,7 @@ function render(webview, base, screen, initial) {
       <button class="card" data-action="ssh" disabled><img src="${uri('imgSquareTerminal.svg')}" alt=""><span>Connect via SSH</span></button>
     </div>
     <div id="recent"></div>
+    <p class="welcome-hint">Tab accepts AI ghost text · Cmd/Ctrl+K edits your selection</p>
     <button data-action="import" class="link import-link">Import from VS Code</button>
   </main>`;
   const agent = '<div id="agent-root"></div>';

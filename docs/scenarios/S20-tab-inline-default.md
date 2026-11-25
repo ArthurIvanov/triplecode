@@ -8,7 +8,7 @@
 | Roadmap | **R-β3** |
 | Spec | [public-beta-handoff-3-5-6-7.md](../specs/public-beta-handoff-3-5-6-7.md) §3 |
 | Depends | S10 (infra ✓) |
-| Status | Spec opened 25.11.2026 |
+| Status | Implemented 25.11.2026 — unit-tested; live QA pending |
 
 ## Preconditions
 
@@ -24,10 +24,10 @@
 
 ## Acceptance
 
-- [ ] Smart default-on when probe OK; otherwise safe off.  
-- [ ] S10 IntelliSense yield regresses green.  
-- [ ] Usage/debug: accept/dismiss without logging completion text.  
-- [ ] QA note in pilot-qa or evidence.
+- [x] Smart default-on when probe OK; otherwise safe off. (`planInlineAutoEnable` + `maybeAutoEnable` in `inline.js`; explicit user setting always wins; `triplecode.ai.inlineAutoEnable` opt-out)
+- [x] S10 IntelliSense yield regresses green. (`s10-inline-cmdk.test.cjs` + `s20-inline-default.test.cjs`, 82/82)
+- [x] Usage/debug: accept/dismiss without logging completion text. (`createInlineTracker` → `feature=inline`, outcomes accepted/rejected/error + `duration_ms`; debug log redacted)
+- [ ] QA note in pilot-qa or evidence. (manual macOS run pending — см. handoff §3 Verify)
 
 ## Code paths
 

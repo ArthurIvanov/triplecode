@@ -70,6 +70,14 @@ button.link {
 }
 button.link:hover:not(:disabled) { color: var(--triplecode-theme-textLink-activeForeground); background: transparent; text-decoration: underline; }
 .import-link { align-self: center; }
+.welcome-hint {
+  margin: 0;
+  align-self: center;
+  color: var(--triplecode-theme-descriptionForeground);
+  font-size: 12px;
+  line-height: 18px;
+  text-align: center;
+}
 .card-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 .card {
   display: flex;

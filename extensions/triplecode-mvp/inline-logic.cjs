@@ -44,11 +44,60 @@ function latencyStatusLabel(elapsedMs, { slowMs = 2500 } = {}) {
   return 'Inline…';
 }
 
+/**
+ * Smart default (S20): auto-enable only while the user never set
+ * triplecode.ai.inlineEnabled explicitly and a backend probe succeeded.
+ */
+function inlineUserConfigured(inspect) {
+  if (!inspect) return false;
+  return inspect.globalValue !== undefined
+    || inspect.workspaceValue !== undefined
+    || inspect.workspaceFolderValue !== undefined;
+}
+
+function planInlineAutoEnable({ autoEnable = true, userSet = false, probeOk = false } = {}) {
+  if (!autoEnable || userSet) return 'respect';
+  return probeOk ? 'enable' : 'setup';
+}
+
+/**
+ * Terminal-outcome tracker for inline ghost text. Only resolved outcomes are
+ * emitted (accepted / rejected / error) so usage events stay a meaningful
+ * denominator without logging completion text or flooding per keystroke.
+ */
+function createInlineTracker({ emit, now = () => Date.now() } = {}) {
+  let open = null;
+  let nextId = 1;
+  function close(outcome, id) {
+    if (!open || (id !== undefined && open.id !== id)) return;
+    const { startedAt } = open;
+    open = null;
+    if (outcome) emit?.({ feature: 'inline', outcome, durationMs: Math.max(0, now() - startedAt) });
+  }
+  return {
+    /** A new provider request begins; an unresolved shown previous one counts as rejected. */
+    begin(startedAt = now()) {
+      if (open?.shown) close('rejected');
+      open = { id: nextId++, startedAt, shown: false };
+      return open.id;
+    },
+    /** A ghost item was actually shown to the user. */
+    ghostShown(id) { if (open && open.id === id) open.shown = true; },
+    accept(id) { close('accepted', id); },
+    dismiss(id) { if (open && open.id === id) { if (open.shown) close('rejected', id); else open = null; } },
+    fail(id) { close('error', id); },
+    empty(id) { if (!id || (open && open.id === id)) open = null; }
+  };
+}
+
 module.exports = {
   MAX_SUGGESTION_CHARS,
   LATENCY_STATUS_MS,
   shouldYieldToSuggest,
   parseSuggestion,
   completionMessages,
-  latencyStatusLabel
+  latencyStatusLabel,
+  inlineUserConfigured,
+  planInlineAutoEnable,
+  createInlineTracker
 };
