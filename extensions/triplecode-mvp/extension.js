@@ -3,11 +3,8 @@
 const vscode = require('vscode');
 const { randomUUID } = require('node:crypto');
 const { join } = require('node:path');
-const { tmpdir } = require('node:os');
-const { exec } = require('node:child_process');
 const { readFileSync, existsSync } = require('node:fs');
-const { writeFile, mkdir, mkdtemp, cp, symlink, rm } = require('node:fs/promises');
-const { dirname, normalize, isAbsolute, relative, sep } = require('node:path');
+const { normalize, isAbsolute, relative } = require('node:path');
 const { commentEdit, supportsComments } = require('./patch');
 const { registerDesktopAccount } = require('./desktop-account');
 const {
@@ -17,10 +14,11 @@ const {
   allowRequestLength, buildExecuteRequest, sanitizePlanEdit
 } = require('./agent-modes');
 const {
-  ATTACHMENT_LIMIT, RULES_LIMIT,
-  isSensitivePath, canAttachFile, rulesSuffix, hasRulesBadge
+  RULES_LIMIT,
+  isSensitivePath, rulesSuffix, hasRulesBadge
 } = require('./context-rules');
-// parseAtQuery / filterAttachCandidates live in context-rules for webview tests; host uses listAttachCandidates below.
+const { buildAttachCandidates, appendAttachment } = require('./attach-logic');
+const { execCheck, checkResultEntry, runIsolatedPatchCheck } = require('./check-logic');
 const {
   shouldShowWelcome, updateRecentFolders, filterExistingRecent
 } = require('./welcome-logic');
@@ -1078,20 +1076,12 @@ function activate(context) {
     }
   }
 
-  function execCheck(command, cwd) {
-    return new Promise((resolve, reject) => {
-      exec(command, { cwd, timeout: 60000, maxBuffer: 512 * 1024 }, (error, out, err) => {
-        if (error && typeof error.code !== 'number') return reject(error);
-        resolve({ stdout: out, stderr: err, code: error ? error.code : 0 });
-      });
-    });
-  }
-
   function recordCheck(patch, command, result, target) {
-    const output = `${result.stdout}\n${result.stderr}`.trim();
-    const tail = output.split('\n').slice(-8).join('\n');
-    patch.checks.push({ command, code: result.code, output: tail, target });
-    recordHistory('check', `${command} — exit ${result.code}`, tail.split('\n')[0] ?? '', target);
+    const entry = checkResultEntry(command, result, target);
+    patch.checks.push({
+      command: entry.command, code: entry.code, output: entry.output, target: entry.target
+    });
+    recordHistory('check', `${command} — exit ${result.code}`, entry.summaryLine, target);
   }
 
   async function undoLastApply() {
@@ -1163,35 +1153,22 @@ function activate(context) {
     const folder = vscode.workspace.workspaceFolders?.[0];
     if (!folder) throw new Error('Open a project folder first.');
     const command = vscode.workspace.getConfiguration('triplecode').get('checkCommand', 'npm test');
-    const root = folder.uri.fsPath;
-    const scratch = await mkdtemp(join(tmpdir(), 'triplecode-patch-'));
     patch.checking = true;
     agent?.postMessage({ type: 'pending', patch: describePatch(patch) });
     try {
-      await cp(root, scratch, {
-        recursive: true,
-        filter: source => {
-          const name = source.slice(root.length).split(sep)[1];
-          return name !== 'node_modules' && name !== '.git';
-        }
+      const { result } = await runIsolatedPatchCheck({
+        root: folder.uri.fsPath,
+        command,
+        files: patch.files.map(file => ({
+          path: file.document.uri.fsPath,
+          before: file.before,
+          edit: file.edit
+        }))
       });
-      const modules = join(root, 'node_modules');
-      try {
-        await symlink(modules, join(scratch, 'node_modules'), 'dir');
-      } catch { /* no dependencies to link */ }
-      for (const file of patch.files) {
-        const rel = relative(root, file.document.uri.fsPath);
-        if (rel.startsWith('..') || isAbsolute(rel)) continue;
-        const target = join(scratch, rel);
-        await mkdir(dirname(target), { recursive: true });
-        await writeFile(target, applyEdit(file.before, file.edit), 'utf-8');
-      }
-      const result = await execCheck(command, scratch);
       recordCheck(patch, command, result, 'proposed-patch');
       recordActionStep(currentChat, 'command', 'Check patch', `${command} — exit ${result.code} (isolated copy)`);
     } finally {
       patch.checking = false;
-      await rm(scratch, { recursive: true, force: true }).catch(() => {});
       if (pending === patch) agent?.postMessage({ type: 'pending', patch: describePatch(patch) });
     }
   }
@@ -1406,53 +1383,27 @@ function activate(context) {
 
   async function listAttachCandidates() {
     const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || '';
-    const items = [];
-    if (activeDocument && !activeDocument.isClosed && activeDocument.uri.scheme === 'file' &&
-        !isSensitivePath(activeDocument.uri.fsPath)) {
-      items.push({
-        id: 'active-file',
-        label: 'Active file',
-        description: fileName(activeDocument),
-        kind: 'file',
-        path: activeDocument.uri.fsPath,
-        attachment: { kind: 'file', path: activeDocument.uri.fsPath }
-      });
-    }
-    const editor = vscode.window.activeTextEditor;
-    if (editor && !editor.selection.isEmpty) {
-      const text = editor.document.getText(editor.selection).slice(0, 4000);
-      items.push({
-        id: 'selection',
-        label: 'Current selection',
-        description: `${fileName(editor.document)} · lines ${editor.selection.start.line + 1}–${editor.selection.end.line + 1}`,
-        kind: 'selection',
-        attachment: {
-          kind: 'selection',
-          label: `selection · ${fileName(editor.document)}`,
-          text
-        }
-      });
-    }
+    let workspaceFiles = [];
     try {
       const files = await vscode.workspace.findFiles(
         '**/*.{ts,tsx,js,jsx,mjs,cjs,py,go,rs,java,md,json}',
         ['**/node_modules/**', '**/.git/**', '**/dist/**', '**/out/**', '**/media/**'],
         50
       );
-      for (const file of files) {
-        if (isSensitivePath(file.fsPath)) continue;
-        const rel = root && file.fsPath.startsWith(root) ? file.fsPath.slice(root.length + 1) : file.fsPath;
-        items.push({
-          id: `file:${file.fsPath}`,
-          label: rel,
-          description: file.fsPath,
-          kind: 'file',
-          path: file.fsPath,
-          attachment: { kind: 'file', path: file.fsPath }
-        });
-      }
+      workspaceFiles = files.map(file => file.fsPath);
     } catch { /* workspace search unavailable */ }
-    return items;
+    const editor = vscode.window.activeTextEditor;
+    const selection = editor && !editor.selection.isEmpty
+      ? {
+          text: editor.document.getText(editor.selection).slice(0, 4000),
+          label: `selection · ${fileName(editor.document)}`,
+          description: `${fileName(editor.document)} · lines ${editor.selection.start.line + 1}–${editor.selection.end.line + 1}`
+        }
+      : null;
+    const activeFile = activeDocument && !activeDocument.isClosed && activeDocument.uri.scheme === 'file'
+      ? { path: activeDocument.uri.fsPath, name: fileName(activeDocument) }
+      : null;
+    return buildAttachCandidates({ root, activeFile, selection, workspaceFiles });
   }
 
   async function showAttachMenu({ preferInline = false } = {}) {
@@ -1485,22 +1436,14 @@ function activate(context) {
   }
 
   function pushAttachment(attachment) {
-    currentChat.attachments = currentChat.attachments || [];
-    if (attachment.kind === 'file') {
-      const gate = canAttachFile(attachment.path, currentChat.attachments);
-      if (!gate.ok) {
-        if (gate.reason === 'sensitive') {
-          void vscode.window.showWarningMessage('That file looks sensitive and was not attached.');
-        }
-        return;
+    const result = appendAttachment(currentChat.attachments || [], attachment);
+    if (!result.ok) {
+      if (result.reason === 'sensitive') {
+        void vscode.window.showWarningMessage('That file looks sensitive and was not attached.');
       }
-    } else if (currentChat.attachments.length >= ATTACHMENT_LIMIT) {
-      return;
-    } else if (currentChat.attachments.some(existing =>
-      existing.kind === attachment.kind && existing.text === attachment.text)) {
       return;
     }
-    currentChat.attachments.push(attachment);
+    currentChat.attachments = result.attachments;
     persistChats();
     agent?.postMessage({ type: 'chats', ...chatState() });
   }
