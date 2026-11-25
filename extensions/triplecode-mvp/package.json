@@ -114,6 +114,26 @@
           "default": 120000,
           "description": "Timeout for an entire agent turn in milliseconds, including provider selection and context retrieval. Inline completions use a limit of at most 10 seconds."
         },
+        "triplecode.ai.numCtx": {
+          "type": "number",
+          "default": 16384,
+          "description": "Context window in tokens requested from the Ollama model. Larger windows allow more file content per request but use more memory."
+        },
+        "triplecode.ai.projectContext": {
+          "type": "boolean",
+          "default": true,
+          "description": "Include a compact workspace file tree and project digest (package.json, README) in AI requests so the model can reason about the whole project, not only open files."
+        },
+        "triplecode.ai.projectSearch": {
+          "type": "boolean",
+          "default": true,
+          "description": "Lexically search the workspace for Ask-mode requests and include excerpts of the most relevant files in the model context."
+        },
+        "triplecode.ai.symbolOutline": {
+          "type": "boolean",
+          "default": true,
+          "description": "Include a symbol outline (functions, classes, line ranges) of context files so the model sees file structure even when contents are truncated."
+        },
         "triplecode.ai.openrouterEndpoint": {
           "type": "string",
           "default": "https://openrouter.ai/api/v1",
@@ -387,6 +407,7 @@
   },
   "scripts": {
     "build:webview": "tsc --noEmit -p webview && esbuild webview/agent.tsx webview/import-preview.tsx webview/design-system.tsx webview/design-system/design-system-components.css --bundle --minify --jsx=automatic --define:process.env.NODE_ENV=\\\"production\\\" --outdir=media",
+    "eval:ai": "node eval/run.mjs",
     "storybook": "storybook dev -p 6006 --no-open",
     "build-storybook": "storybook build"
   }

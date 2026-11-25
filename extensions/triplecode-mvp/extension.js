@@ -478,7 +478,7 @@ function activate(context) {
   const pendingTimelineSteps = [];
   let focusComposerOnReady = false;
   let nextChatId = 1;
-  let chats = [{ id: nextChatId, draft: '', mode: 'agent', replies: [] }];
+  let chats = [{ id: nextChatId, draft: '', mode: 'agent', replies: [], history: [] }];
   let currentChat = chats[0];
   let welcome;
 
@@ -494,9 +494,18 @@ function activate(context) {
         attachments: (chat.attachments || []).slice(0, 5).map(attachment =>
           attachment.kind === 'selection'
             ? { kind: 'selection', label: String(attachment.label || 'selection').slice(0, 120), text: String(attachment.text || '').slice(0, 4000) }
-            : { kind: 'file', path: String(attachment.path || '') })
+            : { kind: 'file', path: String(attachment.path || '') }),
+        history: sanitizeHistory(chat.history)
       }))
     });
+  }
+
+  function sanitizeHistory(history) {
+    if (!Array.isArray(history)) return [];
+    return history
+      .filter(item => item && (item.role === 'user' || item.role === 'assistant') && typeof item.content === 'string')
+      .slice(-12)
+      .map(item => ({ role: item.role, content: item.content.slice(0, 6000) }));
   }
 
   function restoreChats() {
@@ -510,6 +519,7 @@ function activate(context) {
         draft: typeof chat.draft === 'string' ? chat.draft.slice(0, 500) : '',
         mode: ['ask', 'plan', 'agent'].includes(chat.mode) ? chat.mode : 'agent',
         replies: Array.isArray(chat.replies) ? chat.replies.filter(reply => typeof reply === 'string').slice(-50) : [],
+        history: sanitizeHistory(chat.history),
         plan: chat.plan && typeof chat.plan.task === 'string' && typeof chat.plan.plan === 'string'
           ? { id: typeof chat.plan.id === 'string' ? chat.plan.id : randomUUID(), task: chat.plan.task, plan: chat.plan.plan }
           : null,
@@ -840,7 +850,8 @@ function activate(context) {
           model,
           messages,
           signal,
-          maxTokens: options.numPredict || 4096
+          maxTokens: options.numPredict || 4096,
+          onDelta: options.onDelta
         });
         report('openrouter', model, 'ok');
         addStep('message', 'OpenRouter response', `Received ${reply.length} chars`);
@@ -854,7 +865,8 @@ function activate(context) {
         messages,
         signal,
         numPredict: options.numPredict,
-        numCtx: options.numCtx
+        numCtx: options.numCtx ?? await aiSetting('ai.numCtx', 16384),
+        onDelta: options.onDelta
       });
       report('ollama', model, 'ok');
       addStep('message', 'Ollama response', `Received ${reply.length} chars`);
@@ -878,6 +890,292 @@ function activate(context) {
     } catch {
       return '';
     }
+  }
+
+  function displayPath(document) {
+    const root = vscode.workspace.workspaceFolders?.[0];
+    if (root) {
+      const rel = relative(root.uri.fsPath, document.uri.fsPath);
+      if (rel && !rel.startsWith('..') && !isAbsolute(rel)) return rel;
+    }
+    return document.uri.fsPath;
+  }
+
+  // Symbol outline (functions/classes with line ranges) gives the model the
+  // structure of a file even when its body is truncated to fit num_ctx.
+  async function documentOutline(document) {
+    try {
+      const symbols = await vscode.commands.executeCommand(
+        'vscode.executeDocumentSymbolProvider', document.uri);
+      if (!Array.isArray(symbols) || !symbols.length) return '';
+      const lines = [];
+      const walk = (items, depth) => {
+        for (const item of items) {
+          if (lines.length >= 30) return;
+          const range = item.range || item.location?.range;
+          if (!range) continue;
+          const start = range.start.line + 1;
+          const end = range.end.line + 1;
+          const span = end > start ? `L${start}-L${end}` : `L${start}`;
+          lines.push(`${'  '.repeat(Math.min(depth, 2))}- ${item.name} (${item.kind || 'symbol'} ${span})`);
+          if (item.children?.length && depth < 2) walk(item.children, depth + 1);
+        }
+      };
+      walk(symbols, 0);
+      return lines.join('\n').slice(0, 1200);
+    } catch {
+      return '';
+    }
+  }
+
+  async function outlinesFor(documents) {
+    const map = new Map();
+    const unique = [...new Map(
+      documents.filter(document => document?.uri).map(document => [document.uri.toString(), document])
+    ).values()];
+    await Promise.all(unique.map(async document => {
+      map.set(document.uri.toString(), await documentOutline(document));
+    }));
+    return map;
+  }
+
+  const BINARY_EXTENSIONS = new Set([
+    'png', 'jpg', 'jpeg', 'gif', 'webp', 'ico', 'icns', 'bmp', 'svg', 'avif',
+    'pdf', 'zip', 'gz', 'tgz', 'tar', 'rar', '7z',
+    'woff', 'woff2', 'ttf', 'otf', 'eot',
+    'mp3', 'mp4', 'mov', 'avi', 'mkv', 'wav', 'ogg',
+    'wasm', 'node', 'so', 'dylib', 'dll', 'exe', 'bin', 'dat', 'db', 'sqlite',
+    'pyc', 'class', 'jar', 'psd', 'sketch', 'fig'
+  ]);
+
+  async function workspaceFileTree(maxChars = 3000) {
+    const root = vscode.workspace.workspaceFolders?.[0];
+    if (!root) return '';
+    try {
+      const uris = await vscode.workspace.findFiles('**/*', [
+        '**/node_modules/**', '**/.git/**', '**/dist/**', '**/out/**', '**/build/**',
+        '**/*.min.js', '**/*.map', '**/*.lock', '**/package-lock.json', '**/yarn.lock',
+        '**/pnpm-lock.yaml', '**/Cargo.lock', '**/Gemfile.lock', '**/poetry.lock',
+        '**/.next/**', '**/.nuxt/**', '**/coverage/**'
+      ], 600);
+      const paths = uris
+        .filter(uri => {
+          const ext = uri.path.split('.').pop()?.toLowerCase() || '';
+          return !BINARY_EXTENSIONS.has(ext);
+        })
+        .map(uri => vscode.workspace.asRelativePath(uri, root.uri))
+        .sort();
+      if (!paths.length) return '';
+      const kept = [];
+      let used = 0;
+      for (const path of paths) {
+        if (used + path.length + 1 > maxChars) break;
+        kept.push(path);
+        used += path.length + 1;
+      }
+      const more = paths.length - kept.length;
+      return kept.join('\n') + (more > 0 ? `\n… ${more} more files` : '');
+    } catch {
+      return '';
+    }
+  }
+
+  async function projectDigest() {
+    const root = vscode.workspace.workspaceFolders?.[0];
+    if (!root) return '';
+    const parts = [];
+    try {
+      const raw = await vscode.workspace.fs.readFile(vscode.Uri.joinPath(root.uri, 'package.json'));
+      const pkg = JSON.parse(Buffer.from(raw).toString('utf-8'));
+      const bits = [`name=${pkg.name || '?'}`];
+      if (pkg.scripts && typeof pkg.scripts === 'object') {
+        bits.push(`scripts: ${Object.keys(pkg.scripts).slice(0, 10).join(', ')}`);
+      }
+      const deps = [...Object.keys(pkg.dependencies || {}), ...Object.keys(pkg.devDependencies || {})].slice(0, 15);
+      if (deps.length) bits.push(`deps: ${deps.join(', ')}`);
+      parts.push(`package.json — ${bits.join('; ')}`);
+    } catch { /* no package.json */ }
+    try {
+      const raw = await vscode.workspace.fs.readFile(vscode.Uri.joinPath(root.uri, 'README.md'));
+      const text = Buffer.from(raw).toString('utf-8').trim().slice(0, 1200);
+      if (text) parts.push(`README.md:\n${text}`);
+    } catch { /* no README */ }
+    return parts.length ? `Project info:\n${parts.join('\n\n')}\n\n` : '';
+  }
+
+  const PROJECT_REQUEST = /\b(project|repo|repository|codebase|workspace|monorepo|architecture|structure|overview|all files|whole codebase)\b/i;
+
+  async function projectContextFor(request, document) {
+    if (!(await aiSetting('ai.projectContext', true))) return '';
+    const projectWide = PROJECT_REQUEST.test(request) || !document || document.isClosed;
+    if (!projectWide || !vscode.workspace.workspaceFolders?.length) return '';
+    const root = vscode.workspace.workspaceFolders[0];
+    const [tree, digest] = await Promise.all([workspaceFileTree(2000), projectDigest()]);
+    if (!tree && !digest) return '';
+    const treePart = tree ? `Workspace files:\n${tree}\n\n` : '';
+    return `Project: ${root.name}\n${treePart}${digest}`;
+  }
+
+  function chatStreamer(chatId) {
+    let text = '';
+    let lastSent = '';
+    let timer = null;
+    const send = () => {
+      timer = null;
+      if (text !== lastSent && agent) {
+        lastSent = text;
+        agent.postMessage({ type: 'stream', chat: chatId, text });
+      }
+    };
+    return {
+      delta(next) {
+        text = next;
+        if (!timer) timer = setTimeout(send, 80);
+      },
+      flush() {
+        if (timer) { clearTimeout(timer); timer = null; }
+        send();
+      }
+    };
+  }
+
+  function languageIdForPath(fsPath) {
+    const ext = fsPath.split('.').pop()?.toLowerCase() || '';
+    return {
+      js: 'javascript', jsx: 'javascriptreact', mjs: 'javascript', cjs: 'javascript',
+      ts: 'typescript', tsx: 'typescriptreact', json: 'json', md: 'markdown',
+      py: 'python', rs: 'rust', go: 'go', java: 'java', kt: 'kotlin', swift: 'swift',
+      c: 'c', h: 'c', cpp: 'cpp', cc: 'cpp', cxx: 'cpp', hpp: 'cpp', cs: 'csharp',
+      rb: 'ruby', php: 'php', html: 'html', css: 'css', scss: 'scss', less: 'less',
+      yml: 'yaml', yaml: 'yaml', toml: 'toml', sh: 'shellscript', bash: 'shellscript',
+      zsh: 'shellscript', sql: 'sql', graphql: 'graphql', proto: 'protobuf',
+      vue: 'vue', svelte: 'svelte', lua: 'lua', dart: 'dart', ex: 'elixir',
+      exs: 'elixir', erl: 'erlang', hs: 'haskell', scala: 'scala', clj: 'clojure',
+      fs: 'fsharp', fsx: 'fsharp', r: 'r', jl: 'julia', zig: 'zig'
+    }[ext] || 'text';
+  }
+
+  const SEARCH_STOPWORDS = new Set([
+    'the', 'and', 'for', 'with', 'how', 'what', 'where', 'when', 'why', 'are', 'was',
+    'were', 'this', 'that', 'from', 'into', 'does', 'did', 'can', 'could', 'should',
+    'would', 'your', 'you', 'our', 'its', 'about', 'please', 'show', 'tell', 'explain',
+    'find', 'check', 'look', 'need', 'want', 'make', 'add', 'use', 'using', 'used',
+    'get', 'got', 'all', 'any', 'some', 'each', 'per', 'vs', 'etc', 'doesn', 'don',
+    'isn', 'aren', 'wasn', 'weren', 'hasn', 'haven', 'hadn', 'won', 'wouldn',
+    'что', 'как', 'где', 'когда', 'почему', 'зачем', 'для', 'это', 'тот', 'эта',
+    'этот', 'эти', 'тоже', 'уже', 'или', 'нет', 'все', 'всё', 'над', 'под', 'при',
+    'без', 'его', 'её', 'их', 'нам', 'вам', 'мне', 'тебе', 'свой', 'своя', 'чем',
+    'чтобы', 'если', 'так', 'какой', 'какая', 'какие', 'какое', 'каких', 'есть',
+    'был', 'была', 'были', 'будет', 'быть', 'можно', 'нужно', 'надо', 'ли', 'бы'
+  ]);
+  const SEARCH_FILE_LIMIT = 200;
+  const SEARCH_RESULT_LIMIT = 2;
+  const SEARCH_LINE_RADIUS = 6;
+  const SEARCH_MAX_EXCERPT_LINES = 140;
+  const SEARCH_MAX_FILE_BYTES = 200000;
+
+  // Lexical project search for Ask mode: returns lightweight pseudo-documents
+  // whose text is an excerpt around matching lines, so relevant files outside
+  // the open tabs still reach the model within the context budget.
+  async function workspaceSearchDocuments(query, signal) {
+    const root = vscode.workspace.workspaceFolders?.[0];
+    if (!root) return [];
+    const tokens = [...new Set(String(query).toLowerCase().match(/[a-zа-яё0-9_]{3,}/g) || [])]
+      .filter(token => !SEARCH_STOPWORDS.has(token)).slice(0, 6);
+    if (!tokens.length) return [];
+    let uris;
+    try {
+      uris = await vscode.workspace.findFiles('**/*', [
+        '**/node_modules/**', '**/.git/**', '**/dist/**', '**/out/**', '**/build/**',
+        '**/*.min.js', '**/*.map', '**/*.lock', '**/package-lock.json', '**/yarn.lock',
+        '**/pnpm-lock.yaml', '**/Cargo.lock', '**/Gemfile.lock', '**/poetry.lock',
+        '**/.next/**', '**/.nuxt/**', '**/coverage/**'
+      ], SEARCH_FILE_LIMIT + 100);
+    } catch {
+      return [];
+    }
+    const candidates = uris.filter(uri => {
+      const ext = uri.path.split('.').pop()?.toLowerCase() || '';
+      return !BINARY_EXTENSIONS.has(ext);
+    }).slice(0, SEARCH_FILE_LIMIT);
+    const scored = [];
+    for (let i = 0; i < candidates.length; i += 50) {
+      signal?.throwIfAborted();
+      const batch = await Promise.all(candidates.slice(i, i + 50).map(async uri => {
+        try {
+          const stat = await vscode.workspace.fs.stat(uri);
+          if (stat.size > SEARCH_MAX_FILE_BYTES) return null;
+          const raw = await vscode.workspace.fs.readFile(uri);
+          const text = Buffer.from(raw).toString('utf-8');
+          if (text.includes('\u0000')) return null;
+          const lines = text.split('\n');
+          const hits = [];
+          const name = uri.path.split('/').pop().toLowerCase();
+          let score = tokens.some(token => name.includes(token)) ? 2 : 0;
+          for (let line = 0; line < lines.length; line++) {
+            const lower = lines[line].toLowerCase();
+            if (tokens.some(token => lower.includes(token))) {
+              hits.push(line);
+              score += 1;
+            }
+          }
+          return hits.length ? { uri, lines, hits, score } : null;
+        } catch {
+          return null;
+        }
+      }));
+      scored.push(...batch.filter(Boolean));
+    }
+    scored.sort((a, b) => b.score - a.score);
+    return scored.slice(0, SEARCH_RESULT_LIMIT).map(({ uri, lines, hits }) => {
+      const windows = [];
+      for (const hit of hits) {
+        const start = Math.max(0, hit - SEARCH_LINE_RADIUS);
+        const end = Math.min(lines.length, hit + SEARCH_LINE_RADIUS + 1);
+        const last = windows[windows.length - 1];
+        if (last && start <= last.end) last.end = Math.max(last.end, end);
+        else windows.push({ start, end });
+      }
+      const excerptLines = [];
+      for (const window of windows) {
+        if (excerptLines.length + (window.end - window.start) > SEARCH_MAX_EXCERPT_LINES) break;
+        if (excerptLines.length) excerptLines.push('  …');
+        excerptLines.push(...lines.slice(window.start, window.end));
+      }
+      return {
+        uri,
+        isClosed: false,
+        languageId: languageIdForPath(uri.fsPath),
+        getText: () => `Matches for: ${tokens.join(', ')}\n\n${excerptLines.join('\n')}`
+      };
+    });
+  }
+
+  // Derives a human-readable status from the model's partial agent reply:
+  // which FILE: block is being written right now. Returns null for empty
+  // text so the caller keeps the previous progress label.
+  function agentStreamStatus(text) {
+    if (!text.trim()) return null;
+    const matches = [...text.matchAll(/(?:^|\n)FILE:[ \t]*([^\n]+)/g)];
+    if (!matches.length) return 'Model is drafting a response…';
+    const last = matches[matches.length - 1];
+    const path = last[1].trim().replace(/[`'"]+$/, '');
+    const fences = (text.slice(last.index).match(/```/g) || []).length;
+    return fences >= 2 ? `Finished block for ${path}` : `Writing ${path}…`;
+  }
+
+  function recordExchange(chat, request, reply) {
+    if (!chat) return;
+    chat.history = chat.history || [];
+    chat.history.push({ role: 'user', content: String(request).slice(0, 2000) });
+    chat.history.push({ role: 'assistant', content: String(reply).slice(0, 6000) });
+    chat.history = chat.history.slice(-16);
+  }
+
+  async function promptCharBudget(numPredict) {
+    const numCtx = await aiSetting('ai.numCtx', 16384);
+    const promptTokens = Math.max(2048, numCtx - (numPredict || 2048) - 768);
+    return { numCtx, chars: promptTokens * 3 };
   }
 
   function aiContextDocuments() {
@@ -916,6 +1214,18 @@ function activate(context) {
     }
   }
 
+  async function attachmentDocuments(attachments, signal) {
+    const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+    const docs = [];
+    for (const attachment of (attachments || []).filter(item => item.kind === 'file')) {
+      signal?.throwIfAborted();
+      try {
+        docs.push(await openModelFile(attachment.path, root));
+      } catch { /* skip attachments that are not accessible files */ }
+    }
+    return docs.slice(0, 4);
+  }
+
   function aiParseError(reply) {
     const preview = reply.length > 300 ? `${reply.slice(0, 300)}…` : reply;
     return new Error(`The model response could not be parsed. Try rephrasing the request.\n\nModel said:\n${preview}`);
@@ -929,7 +1239,13 @@ function activate(context) {
     return `\n\nAttached context:\n${parts.join('\n')}`;
   }
 
-  async function aiSpecs(request, extraDocuments, run) {
+  const AGENT_FILE_LIMIT = 8;
+
+  const MULTI_REWRITE_FEEDBACK = 'Your previous reply could not be parsed. Output ONLY blocks in this exact format:\n' +
+    'FILE: <path exactly as listed above>\n```<language>\n<COMPLETE file content>\n```\n' +
+    'Repeat for every file that must change, or reply with the single word NOCHANGE if nothing should change.';
+
+  async function aiSpecs(request, extraDocuments, run, { rules = '' } = {}) {
     const documents = [];
     const seenDocs = new Set();
     for (const document of [...extraDocuments, ...run.documents]) {
@@ -938,23 +1254,57 @@ function activate(context) {
         documents.push(document);
       }
     }
-    documents.splice(6);
+    documents.splice(AGENT_FILE_LIMIT);
     if (!documents.length) throw new Error('Open a source file first.');
     const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-    const options = { numPredict: 8192, numCtx: 16384, feature: 'agent', chatId: run.chat.id };
+    const { numCtx, chars: promptChars } = await promptCharBudget(8192);
+    const fileTree = await workspaceFileTree(3000);
+    const wantOutline = await aiSetting('ai.symbolOutline', true);
+    const outlines = wantOutline ? await outlinesFor(documents) : new Map();
+    const options = { numPredict: 8192, numCtx, feature: 'agent', chatId: run.chat.id };
+    let lastStreamStatus = '';
+    options.onDelta = delta => {
+      const status = agentStreamStatus(delta);
+      if (status && status !== lastStreamStatus) {
+        lastStreamStatus = status;
+        try { postProgress(run, status); } catch { /* run aborted */ }
+      }
+    };
+    const msgOptions = () => ({
+      history: run.chat.history,
+      rules,
+      fileTree,
+      pathFor: displayPath,
+      outlines,
+      maxChars: Math.max(8000, promptChars - 9000)
+    });
     const knownUris = new Set(documents.map(document => document.uri.toString()));
+
+    const parseOrRetry = async (docs, reply) => {
+      let parsed = provider.parseMultiRewrite(reply);
+      if (parsed) return parsed;
+      postProgress(run, 'Retrying with format feedback…');
+      addTimelineStep(run, 'tool', 'Parse retry', 'Model reply could not be parsed; retrying with format instructions');
+      const messages = provider.multiFileMessages(docs, request, msgOptions());
+      messages.push({ role: 'assistant', content: String(reply).slice(0, 4000) });
+      messages.push({ role: 'user', content: MULTI_REWRITE_FEEDBACK });
+      reply = await aiChat(messages, run.signal, options);
+      run.signal.throwIfAborted();
+      parsed = provider.parseMultiRewrite(reply);
+      if (!parsed) throw aiParseError(reply);
+      return parsed;
+    };
 
     let contextDocs = documents;
     postProgress(run, 'Waiting for model…');
-    let reply = await aiChat(provider.multiFileMessages(contextDocs, request), run.signal, options);
+    let reply = await aiChat(provider.multiFileMessages(contextDocs, request, msgOptions()), run.signal, options);
     run.signal.throwIfAborted();
-    let parsed = provider.parseMultiRewrite(reply);
-    if (!parsed) throw aiParseError(reply);
+    let parsed = await parseOrRetry(contextDocs, reply);
 
     if (!parsed.noChange) {
       const missing = [];
       const requested = new Set();
-      for (const entry of parsed.files.slice(0, 6)) {
+      for (const entry of parsed.files.slice(0, AGENT_FILE_LIMIT)) {
         run.signal.throwIfAborted();
         try {
           const document = await openModelFile(entry.path, root);
@@ -965,13 +1315,16 @@ function activate(context) {
         } catch { /* invalid paths are rejected again on the final pass */ }
       }
       if (missing.length) {
-        contextDocs = [...documents, ...missing].slice(0, 6);
+        contextDocs = [...documents, ...missing].slice(0, AGENT_FILE_LIMIT);
+        if (wantOutline) {
+          const extra = await outlinesFor(missing);
+          extra.forEach((value, key) => outlines.set(key, value));
+        }
         postProgress(run, 'Expanding context…');
         addTimelineStep(run, 'tool', 'Expand context', `Adding ${missing.length} file${missing.length === 1 ? '' : 's'} to context`);
-        reply = await aiChat(provider.multiFileMessages(contextDocs, request), run.signal, options);
+        reply = await aiChat(provider.multiFileMessages(contextDocs, request, msgOptions()), run.signal, options);
         run.signal.throwIfAborted();
-        parsed = provider.parseMultiRewrite(reply);
-        if (!parsed) throw aiParseError(reply);
+        parsed = await parseOrRetry(contextDocs, reply);
       }
     }
     run.signal.throwIfAborted();
@@ -984,7 +1337,7 @@ function activate(context) {
     const specs = [];
     const seenPaths = new Set();
     const failedPaths = [];
-    for (const entry of parsed.files.slice(0, 6)) {
+    for (const entry of parsed.files.slice(0, AGENT_FILE_LIMIT)) {
       run.signal.throwIfAborted();
       let document;
       try {
@@ -1165,15 +1518,36 @@ function activate(context) {
     signal.throwIfAborted();
     if (run.approvedPlan && !useAi) throw new Error('The approved plan requires an AI provider. Check the connection and retry.');
     const rules = repoRules();
-    const rulesSuffix = rules ? `\n\nRepository rules (.triplecode/rules.md):\n${rules}` : '';
-    const aiRequest = trimmed + attachmentSuffix(attachments) + rulesSuffix;
+    const aiRequest = trimmed + attachmentSuffix(attachments);
+    const { numCtx, chars: promptChars } = await promptCharBudget(mode === 'agent' ? 8192 : 2048);
     if (mode === 'ask') {
       const fallback = () => answerAsk(document, trimmed);
       const reply = useAi
-        ? await aiOrFallback(signal, () => {
+        ? await aiOrFallback(signal, async () => {
           postProgress(run, 'Waiting for model…');
           addTimelineStep(run, 'tool', 'Ask request', 'Sending ask-mode request to AI');
-          return aiChat(provider.askMessages(document, aiRequest), signal, { feature: 'ask', chatId: chat.id });
+          const project = await projectContextFor(trimmed, document);
+          const extraDocs = await attachmentDocuments(attachments, signal);
+          const searchDocs = (await aiSetting('ai.projectSearch', true))
+            ? await workspaceSearchDocuments(trimmed, signal)
+            : [];
+          const seenUris = new Set(
+            [document, ...extraDocs].filter(Boolean).map(item => item.uri.toString()));
+          const contextDocs = [...extraDocs,
+            ...searchDocs.filter(item => !seenUris.has(item.uri.toString()))
+          ].slice(0, 6);
+          const fileBudget = Math.min(24000, Math.max(4000, promptChars - 6000));
+          const outlines = (await aiSetting('ai.symbolOutline', true))
+            ? await outlinesFor([document, ...contextDocs].filter(Boolean))
+            : new Map();
+          const streamer = chatStreamer(chat.id);
+          const text = await aiChat(provider.askMessages(document, aiRequest, {
+            history: chat.history, rules, project, documents: contextDocs, pathFor: displayPath,
+            outlines, maxChars: fileBudget
+          }), signal, { feature: 'ask', chatId: chat.id, numCtx, onDelta: streamer.delta });
+          streamer.flush();
+          recordExchange(chat, trimmed, text);
+          return text;
         }, fallback)
         : fallback();
       signal.throwIfAborted();
@@ -1188,7 +1562,19 @@ function activate(context) {
       }
       postProgress(run, 'Waiting for model…');
       addTimelineStep(run, 'tool', 'Plan request', 'Sending plan-mode request to AI');
-      const plan = await aiChat(provider.planMessages(document, aiRequest), signal, { feature: 'plan', chatId: chat.id });
+      const project = await projectContextFor(trimmed, document);
+      const extraDocs = await attachmentDocuments(attachments, signal);
+      const fileBudget = Math.min(20000, Math.max(4000, promptChars - 5000));
+      const outlines = (await aiSetting('ai.symbolOutline', true))
+        ? await outlinesFor([document, ...extraDocs].filter(Boolean))
+        : new Map();
+      const streamer = chatStreamer(chat.id);
+      const plan = await aiChat(provider.planMessages(document, aiRequest, {
+        history: chat.history, rules, project, documents: extraDocs, pathFor: displayPath,
+        outlines, maxChars: fileBudget
+      }), signal, { feature: 'plan', chatId: chat.id, numCtx, onDelta: streamer.delta });
+      streamer.flush();
+      recordExchange(chat, trimmed, plan);
       signal.throwIfAborted();
       addTimelineStep(run, 'message', 'Plan response', 'Received plan from AI');
       completeChatTurn(chat, plan, { id: randomUUID(), task: trimmed, plan });
@@ -1209,16 +1595,19 @@ function activate(context) {
       }
       const selectionSuffix = attachments.filter(a => a.kind === 'selection')
         .map(a => `\`\`\`\n${a.text}\n\`\`\``).join('\n');
-      const agentRequest = trimmed + (selectionSuffix ? `\n\nAttached selection:\n${selectionSuffix}` : '') + rulesSuffix;
+      const agentRequest = trimmed + (selectionSuffix ? `\n\nAttached selection:\n${selectionSuffix}` : '');
       signal.throwIfAborted();
       addTimelineStep(run, 'tool', 'Agent request', 'Sending agent-mode request to AI');
-      const result = await aiSpecs(agentRequest, extraDocuments, run);
+      const result = await aiSpecs(agentRequest, extraDocuments, run, { rules });
       signal.throwIfAborted();
       if (result.reply) {
+        recordExchange(chat, trimmed, result.reply);
         completeChatTurn(chat, result.reply, null, run.approvedPlan);
         return;
       }
       specs = result.specs;
+      recordExchange(chat, trimmed,
+        `Proposed changes to ${specs.length} file${specs.length === 1 ? '' : 's'}: ${specs.map(spec => fileName(spec.document)).join(', ')}`);
     } else {
       const all = /^comment all:\s*(.+)$/i.exec(trimmed);
       const single = /^add a comment:\s*(.+)$/i.exec(trimmed);
@@ -1505,7 +1894,7 @@ function activate(context) {
       return;
     }
     stopRun('Stopped when switching chats. Draft kept.');
-    currentChat = { id: ++nextChatId, draft: '', mode: 'agent', replies: [] };
+    currentChat = { id: ++nextChatId, draft: '', mode: 'agent', replies: [], history: [] };
     chats = [currentChat, ...chats];
     persistChats();
     await showAgent();
@@ -1763,7 +2152,7 @@ function activate(context) {
     }
     if (close) {
       chats = chats.filter(item => item !== chat);
-      if (!chats.length) chats = [{ id: ++nextChatId, draft: '', mode: 'agent', replies: [] }];
+      if (!chats.length) chats = [{ id: ++nextChatId, draft: '', mode: 'agent', replies: [], history: [] }];
       if (currentChat === chat) currentChat = chats[0];
     } else {
       currentChat = chat;
