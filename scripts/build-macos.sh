@@ -4,6 +4,11 @@ set -euo pipefail
 root="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$root"
 
+if [[ ! -f "$root/resources/logo.icns" ]]; then
+  printf '%s\n' 'Missing resources/logo.icns' >&2
+  exit 1
+fi
+
 if [[ "$(uname -s)" != Darwin || "$(uname -m)" != arm64 ]]; then
   printf '%s\n' 'This build targets macOS on Apple Silicon.' >&2
   exit 1
@@ -100,6 +105,7 @@ plist.update(
     CFBundleExecutable='TripleCode',
     CFBundleDisplayName=app_name,
     CFBundleIdentifier=product['darwinBundleIdentifier'],
+    CFBundleIconFile='TripleCode.icns',
 )
 for entry in plist.get('CFBundleURLTypes', []):
     entry['CFBundleURLName'] = product['darwinBundleIdentifier']
@@ -137,12 +143,78 @@ python3 scripts/desktop/apply-workbench-layout.py "$resources"
 codesign --force --sign - "$app/Contents/Resources/keychain-parent"
 
 # Replace app icon with TripleCode logo
-if [[ -f "$root/resources/logo.icns" ]]; then
-  cp "$root/resources/logo.icns" "$app/Contents/Resources/VSCodium.icns"
-fi
+cp "$root/resources/logo.icns" "$app/Contents/Resources/TripleCode.icns"
+rm -f "$app/Contents/Resources/VSCodium.icns"
 
 codesign --force --deep --sign "$signing_identity" "$app"
 codesign --verify --deep --strict "$app"
+
+python3 - "$app" "$app_name" <<'PY'
+import json
+import plistlib
+import sys
+from pathlib import Path
+
+app = Path(sys.argv[1])
+app_name = sys.argv[2]
+qa = app_name != 'TripleCode'
+application_name = 'triplecode-keychain-qa' if qa else 'triplecode'
+bundle_identifier = 'com.tripleform.triplecode' + ('.keychain-qa' if qa else '')
+errors = []
+contents = app / 'Contents'
+
+with (contents / 'Info.plist').open('rb') as file:
+    plist = plistlib.load(file)
+for key, expected in {
+    'CFBundleName': app_name,
+    'CFBundleExecutable': 'TripleCode',
+    'CFBundleDisplayName': app_name,
+    'CFBundleIdentifier': bundle_identifier,
+    'CFBundleIconFile': 'TripleCode.icns',
+}.items():
+    if plist.get(key) != expected:
+        errors.append(f'Info.plist {key}={plist.get(key)!r}, expected {expected!r}')
+
+product = json.loads((contents / 'Resources/app/product.json').read_text())
+for key, expected in {
+    'nameShort': app_name,
+    'nameLong': app_name,
+    'applicationName': application_name,
+    'urlProtocol': application_name,
+    'darwinBundleIdentifier': bundle_identifier,
+}.items():
+    if product.get(key) != expected:
+        errors.append(f'product.json {key}={product.get(key)!r}, expected {expected!r}')
+if product.get('enableTelemetry') is not False:
+    errors.append('product.json enableTelemetry is not false')
+
+if not (contents / 'Resources/TripleCode.icns').is_file():
+    errors.append('Resources/TripleCode.icns is missing')
+if (contents / 'Resources/VSCodium.icns').exists():
+    errors.append('Resources/VSCodium.icns is still present')
+for relative in (
+    'MacOS/TripleCode',
+    'Resources/app/bin/triplecode',
+    'Resources/app/extensions/triplecode-mvp/package.json',
+):
+    if not (contents / relative).exists():
+        errors.append(f'missing Contents/{relative}')
+
+css = (contents / 'Resources/app/out/vs/workbench/workbench.desktop.main.css').read_bytes()
+js = (contents / 'Resources/app/out/vs/workbench/workbench.desktop.main.js').read_bytes()
+for marker in (b'triplecode-gutter', b'triplecode-editor-tab'):
+    if marker not in css:
+        errors.append(f'workbench css missing {marker.decode()}')
+for marker in (b'triplecode.gutter.', b'triplecode.newChat'):
+    if marker not in js:
+        errors.append(f'workbench js missing {marker.decode()}')
+
+if errors:
+    print('TripleCode app verification failed:', file=sys.stderr)
+    for error in errors:
+        print(f' - {error}', file=sys.stderr)
+    sys.exit(1)
+PY
 
 if [[ -e "$destination" ]]; then
   mv "$destination" "$stage/previous.app"

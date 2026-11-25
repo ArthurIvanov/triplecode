@@ -2,13 +2,13 @@
 set -euo pipefail
 
 root="$(cd "$(dirname "$0")/.." && pwd)"
-host="${TRIPLECODE_HOST:-/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code}"
-data="$root/.triplecode-dev"
-if [[ ! -x "$host" ]]; then
-  printf '%s\n' 'Set TRIPLECODE_HOST to an executable Code — OSS or VS Code launcher.' >&2
+host="${TRIPLECODE_HOST:-}"
+if [[ -z "$host" || ! -x "$host" ]]; then
+  printf '%s\n' 'Set TRIPLECODE_HOST to a Code — OSS or VS Code launcher for extension-host testing. For the TripleCode shell use scripts/run-macos-qa.sh.' >&2
   exit 1
 fi
 
+data="$root/.triplecode-dev"
 npm --prefix "$root/extensions/triplecode-mvp" run build:webview
 
 mkdir -p "$data/user/User"
