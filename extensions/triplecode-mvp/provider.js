@@ -77,7 +77,7 @@ async function chatStream({ endpoint, model, messages, timeoutMs = 120000, signa
   return trimmed;
 }
 
-async function chatCompletions({ baseUrl, apiKey, model, messages, timeoutMs = 120000, signal, maxTokens = 4096 }) {
+async function chatCompletions({ baseUrl, apiKey, model, messages, timeoutMs = 120000, signal, maxTokens = 4096, onDelta }) {
   const response = await fetch(`${baseUrl.replace(/\/+$/, '')}/chat/completions`, {
     method: 'POST',
     headers: {
@@ -89,7 +89,7 @@ async function chatCompletions({ baseUrl, apiKey, model, messages, timeoutMs = 1
       messages,
       temperature: 0.2,
       max_tokens: maxTokens,
-      stream: false
+      stream: Boolean(onDelta)
     }),
     signal: signal ?? AbortSignal.timeout(timeoutMs)
   });
@@ -97,10 +97,48 @@ async function chatCompletions({ baseUrl, apiKey, model, messages, timeoutMs = 1
     const detail = await response.text().catch(() => '');
     throw new Error(`Model request failed (HTTP ${response.status})${detail ? `: ${detail.slice(0, 200)}` : '.'}`);
   }
+  if (onDelta && response.body) return chatCompletionsStream(response, onDelta);
   const data = await response.json();
   const text = data?.choices?.[0]?.message?.content;
   if (typeof text !== 'string' || !text.trim()) throw new Error('Model returned an empty response.');
   return text.trim();
+}
+
+// OpenAI-compatible SSE stream: lines of "data: {json}" ending with
+// "data: [DONE]". Accumulated content is reported via onDelta.
+async function chatCompletionsStream(response, onDelta) {
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let text = '';
+  const handleLine = line => {
+    const trimmed = line.trim();
+    if (!trimmed.startsWith('data:')) return;
+    const payload = trimmed.slice(5).trim();
+    if (payload === '[DONE]') return;
+    try {
+      const piece = JSON.parse(payload)?.choices?.[0]?.delta?.content;
+      if (typeof piece === 'string') text += piece;
+    } catch { /* partial JSON — ignore */ }
+  };
+  const flush = () => {
+    const lines = buffer.split('\n');
+    buffer = lines.pop() || '';
+    for (const line of lines) handleLine(line);
+  };
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    flush();
+    if (text) onDelta(text);
+  }
+  buffer += decoder.decode();
+  flush();
+  if (text) onDelta(text);
+  const trimmed = text.trim();
+  if (!trimmed) throw new Error('Model returned an empty response.');
+  return trimmed;
 }
 
 async function listOllamaModels(endpoint, timeoutMs = 3000) {
@@ -157,9 +195,10 @@ function truncateMiddle(content, maxChars) {
   };
 }
 
-function fileBlock({ path, languageId, content, budgetChars }) {
+function fileBlock({ path, languageId, content, budgetChars, outline }) {
   const lines = content.split('\n').length;
-  const header = `File: ${path}\nLanguage: ${languageId || 'text'}\nLines: ${lines}\n\n`;
+  const outlinePart = outline ? `Outline:\n${outline}\n\n` : '';
+  const header = `File: ${path}\nLanguage: ${languageId || 'text'}\nLines: ${lines}\n${outlinePart}\n`;
   const bodyBudget = Math.max(200, budgetChars - header.length);
   const { text, omitted } = truncateMiddle(content, bodyBudget);
   return { block: `${header}${text}`, omitted, lines };
@@ -217,7 +256,8 @@ function contextBlocks(documents, options, fallbackBudget) {
         : (options.path && index === 0 ? options.path : documentPath(document)),
       languageId: document.languageId,
       content: documentContent(document),
-      budgetChars: perFile
+      budgetChars: perFile,
+      outline: options.outlines?.get(document.uri.toString())
     });
     return block;
   }).join('\n\n') + '\n\n';
@@ -318,7 +358,8 @@ function multiFileMessages(documents, request, options = {}) {
         path: options.pathFor ? options.pathFor(document) : documentPath(document),
         languageId: document.languageId,
         content: documentContent(document),
-        budgetChars: perFile
+        budgetChars: perFile,
+        outline: options.outlines?.get(document.uri.toString())
       });
       omittedTotal += omitted;
       blocks.push(block);
@@ -402,7 +443,7 @@ function diffEdit(before, after, eol = '\n') {
 }
 
 module.exports = {
-  probe, chat, chatStream, chatCompletions, listOllamaModels,
+  probe, chat, chatStream, chatCompletions, chatCompletionsStream, listOllamaModels,
   estimateTokens, clampHistory, truncateMiddle, fileBlock,
   askMessages, planMessages, rewriteMessages, multiFileMessages,
   parseRewrite, parseMultiRewrite, diffEdit

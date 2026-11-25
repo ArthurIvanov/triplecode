@@ -850,7 +850,8 @@ function activate(context) {
           model,
           messages,
           signal,
-          maxTokens: options.numPredict || 4096
+          maxTokens: options.numPredict || 4096,
+          onDelta: options.onDelta
         });
         report('openrouter', model, 'ok');
         addStep('message', 'OpenRouter response', `Received ${reply.length} chars`);
@@ -898,6 +899,44 @@ function activate(context) {
       if (rel && !rel.startsWith('..') && !isAbsolute(rel)) return rel;
     }
     return document.uri.fsPath;
+  }
+
+  // Symbol outline (functions/classes with line ranges) gives the model the
+  // structure of a file even when its body is truncated to fit num_ctx.
+  async function documentOutline(document) {
+    try {
+      const symbols = await vscode.commands.executeCommand(
+        'vscode.executeDocumentSymbolProvider', document.uri);
+      if (!Array.isArray(symbols) || !symbols.length) return '';
+      const lines = [];
+      const walk = (items, depth) => {
+        for (const item of items) {
+          if (lines.length >= 30) return;
+          const range = item.range || item.location?.range;
+          if (!range) continue;
+          const start = range.start.line + 1;
+          const end = range.end.line + 1;
+          const span = end > start ? `L${start}-L${end}` : `L${start}`;
+          lines.push(`${'  '.repeat(Math.min(depth, 2))}- ${item.name} (${item.kind || 'symbol'} ${span})`);
+          if (item.children?.length && depth < 2) walk(item.children, depth + 1);
+        }
+      };
+      walk(symbols, 0);
+      return lines.join('\n').slice(0, 1200);
+    } catch {
+      return '';
+    }
+  }
+
+  async function outlinesFor(documents) {
+    const map = new Map();
+    const unique = [...new Map(
+      documents.filter(document => document?.uri).map(document => [document.uri.toString(), document])
+    ).values()];
+    await Promise.all(unique.map(async document => {
+      map.set(document.uri.toString(), await documentOutline(document));
+    }));
+    return map;
   }
 
   const BINARY_EXTENSIONS = new Set([
@@ -1220,6 +1259,8 @@ function activate(context) {
     const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
     const { numCtx, chars: promptChars } = await promptCharBudget(8192);
     const fileTree = await workspaceFileTree(3000);
+    const wantOutline = await aiSetting('ai.symbolOutline', true);
+    const outlines = wantOutline ? await outlinesFor(documents) : new Map();
     const options = { numPredict: 8192, numCtx, feature: 'agent', chatId: run.chat.id };
     let lastStreamStatus = '';
     options.onDelta = delta => {
@@ -1234,6 +1275,7 @@ function activate(context) {
       rules,
       fileTree,
       pathFor: displayPath,
+      outlines,
       maxChars: Math.max(8000, promptChars - 9000)
     });
     const knownUris = new Set(documents.map(document => document.uri.toString()));
@@ -1274,6 +1316,10 @@ function activate(context) {
       }
       if (missing.length) {
         contextDocs = [...documents, ...missing].slice(0, AGENT_FILE_LIMIT);
+        if (wantOutline) {
+          const extra = await outlinesFor(missing);
+          extra.forEach((value, key) => outlines.set(key, value));
+        }
         postProgress(run, 'Expanding context…');
         addTimelineStep(run, 'tool', 'Expand context', `Adding ${missing.length} file${missing.length === 1 ? '' : 's'} to context`);
         reply = await aiChat(provider.multiFileMessages(contextDocs, request, msgOptions()), run.signal, options);
@@ -1491,10 +1537,13 @@ function activate(context) {
             ...searchDocs.filter(item => !seenUris.has(item.uri.toString()))
           ].slice(0, 6);
           const fileBudget = Math.min(24000, Math.max(4000, promptChars - 6000));
+          const outlines = (await aiSetting('ai.symbolOutline', true))
+            ? await outlinesFor([document, ...contextDocs].filter(Boolean))
+            : new Map();
           const streamer = chatStreamer(chat.id);
           const text = await aiChat(provider.askMessages(document, aiRequest, {
             history: chat.history, rules, project, documents: contextDocs, pathFor: displayPath,
-            maxChars: fileBudget
+            outlines, maxChars: fileBudget
           }), signal, { feature: 'ask', chatId: chat.id, numCtx, onDelta: streamer.delta });
           streamer.flush();
           recordExchange(chat, trimmed, text);
@@ -1516,10 +1565,13 @@ function activate(context) {
       const project = await projectContextFor(trimmed, document);
       const extraDocs = await attachmentDocuments(attachments, signal);
       const fileBudget = Math.min(20000, Math.max(4000, promptChars - 5000));
+      const outlines = (await aiSetting('ai.symbolOutline', true))
+        ? await outlinesFor([document, ...extraDocs].filter(Boolean))
+        : new Map();
       const streamer = chatStreamer(chat.id);
       const plan = await aiChat(provider.planMessages(document, aiRequest, {
         history: chat.history, rules, project, documents: extraDocs, pathFor: displayPath,
-        maxChars: fileBudget
+        outlines, maxChars: fileBudget
       }), signal, { feature: 'plan', chatId: chat.id, numCtx, onDelta: streamer.delta });
       streamer.flush();
       recordExchange(chat, trimmed, plan);

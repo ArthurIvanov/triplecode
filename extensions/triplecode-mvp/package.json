@@ -129,6 +129,11 @@
           "default": true,
           "description": "Lexically search the workspace for Ask-mode requests and include excerpts of the most relevant files in the model context."
         },
+        "triplecode.ai.symbolOutline": {
+          "type": "boolean",
+          "default": true,
+          "description": "Include a symbol outline (functions, classes, line ranges) of context files so the model sees file structure even when contents are truncated."
+        },
         "triplecode.ai.openrouterEndpoint": {
           "type": "string",
           "default": "https://openrouter.ai/api/v1",
