@@ -24,6 +24,10 @@ const {
 const {
   shouldShowWelcome, updateRecentFolders, filterExistingRecent
 } = require('./welcome-logic');
+const {
+  classifySettings, emptyImportReport, importReportMessage,
+  hasRollbackMaterial, previewCounts
+} = require('./import-logic');
 
 let getSessionAccessToken = () => Promise.resolve(null);
 const { registerInlineAI } = require('./inline');
@@ -180,12 +184,12 @@ function presentImportPreview(data, context) {
 
   const previewData = {
     source: data.source,
-    settings: settings ? Object.keys(settings).length : 0,
-    keybindings: Array.isArray(keybindings) ? keybindings.length : 0,
-    snippets: snippets ? Object.keys(snippets).length : 0,
-    extensions: extensions ? extensions.length : 0,
-    hasBackup: context.globalState.get('triplecode.importBackup') !== undefined ||
-      context.globalState.get('triplecode.importFileBackup') !== undefined
+    ...previewCounts({ settings, keybindings, snippets, extensions }),
+    hasBackup: hasRollbackMaterial({
+      settingsBackup: context.globalState.get('triplecode.importBackup'),
+      fileBackup: context.globalState.get('triplecode.importFileBackup'),
+      importedExtensions: context.globalState.get('triplecode.importedExtensions', [])
+    })
   };
 
   previewPanel.webview.html = getImportPreviewHtml(previewData, previewPanel.webview, media);
@@ -265,24 +269,6 @@ function showDesignSystem(context) {
 </html>`;
 }
 
-const SENSITIVE_KEY = /(?:^|[._-])(token|secret|password|passwd|credential|apikey|api[-_]?key|auth|session|cookie|private[-_]?key)(?:[._-]|$)/i;
-const SKIPPED_PREFIXES = ['settingsSync.'];
-const CORE_PREFIXES = new Set([
-  'workbench', 'editor', 'terminal', 'git', 'files', 'search', 'scm', 'debug',
-  'typescript', 'javascript', 'emmet', 'markdown', 'extensions', 'security',
-  'telemetry', 'update', 'window', 'chat', 'problems', 'testing', 'remote',
-  'task', 'launch', 'breadcrumbs', 'diffEditor', 'inlineChat', 'notebook',
-  'accessibility', 'merge-conflict', 'scmProvider', 'timeline', 'todo', 'views',
-  'welcome', 'settings', 'snippets', 'npm', 'jest', 'eslint', 'prettier',
-  'tailwindcss', 'css', 'html', 'json', 'yaml', 'xml', 'php', 'python', 'java',
-  'go', 'rust', 'csharp', 'ruby', 'shellscript', 'vue', 'react', 'svelte',
-  'astro', 'graphql', 'prisma', 'liveShare', 'voice', 'notebook'
-]);
-
-function isSensitiveSetting(key) {
-  return SKIPPED_PREFIXES.some(prefix => key.startsWith(prefix)) || SENSITIVE_KEY.test(key);
-}
-
 function userDataDir(context) {
   let dir = context.globalStorageUri.fsPath;
   for (let index = 0; index < 4; index += 1) {
@@ -302,18 +288,16 @@ async function readUserFile(dir, name) {
 
 async function performImport(selectedCategories, data, context) {
   const { settings, keybindings, snippets, extensions } = data;
-  const report = { settingsApplied: 0, settingsSkipped: [], thirdParty: [], keybindings: 0, snippets: 0, extensionsInstalled: 0, extensionsFailed: [] };
+  const report = emptyImportReport();
 
-  // Save current settings for rollback
+  // Save current settings for rollback; never write secrets/sessions
   if (selectedCategories.settings && settings) {
     const config = vscode.workspace.getConfiguration();
     const previousSettings = {};
-    for (const [key, value] of Object.entries(settings)) {
-      if (isSensitiveSetting(key)) {
-        report.settingsSkipped.push(key);
-        continue;
-      }
-      if (!CORE_PREFIXES.has(key.split('.')[0])) report.thirdParty.push(key);
+    const { apply, skipped, thirdParty } = classifySettings(settings);
+    report.settingsSkipped = skipped;
+    report.thirdParty = thirdParty;
+    for (const { key, value } of apply) {
       previousSettings[key] = config.get(key);
       await config.update(key, value, vscode.ConfigurationTarget.Global);
       report.settingsApplied += 1;
@@ -385,29 +369,16 @@ async function performImport(selectedCategories, data, context) {
   return report;
 }
 
-function importReportMessage(report) {
-  const lines = [
-    `Import completed: ${report.settingsApplied} settings, ${report.keybindings > 0 ? `${report.keybindings} keybindings` : report.keybindings === -1 ? 'keybindings skipped (existing file has comments)' : 'no keybindings'}, ${report.snippets} snippets, ${report.extensionsInstalled} extensions.`
-  ];
-  if (report.settingsSkipped.length) {
-    lines.push(`Skipped ${report.settingsSkipped.length} sensitive setting${report.settingsSkipped.length === 1 ? '' : 's'}: ${report.settingsSkipped.slice(0, 5).join(', ')}${report.settingsSkipped.length > 5 ? '…' : ''}`);
-  }
-  if (report.thirdParty.length) {
-    lines.push(`Third-party settings applied: ${report.thirdParty.length} (${report.thirdParty.slice(0, 5).join(', ')}${report.thirdParty.length > 5 ? '…' : ''})`);
-  }
-  if (report.extensionsFailed.length) {
-    lines.push(`Failed to install: ${report.extensionsFailed.slice(0, 5).join(', ')}`);
-  }
-  lines.push('Restart to apply all changes.');
-  return lines.join('\n');
-}
-
 async function rollbackImport(context) {
   const previousSettings = context.globalState.get('triplecode.importBackup');
   const importedExtensions = context.globalState.get('triplecode.importedExtensions', []);
   const fileBackup = context.globalState.get('triplecode.importFileBackup');
 
-  if (!previousSettings && !fileBackup && importedExtensions.length === 0) {
+  if (!hasRollbackMaterial({
+    settingsBackup: previousSettings,
+    fileBackup,
+    importedExtensions
+  })) {
     vscode.window.showInformationMessage('No import to rollback.');
     return;
   }
