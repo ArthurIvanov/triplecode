@@ -10,6 +10,7 @@ Captured manually (Computer Use blocked in agent session). Used for [competitive
 | `cursor-ide-agents-cta.png` | Empty editor CTA + shortcuts (New Agent ⌘L, Maximize Chat, etc.) + Tab/Agent stats |
 | `cursor-agents-window.png` | Agents Window: multi-repo rail, New Chat / Automations, center transcript, tool rail (Files/Changes/Terminal/Browser…) |
 | `cursor-agents-changes.png` | Agents + Changes diffs + Create Branch & Commit |
+| `cursor-agents-diff.png` | Diff / Changes detail surface |
 | `cursor-agents-ask.png` | Composer with **Ask** mode pill + @ / Plan · Build hints |
 | `cursor-agents-plan.png` | Plan mode entry |
 | `cursor-agents-plan-starting.png` | Plan starting |

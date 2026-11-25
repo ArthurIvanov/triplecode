@@ -92,7 +92,7 @@ export const componentCatalog: readonly ComponentGroup[] = [
       ['Review toolbar', 'File count, Run checks, Undo all, Keep all and Review', '#review .review-row', { kind: 'toolbar', content: '1 file|Undo all|Review', react: 'react' }],
       ['Patch card', 'File path, change counters and line preview', '.patch-file · .patch-lines', { kind: 'diff', content: 'route.ts　+1|+ return result;', react: 'react' }],
       ['Check result row', 'Command outcome in review', '.check-row', { kind: 'status', content: '✓ npm test — exit 0', react: 'react' }],
-      ['Plan summary', 'Task summary, Discard and Execute plan', '.plan-bar', { kind: 'panel', content: 'Update request route|Discard　Execute plan', react: 'react' }],
+      ['Plan summary', 'Task summary, Discard and Build', '.plan-bar', { kind: 'panel', content: 'Update request route|Discard　Build', react: 'react' }],
       ['Pill action', 'Review and plan actions', 'ActionButton · full / filled', { kind: 'pill', content: 'Run checks', react: 'react' }]
     ]
   },
