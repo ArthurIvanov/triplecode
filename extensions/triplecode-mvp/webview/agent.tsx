@@ -130,6 +130,30 @@ function update(state: State, action: Action): State {
   }
 }
 
+function CopyIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <rect x="5.5" y="5.5" width="8" height="8" rx="1.5" stroke="currentColor" strokeWidth="1.2" />
+      <path d="M10.5 5.5v-2a1.5 1.5 0 0 0-1.5-1.5H3.5A1.5 1.5 0 0 0 2 3.5V9a1.5 1.5 0 0 0 1.5 1.5h2" stroke="currentColor" strokeWidth="1.2" />
+    </svg>
+  );
+}
+
+async function copyText(text: string) {
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch {
+    const area = document.createElement('textarea');
+    area.value = text;
+    area.style.position = 'fixed';
+    area.style.opacity = '0';
+    document.body.appendChild(area);
+    area.select();
+    document.execCommand('copy');
+    area.remove();
+  }
+}
+
 function AgentRunSteps({ steps, expandDetails = true }: { steps: TimelineItemProps[]; expandDetails?: boolean }) {
   return (
     <div className="agent-steps">
@@ -293,7 +317,15 @@ export function Agent({ initial }: { initial: Initial }) {
               </Accordion>
             );
           }
-          return <p className="agent-message" key={index}>{reply as string}</p>;
+          return (
+            <div className="agent-bubble" key={index}>
+              <p className="agent-message">{reply as string}</p>
+              <button type="button" className="agent-copy" title="Copy response" aria-label="Copy response"
+                onClick={() => void copyText(reply as string)}>
+                <CopyIcon />
+              </button>
+            </div>
+          );
         })}
         {progress && <ProgressIndicator progress={progress} />}
       </div>

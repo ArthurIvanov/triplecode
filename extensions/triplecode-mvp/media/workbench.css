@@ -462,6 +462,31 @@ body[data-screen="agent"] { height: 100vh; overflow: hidden; }
   font-size: 14px;
   line-height: 20px;
 }
+.agent-bubble {
+  position: relative;
+}
+.agent-copy {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--triplecode-s, 4px);
+  background: transparent;
+  color: var(--triplecode-theme-descriptionForeground);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity .12s ease;
+}
+.agent-bubble:hover .agent-copy,
+.agent-bubble:focus-within .agent-copy { opacity: 1; }
+.agent-copy:hover { background: var(--triplecode-theme-toolbar-hoverBackground, var(--vscode-toolbar-hoverBackground)); color: var(--triplecode-theme-foreground); }
+.agent-bubble .agent-message { padding-right: 34px; }
+.agent-copy svg { width: 14px; height: 14px; display: block; }
 .agent-message--request {
   border-color: var(--triplecode-chat-request-border, var(--triplecode-theme-focusBorder, var(--vscode-focusBorder)));
   box-shadow: var(--triplecode-shadow-soft, 0 1px 2px rgb(0 0 0 / 12%));
