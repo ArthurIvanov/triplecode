@@ -5,7 +5,8 @@ const { join } = require('node:path');
 const { mkdir } = require('node:fs/promises');
 const {
   createSessionRecord, sanitizeSessionPatch, decidePrDelivery,
-  worktreeBranchName, listSessionSummary, formatSessionBadge
+  worktreeBranchName, listSessionSummary, formatSessionBadge,
+  formatSessionStatus, chatIdFromSessionId, SESSION_KINDS
 } = require('./session-logic.cjs');
 
 function runGit(args, { cwd, timeoutMs = 60000 } = {}) {
@@ -33,9 +34,11 @@ function runGit(args, { cwd, timeoutMs = 60000 } = {}) {
 
 function registerSessionHost(vscode, context, {
   getChats = () => [],
+  getCurrentChat = () => getChats()[0] || null,
   persistChats = () => {},
   appendLog = () => {},
-  postChats = () => {}
+  postChats = () => {},
+  selectChatById = () => false
 } = {}) {
   function loadSessions() {
     return context.workspaceState.get('triplecode.sessions', []) || [];
@@ -53,6 +56,16 @@ function registerSessionHost(vscode, context, {
     return found || null;
   }
 
+  async function persistSession(chat, session) {
+    chat.session = session;
+    const sessions = loadSessions().filter(item => item.id !== session.id);
+    sessions.unshift(session);
+    await saveSessions(sessions);
+    persistChats();
+    postChats();
+    return session;
+  }
+
   async function ensureChatSession(chat) {
     let session = sessionForChat(chat);
     if (session) return session;
@@ -62,12 +75,13 @@ function registerSessionHost(vscode, context, {
       kind: 'local',
       status: 'idle'
     });
-    chat.session = session;
-    const sessions = loadSessions().filter(item => item.id !== session.id);
-    sessions.unshift(session);
-    await saveSessions(sessions);
-    persistChats();
-    return session;
+    return persistSession(chat, session);
+  }
+
+  function activeChat() {
+    const chat = getCurrentChat() || getChats()[0];
+    if (!chat) throw new Error('No active chat.');
+    return chat;
   }
 
   async function prepareWorktree() {
@@ -76,9 +90,7 @@ function registerSessionHost(vscode, context, {
       throw new Error('Open a local git folder first.');
     }
     const root = folder.uri.fsPath;
-    const chats = getChats();
-    const chat = chats[0];
-    if (!chat) throw new Error('No active chat.');
+    const chat = activeChat();
     const session = await ensureChatSession(chat);
     const branch = worktreeBranchName(session.id, session.title);
     const worktreesRoot = join(root, '.triplecode', 'worktrees');
@@ -103,49 +115,47 @@ function registerSessionHost(vscode, context, {
         worktreePath,
         branch
       });
-      chat.session = next;
-      const sessions = loadSessions().filter(item => item.id !== next.id);
-      sessions.unshift(next);
-      await saveSessions(sessions);
-      persistChats();
-      postChats();
       appendLog('info', `worktree ready ${branch} → ${worktreePath}`);
       await vscode.window.showInformationMessage(
         `Session worktree ready on ${branch}. Path: ${worktreePath}`
       );
-      return next;
+      return persistSession(chat, next);
     } catch (error) {
-      chat.session = sanitizeSessionPatch(session, { status: 'failed' });
-      persistChats();
-      postChats();
+      await persistSession(chat, sanitizeSessionPatch(session, { status: 'failed' }));
       throw error;
     }
   }
 
-  async function markBackground() {
-    const chats = getChats();
-    const chat = chats.find(Boolean);
-    if (!chat) throw new Error('No active chat.');
+  async function setSessionKind(kind) {
+    if (!SESSION_KINDS.includes(kind)) throw new Error(`Unknown session kind: ${kind}`);
+    const chat = activeChat();
     const session = await ensureChatSession(chat);
-    const next = sanitizeSessionPatch(session, { kind: 'background', status: 'running' });
-    chat.session = next;
-    const sessions = loadSessions().filter(item => item.id !== next.id);
-    sessions.unshift(next);
-    await saveSessions(sessions);
-    persistChats();
-    postChats();
-    appendLog('info', `session ${next.id} marked background (local stub; cloud runtime later)`);
-    await vscode.window.showInformationMessage(
-      'Session marked Background. It stays on this machine until cloud runtime (R-E2) is wired.'
-    );
-    return next;
+    const status = kind === 'cloud' ? 'waiting' : kind === 'background' ? 'running' : 'idle';
+    const next = sanitizeSessionPatch(session, { kind, status });
+    appendLog('info', `session ${next.id} kind=${kind} status=${status}`);
+    if (kind === 'cloud') {
+      await vscode.window.showInformationMessage(
+        'Marked Cloud. Runtime handoff after IDE close is not wired yet — status stays “awaiting cloud” (R-E2).'
+      );
+    } else if (kind === 'background') {
+      await vscode.window.showInformationMessage(
+        'Session marked Background on this machine. Cloud continue after IDE close still needs R-E2 runtime.'
+      );
+    }
+    return persistSession(chat, next);
+  }
+
+  async function markBackground() {
+    return setSessionKind('background');
+  }
+
+  async function markCloud() {
+    return setSessionKind('cloud');
   }
 
   async function deliverPr() {
     const folder = vscode.workspace.workspaceFolders?.[0];
-    const chats = getChats();
-    const chat = chats.find(Boolean);
-    if (!chat) throw new Error('No active chat.');
+    const chat = activeChat();
     const session = await ensureChatSession(chat);
     const decision = decidePrDelivery(session, {
       baseBranch: 'main',
@@ -179,16 +189,16 @@ function registerSessionHost(vscode, context, {
       prKey: decision.prKey,
       branch
     });
-    chat.session = next;
-    const sessions = loadSessions().filter(item => item.id !== next.id);
-    sessions.unshift(next);
-    await saveSessions(sessions);
-    persistChats();
-    postChats();
     appendLog('info', `PR handoff ${decision.prKey} → ${prUrl}`);
     await vscode.env.openExternal(vscode.Uri.parse(prUrl));
     await vscode.window.showInformationMessage('Opened PR create/compare URL (idempotent key stored).');
-    return next;
+    return persistSession(chat, next);
+  }
+
+  function selectSession(sessionId) {
+    const chatId = chatIdFromSessionId(sessionId);
+    if (chatId == null) return false;
+    return selectChatById(chatId);
   }
 
   function chatStateExtras(chat) {
@@ -196,7 +206,8 @@ function registerSessionHost(vscode, context, {
     return {
       session: session ? {
         ...session,
-        badge: formatSessionBadge(session)
+        badge: formatSessionBadge(session),
+        statusLabel: formatSessionStatus(session)
       } : null,
       sessions: listSessionSummary(loadSessions())
     };
@@ -205,13 +216,17 @@ function registerSessionHost(vscode, context, {
   context.subscriptions.push(
     vscode.commands.registerCommand('triplecode.prepareWorktree', () => prepareWorktree()),
     vscode.commands.registerCommand('triplecode.markBackgroundSession', () => markBackground()),
+    vscode.commands.registerCommand('triplecode.markCloudSession', () => markCloud()),
     vscode.commands.registerCommand('triplecode.deliverPr', () => deliverPr())
   );
 
   return {
     prepareWorktree,
     markBackground,
+    markCloud,
+    setSessionKind,
     deliverPr,
+    selectSession,
     chatStateExtras,
     ensureChatSession,
     loadSessions

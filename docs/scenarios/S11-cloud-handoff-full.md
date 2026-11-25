@@ -7,7 +7,7 @@
 | Stage | full |
 | Roadmap | R-E1–E3 |
 | Audit | A11 |
-| Status | Partial 25.11.2026 — local worktree / background badge / idempotent PR open; true cloud VM later |
+| Status | Partial 25.11.2026 — worktree / Local·Background·Cloud UI / session rail / PR card; true cloud VM later |
 
 ## Preconditions
 
@@ -17,8 +17,9 @@
 ## Steps (local floor — done)
 
 1. **Worktree** → `.triplecode/worktrees/…` + branch `triplecode/…` (изоляция копии).
-2. **Background** → badge Background (локальный stub; процесс не переживает reboot/cloud).
-3. **PR** → открыть compare/create URL; повтор с тем же ключом reuse.
+2. **Background / Cloud** → kind toggle; Cloud ставит status `awaiting cloud` (VM runtime later).
+3. **PR** → card + compare/create URL; повтор с тем же ключом reuse.
+4. **Session rail** → переключение сессий/чатов с badge + status.
 
 ## Steps (cloud — remaining)
 

@@ -53,10 +53,26 @@ VSCodium zip (pinned)
 
 triplecode-mvp
   ├── extension host (agent orchestration, patch, checks, import, account)
-  ├── provider (LLM HTTP)
-  ├── inline (completion scaffold, off by default)
-  └── webview React (Agents UI, design system)
+  ├── provider (LLM HTTP + stream)
+  ├── tool-loop / MCP stdio + permissions
+  ├── session-host (worktree / Local|Background|Cloud stub / PR)
+  ├── inline + Cmd-K
+  └── webview React (Agents UI, design system, session rail)
 ```
+
+### Статус волн (25.11.2026 evening)
+
+| Wave | Floor in tree |
+| --- | --- |
+| A | S01–S08, S12; S09 cabinet/quotas → `triplecode-web` |
+| B | CI, packaging S17, modular host modules |
+| C | Stream S13, tool-loop S14, MCP S15, @ S08, Tab/Cmd-K S10, diagnostics S16 |
+| D | Optional signing + update manifest S18; ADR 0006 stay-repackage |
+| E | Local worktree + Background/Cloud **UI** + idempotent PR; cloud VM runtime later |
+| V | R-V1–V3 UX parity in Agents; evidence pack R-V4 |
+
+SoT сценариев: [roadmap.md](roadmap.md) · [competitive-visual-parity.md](competitive-visual-parity.md).  
+Не обещать Devin cloud continue / Cursor Agents Window shell до отдельного ADR.
 
 ### Границы доверия MVP
 

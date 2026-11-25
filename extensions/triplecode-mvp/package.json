@@ -116,6 +116,10 @@
         "title": "TripleCode: Mark Session Background"
       },
       {
+        "command": "triplecode.markCloudSession",
+        "title": "TripleCode: Mark Session Cloud (stub)"
+      },
+      {
         "command": "triplecode.deliverPr",
         "title": "TripleCode: Deliver / Open PR"
       }

@@ -104,18 +104,22 @@ type ViewMessage =
       'select-model' | 'refresh-models' | 'ready' | 'close-agent' }
   | { type: 'model'; value: string }
   | { type: 'apply-file' | 'discard-file'; id: number; index: number }
-  | { type: 'session-prepare' | 'session-background' | 'session-pr' };
+  | { type: 'session-prepare' | 'session-background' | 'session-cloud' | 'session-pr' }
+  | { type: 'session-kind'; kind: SessionKind }
+  | { type: 'session-select'; sessionId: string };
 
 type SessionInfo = {
   id: string;
   title?: string;
   kind?: string;
   status?: string;
+  statusLabel?: string;
   badge?: string;
   branch?: string;
   prUrl?: string;
   worktreePath?: string;
 };
+type SessionKind = 'local' | 'background' | 'cloud';
 
 /** Mirror of context-rules.parseAtQuery for the webview bundle (no CJS require). */
 function parseAtQuery(text: string, cursor: number): AtMention | null {
@@ -613,6 +617,21 @@ export function Agent({ initial }: { initial: Initial }) {
     send({ type: 'propose', id: selected, request: state.draft, mode });
   }
 
+  const railSessions: SessionInfo[] = state.sessions.length
+    ? state.sessions
+    : state.chats.map(item => ({
+        id: `chat-${item.id}`,
+        title: item.name || `Chat ${item.id}`,
+        kind: 'local',
+        status: 'idle',
+        statusLabel: 'idle',
+        badge: 'Local'
+      }));
+  const activeSessionId = state.session?.id || `chat-${selected}`;
+  const sessionKind = (state.session?.kind === 'background' || state.session?.kind === 'cloud'
+    ? state.session.kind
+    : 'local') as SessionKind;
+
   return <main className={patch ? 'agent has-patch' : 'agent'}>
     <header className="chat-header">
       <div id="chats" role="group" aria-label="Chats">
@@ -632,7 +651,32 @@ export function Agent({ initial }: { initial: Initial }) {
         aria-pressed={navOpen} disabled={!!patch || navTurns.length === 0}
         onClick={() => setNavOpen(open => !open)} />
     </header>
-    <div className="conversation-wrap">
+    <div className="conversation-wrap has-session-rail">
+      <aside className="session-rail" aria-label="Sessions">
+        <div className="session-rail__head">
+          <span className="session-rail__title">Sessions</span>
+          <ActionButton size="base" rounding="full" text="New" disabled={!!patch}
+            onClick={() => send({ type: 'new-chat' })} />
+        </div>
+        <div className="session-rail__list" role="list">
+          {railSessions.map(item => {
+            const active = item.id === activeSessionId;
+            return (
+              <button type="button" role="listitem" key={item.id}
+                className={active ? 'session-rail__item is-active' : 'session-rail__item'}
+                disabled={!!patch}
+                aria-current={active || undefined}
+                title={item.title || item.id}
+                onClick={() => send({ type: 'session-select', sessionId: item.id })}>
+                <span className={`session-rail__badge is-${item.kind || 'local'}`}>{item.badge || 'Local'}</span>
+                <span className="session-rail__name">{item.title || item.id}</span>
+                <span className="session-rail__status">{item.statusLabel || item.status || 'idle'}</span>
+              </button>
+            );
+          })}
+        </div>
+      </aside>
+      <div className="conversation-main">
     <section id="conversation" className={conversationEmpty ? 'conversation is-empty' : 'conversation'} aria-label="Agent output" onScroll={trackScroll}>
       {conversationEmpty ? (
         <div className="agent-empty" role="status">
@@ -792,6 +836,7 @@ export function Agent({ initial }: { initial: Initial }) {
         ))}
       </aside>
     )}
+      </div>
     </div>
     <p id="status" role="status" hidden={!state.status}>{state.status}</p>
     <form id="request" className={dragOver ? 'composer drag-over' : 'composer'} onSubmit={submit}
@@ -872,9 +917,20 @@ export function Agent({ initial }: { initial: Initial }) {
       </div>}
       <div className="session-bar" aria-label="Session handoff">
         <div className="session-bar__meta">
-          <span className="session-bar__badge">{state.session?.badge || 'Local'}</span>
+          <div className="session-kind" role="group" aria-label="Session kind">
+            {(['local', 'background', 'cloud'] as SessionKind[]).map(kind => (
+              <button type="button" key={kind}
+                className={sessionKind === kind ? 'session-kind__btn is-active' : 'session-kind__btn'}
+                aria-pressed={sessionKind === kind}
+                disabled={state.submitting || !!patch}
+                title={kind === 'cloud' ? 'Cloud runtime stub (R-E2) — marks awaiting cloud' : `Mark session ${kind}`}
+                onClick={() => send({ type: 'session-kind', kind })}>
+                {kind === 'local' ? 'Local' : kind === 'background' ? 'Background' : 'Cloud'}
+              </button>
+            ))}
+          </div>
           <span className="session-bar__status">
-            {state.session?.status || 'idle'}
+            {state.session?.statusLabel || state.session?.status || 'idle'}
             {state.session?.branch ? ` · ${state.session.branch}` : ''}
           </span>
         </div>
@@ -882,14 +938,27 @@ export function Agent({ initial }: { initial: Initial }) {
           <ActionButton rounding="full" text="Worktree" disabled={state.submitting || !!patch}
             title="Prepare an isolated git worktree for this session"
             onClick={() => send({ type: 'session-prepare' })} />
-          <ActionButton rounding="full" text="Background" disabled={state.submitting || !!patch}
-            title="Mark session as background (local stub until cloud runtime)"
-            onClick={() => send({ type: 'session-background' })} />
           <ActionButton rounding="full" text="PR" disabled={state.submitting}
             title="Open idempotent PR create/compare URL"
             onClick={() => send({ type: 'session-pr' })} />
         </div>
       </div>
+      {state.session?.prUrl && (
+        <div className="pr-card" role="region" aria-label="PR handoff">
+          <div className="pr-card__head">
+            <span className="pr-card__title">PR handoff</span>
+            <span className="pr-card__badge">{state.session.statusLabel || state.session.status || 'handed-off'}</span>
+          </div>
+          <p className="pr-card__meta">
+            {state.session.branch ? `${state.session.branch} · ` : ''}
+            Idempotent open — same key reuses this URL
+          </p>
+          <div className="pr-card__actions">
+            <ActionButton variant="filled" rounding="full" text="Open PR"
+              onClick={() => send({ type: 'session-pr' })} />
+          </div>
+        </div>
+      )}
       {plan && <div id="plan-bar" className="composer-header plan-bar">
         <div className="review-row">
           <button type="button" className="plan-toggle" aria-expanded={planOpen}

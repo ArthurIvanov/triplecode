@@ -81,12 +81,26 @@ function formatSessionBadge(session) {
   return 'Local';
 }
 
+function formatSessionStatus(session) {
+  if (!session) return 'idle';
+  const status = SESSION_STATUSES.includes(session.status) ? session.status : 'idle';
+  if (session.kind === 'cloud' && status === 'waiting') return 'awaiting cloud';
+  if (session.kind === 'background' && status === 'running') return 'background';
+  return status;
+}
+
+function chatIdFromSessionId(sessionId) {
+  const match = /^chat-(\d+)$/.exec(String(sessionId || ''));
+  return match ? Number(match[1]) : null;
+}
+
 function listSessionSummary(sessions) {
   return (sessions || []).map(session => ({
     id: session.id,
     title: session.title,
     kind: session.kind,
     status: session.status,
+    statusLabel: formatSessionStatus(session),
     badge: formatSessionBadge(session),
     branch: session.branch,
     prUrl: session.prUrl,
@@ -103,5 +117,7 @@ module.exports = {
   decidePrDelivery,
   worktreeBranchName,
   formatSessionBadge,
+  formatSessionStatus,
+  chatIdFromSessionId,
   listSessionSummary
 };

@@ -9,6 +9,8 @@ const {
   decidePrDelivery,
   worktreeBranchName,
   formatSessionBadge,
+  formatSessionStatus,
+  chatIdFromSessionId,
   listSessionSummary,
   sanitizeSessionPatch
 } = require('../session-logic.cjs');
@@ -20,6 +22,17 @@ describe('S11 / Wave E session handoff', () => {
     assert.equal(formatSessionBadge(session), 'Local');
     assert.equal(formatSessionBadge(sanitizeSessionPatch(session, { kind: 'background' })), 'Background');
     assert.match(worktreeBranchName('chat-1', 'Fix flaky tests'), /^triplecode\/fix-flaky-tests-/);
+  });
+
+  it('formats cloud awaiting status and maps session ids to chats', () => {
+    const cloud = sanitizeSessionPatch(
+      createSessionRecord({ id: 'chat-7', kind: 'cloud', status: 'waiting' }),
+      {}
+    );
+    assert.equal(formatSessionStatus(cloud), 'awaiting cloud');
+    assert.equal(formatSessionBadge(cloud), 'Cloud');
+    assert.equal(chatIdFromSessionId('chat-7'), 7);
+    assert.equal(chatIdFromSessionId('other'), null);
   });
 
   it('keeps PR delivery idempotent for the same handoff key', () => {
@@ -45,6 +58,7 @@ describe('S11 / Wave E session handoff', () => {
     const commands = pkg.contributes.commands.map(item => item.command);
     assert.ok(commands.includes('triplecode.prepareWorktree'));
     assert.ok(commands.includes('triplecode.markBackgroundSession'));
+    assert.ok(commands.includes('triplecode.markCloudSession'));
     assert.ok(commands.includes('triplecode.deliverPr'));
   });
 });

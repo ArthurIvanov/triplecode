@@ -17,7 +17,7 @@
 
 - [x] **R-V1:** mode cycle keyboard (`Shift+Tab`) + `@` loading/empty/no-matches + empty Agents CTA.
 - [x] **R-V2:** changes strip + Quick review / View changes; Plan→Build; queue chip; live timeline; Check patch CTA.
-- [ ] **R-V3:** session rail ACC-like (Devin): filter/group later; badge + PR card now.
+- [x] **R-V3:** session rail + Local/Background/Cloud toggle + PR card (filter/group later).
 - [x] **R-V4:** evidence pack Cursor+Devin в `docs/evidence/2026-11-25/` (TripleCode side-by-side optional).
 
 ## Negative

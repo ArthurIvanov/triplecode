@@ -28,7 +28,7 @@
 | R-A4 | Plan edit + Execute confirmed version | S04 | Plan card expanded/edit/execute | AI + Design | — | MVP ✓ 25.11 |
 | R-A0 | First launch Open Folder without account | S01 | Welcome empty/recent | IDE | — | MVP ✓ 25.11 |
 | R-A5 | E2E import real VS Code profile | S02 | Import preview/report/rollback | IDE + QA | — | MVP ✓ 25.11 (live E2E optional) |
-| R-A6 | Docs SoT repaired (audit/architecture) | — | — | Продакт | — | MVP |
+| R-A6 | Docs SoT repaired (audit/architecture) | — | — | Продакт | — | MVP ✓ 25.11 |
 
 **Визуал A:** composer (empty, drafting, running, stopped, error); Review (proposed, checking, conflict); Account chip states. Tokens: `triplecode.chat.*`, button Primary/Secondary/Tertiary.  
 **S12 (25.11):** turn chronology + Markdown answers + unified diff preview in Agents (Monaco remains full Review).
@@ -81,7 +81,7 @@
 | ID | Outcome | Scenario | Screen | Role | Stage |
 | --- | --- | --- | --- | --- | --- |
 | R-E1 | Isolated worktrees / env prep | S11 | session prep card | Архитектор + AI | full ✓ 25.11 local worktree |
-| R-E2 | Background/cloud continue after IDE close | S11 | cloud status | AI + web | full (badge stub ✓; cloud runtime later) |
+| R-E2 | Background/cloud continue after IDE close | S11 | cloud status | AI + web | full (Local/Background/Cloud UI ✓; VM runtime later) |
 | R-E3 | PR delivery + team handoff | S11 | PR card, history | AI + web | full ✓ 25.11 idempotent open URL |
 | R-E4 | Team quotas / audit | — | cabinet admin | web + analytics | full |
 
@@ -97,7 +97,7 @@ SoT: [competitive-visual-parity.md](competitive-visual-parity.md) · Scenario [S
 | --- | --- | --- | --- | --- |
 | R-V1 | Composer mode/@ keyboard parity (Cursor sidepane) | S19 | Design + AI | ✓ Shift+Tab + @ states + empty CTA |
 | R-V2 | Timeline/diff/queue visual language | S19 | Design | ✓ changes strip + Build + queue/live |
-| R-V3 | Session rail ACC-like + PR cards (Devin) | S11 S19 | Design + AI | full |
+| R-V3 | Session rail ACC-like + PR cards (Devin) | S11 S19 | Design + AI | ✓ rail + kind toggle + PR card |
 | R-V4 | Evidence screenshots Cursor/Devin/TripleCode | evidence | Research | ✓ Cursor+Devin 25.11; TC shot optional |
 
 **Цель:** сильное сходство для миграции пользователей, без clone бренда и без rewrite IDE (ADR 0004).

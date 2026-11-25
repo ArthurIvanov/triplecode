@@ -48,7 +48,7 @@
 | --- | --- | --- | --- |
 | R-V1 | Composer/mode/@ keyboard parity with Cursor sidepane | S19 | ✓ Shift+Tab + @ states + empty CTA |
 | R-V2 | Timeline/diff/queue visual language (Cursor 2/3 cues) | S19 | ✓ changes strip + Build + queue/live |
-| R-V3 | Session rail ACC-like (Devin) + PR/handoff cards | S11+S19 | full (session bar stub ✓) |
+| R-V3 | Session rail ACC-like (Devin) + PR/handoff cards | S11+S19 | ✓ rail + kind toggle + PR card |
 | R-V4 | Evidence pack screenshots | evidence | ✓ Cursor+Devin 25.11; TripleCode side-by-side optional |
 
 **Принцип:** сходство для миграции ≠ клон. Бренд TripleCode, layout IDE-first (ADR 0004), wedge Check patch остаётся дифференциатором.
@@ -80,15 +80,15 @@
 | 2 | Composer hints `@` `/` Plan·Build | Cursor | Частично S08 | **V1** |
 | 3 | Files-changed strip + Quick review над input | Devin | Changes strip + Quick/View | **V2 ✓** |
 | 4 | Plan → Build primary CTA | Cursor | Build CTA | **V2 ✓** |
-| 5 | Session rail (not only tabs) + Local/Cloud | Devin ACC | Session bar stub | **V3** |
-| 6 | Changes as tool tab beside chat | Both | Monaco Review | **V2/V3** |
-| 7 | Empty-state shortcut CTA | Cursor | Welcome/empty chat | **V1** |
+| 5 | Session rail (not only tabs) + Local/Cloud | Devin ACC | Session rail + kind toggle | **V3 ✓** |
+| 6 | Changes as tool tab beside chat | Both | Monaco Review + changes strip | **V2 ✓** |
+| 7 | Empty-state shortcut CTA | Cursor | Empty Agents CTA | **V1 ✓** |
 
 ## Следующие действия
 
-1. **R-V3** — session rail ACC-like (badge already); PR/handoff card polish.  
-2. Опционально: 1–2 скрина **TripleCode** Agents (empty + review) в `docs/evidence/2026-11-25/`.  
-3. Не строить отдельный Agents Window shell до ADR 0006 / cloud E.
+1. **R-E2 runtime** — cloud VM continue (web); UI already marks awaiting cloud.  
+2. **R-A1 / S09** — cabinet quotas в `triplecode-web`.  
+3. Опционально: скрины TripleCode Agents в evidence; не строить Agents Window shell (ADR 0004).
 
 ## Links
 

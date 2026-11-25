@@ -339,6 +339,17 @@ function activate(context) {
           case 'session-background':
             await sessionHost.markBackground();
             break;
+          case 'session-cloud':
+            await sessionHost.markCloud();
+            break;
+          case 'session-kind':
+            if (['local', 'background', 'cloud'].includes(message.kind)) {
+              await sessionHost.setSessionKind(message.kind);
+            }
+            break;
+          case 'session-select':
+            if (typeof message.sessionId === 'string') sessionHost.selectSession(message.sessionId);
+            break;
           case 'session-pr':
             await sessionHost.deliverPr();
             break;
@@ -1859,7 +1870,14 @@ function activate(context) {
   });
 
   sessionHost = registerSessionHost(vscode, context, {
-    getChats: () => [currentChat, ...chats.filter(chat => chat !== currentChat)],
+    getChats: () => chats.slice(),
+    getCurrentChat: () => currentChat,
+    selectChatById: id => {
+      const chat = chats.find(item => item.id === id);
+      if (!chat) return false;
+      updateChats(id, false);
+      return true;
+    },
     persistChats,
     appendLog: (level, message) => debugLog.appendLog(level, message),
     postChats: () => agent?.postMessage({ type: 'chats', ...chatState() })

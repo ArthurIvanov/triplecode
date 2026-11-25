@@ -1,59 +1,54 @@
 # Оценка зрелости TripleCode vs Cursor / Devin
 
-**Дата среза:** 25 ноября 2026 года.  
-**База:** ветка с рабочим macOS MVP, ~106 коммитов на момент аудита.  
+**Дата среза:** 25 ноября 2026 года (вечерний refresh после волн C–E / V1–V3).  
 **Стратегический ответ:** [ADR 0004](adr/0004-continue-vs-rewrite.md), [strategy.md](strategy.md).
 
 ## Вердикт
 
-TripleCode — **ранний закрытый MVP на macOS**: рабочий agent-loop «задача → Ask/Plan/Agent → multi-file Review → checks → Keep/Undo» поверх перепакованного VSCodium. Это не полноценный форк Code-OSS в дереве репозитория и не AI-платформа. Документы и дисциплина процесса выше фактической инженерной зрелости. До паритета Cursor (Tab, Cmd-K, MCP, indexing, streaming, tool-loop, cloud agents) и Devin (автономный cloud worker + PR) — отдельные волны стратегии, не «дополировать».
+TripleCode — **закрытый macOS MVP + beta AI floor** на repackage VSCodium: agent-loop Ask/Plan/Agent → Review/Check patch → Keep/Undo, плюс streaming, text tool-loop, MCP stdio permissions, Tab/Cmd-K, session worktree/PR stub и visual parity V1–V3 в Agents. Это всё ещё не source-fork Code-OSS и не cloud Devin-runtime. Документы и код снова выровнены (R-A6).
 
-Честная стадия: **late Stage 0 / mid Stage 1**, pre-external-pilot.
+Честная стадия: **late Stage 1 / early Stage 2**, pre-external-pilot (блокер: кабинет/квоты S09 + web).
 
 ## Оценки (1–10, где 10 = Cursor + Devin production)
 
 | Ось | Оценка | Кратко |
 | --- | ---: | --- |
-| Продуктовое видение и роадмап | 7.5 | Wedge verify-before-accept, карта паритета, этапы 0–3 |
-| Архитектурные решения / ADRs | 6.5 | ADR 0001–0004; ранее «форк» в docs расходился с деревом |
-| Реализуемый macOS MVP (локальный агент) | 6 | P0 на macOS; Ask/Plan/Agent + Review + checks |
-| AI-слой vs Cursor | 3.5 | Нет streaming, MCP, embeddings, tool-loop, Tab on, Cmd-K |
-| Devin-паритет | 1.5 | Только roadmap Stage 3 |
-| Качество / структура кода | 4 | ~2k LOC untyped `extension.js`; webview strict TS |
-| Тесты + CI + релиз | 2 | Нет CI и своих автотестов; локальный `build-macos.sh` |
-| Пилот / GTM | 2.5 | Логин E2E есть; кабинет/квоты/web-репо блокируют пилот |
-| **Итого к заявленной цели** | **~3.5–4** | Сильный pre-pilot прототип |
+| Продуктовое видение и роадмап | 8 | Waves A–E + V; wedge Check patch |
+| Архитектурные решения / ADRs | 7.5 | ADR 0001–0006; architecture.md синхронизирован |
+| Реализуемый macOS MVP (локальный агент) | 7 | P0 loop + packaging S17 |
+| AI-слой vs Cursor | 5.5 | Stream/tools/MCP/Tab/Cmd-K floor; нет native tools / index / Agents Window |
+| Devin-паритет | 3.5 | Worktree + Background/Cloud UI + PR URL; нет VM continue |
+| Качество / структура кода | 5.5 | Модули host (session/mcp/tool/…); `extension.js` ещё крупный |
+| Тесты + CI + релиз | 6 | Node tests per scenario + CI PR; optional signing/update |
+| Пилот / GTM | 3 | Login PKCE есть; cabinet/quotas блокируют внешний пилот |
+| **Итого к заявленной цели** | **~5** | Сильный internal beta; cloud + cabinet next |
 
 ## Фактическая архитектура на срезе
 
 | Слой | Реализация |
 | --- | --- |
-| Runtime IDE | Скачиваемый VSCodium 1.143.17232 (ADR 0001), не `src/vs/` в репо |
-| Shell / layout | ~17 замен в minified Workbench + CSS (ADR 0002) |
-| Продукт | `extensions/triplecode-mvp` (extension host + React Agents webview) |
-| Модели | Ollama + OpenRouter BYOK + stub; `stream: false` |
-| Контекст | Вложения, `.triplecode/rules.md`, `findFiles` + READ-раунды; без embeddings |
-| Аккаунт | PKCE → `triplecode.ru`; кабинет/квоты не закрыты |
-| CI / multi-OS / updates | Не созданы |
-
-Ключевые пути: `scripts/build-macos.sh`, `scripts/desktop/apply-workbench-layout.py`, `extensions/triplecode-mvp/`.
+| Runtime IDE | Pinned VSCodium (ADR 0001), не `src/vs/` в репо |
+| Shell / layout | Minified Workbench patch + CSS (ADR 0002); порог ADR 0006 |
+| Продукт | `extensions/triplecode-mvp` |
+| Модели | Ollama + OpenRouter BYOK; streaming S13 |
+| Контекст / tools | `@` picker, rules.md, READ/CHECK/FILE loop, MCP stdio |
+| Sessions | Local/Background/Cloud UI + worktree + idempotent PR |
+| Аккаунт | PKCE → `triplecode.ru`; кабинет/квоты open (S09) |
+| CI / multi-OS / updates | Workflows + S17/S18 floor |
 
 ## Паритет (сжато)
 
 | Класс | Статус |
 | --- | --- |
-| VS Code daily driver (editor/git/terminal/extensions pilot) | Частично (debug F5 — дыры QA) |
-| Ask / Plan / Agent + Review + Stop + checks | Есть, P0 macOS |
-| Profile import | Есть (E2E реального профиля pending) |
-| Tab / NES / Cmd-K | Нет (inline infra выключена) |
-| MCP, semantic index | Нет |
-| Cloud agents / PR / isolation | Нет |
-
-## Главный актив и главный долг
-
-- **Актив:** продуктовая ясность, verify-first loop, привычный VS Code base, импорт профиля.
-- **Долг:** расхождение «форк/паритет» ↔ repackage+extension; нет CI/тестов; нет AI runtime уровня Cursor.
+| VS Code daily driver | Да (repackage) |
+| Ask / Plan / Agent + Review + Stop + checks | Да |
+| Streaming / tool-loop / MCP permissions | Floor да |
+| Tab / Cmd-K | Floor да (S10) |
+| Session rail / PR card / kind toggle | Floor да (V3 / E) |
+| Semantic index / Agents Window shell | Нет (ADR 0004) |
+| Cloud continue after IDE close | UI stub only (R-E2 runtime later) |
+| Cabinet quotas | Blocker (S09 / web) |
 
 ## Решение по базе
 
-Полный restart **отклонён**. Эволюция текущей базы с волнами A→E — в [strategy.md](strategy.md) и [ADR 0004](adr/0004-continue-vs-rewrite.md).
+Полный restart **отклонён**. Эволюция текущей базы — [strategy.md](strategy.md) · [ADR 0004](adr/0004-continue-vs-rewrite.md).
