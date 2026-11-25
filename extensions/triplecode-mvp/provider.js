@@ -65,33 +65,155 @@ async function listOllamaModels(endpoint, timeoutMs = 3000) {
   }
 }
 
-function fileContext(document, maxChars = 14000) {
+// ---- Context packing -------------------------------------------------------
+// Local models have small context windows. Everything below works in
+// characters; ~3 chars per token is a conservative estimate for source code.
+
+const CHARS_PER_TOKEN = 3;
+
+function estimateTokens(text) {
+  return Math.ceil(String(text ?? '').length / CHARS_PER_TOKEN);
+}
+
+// Keep the tail of a long conversation: merge consecutive same-role turns and
+// cap both the number of messages and the size of each one.
+function clampHistory(history, { maxMessages = 12, maxChars = 6000 } = {}) {
+  if (!Array.isArray(history)) return [];
+  const merged = [];
+  for (const item of history) {
+    if (!item || (item.role !== 'user' && item.role !== 'assistant') || typeof item.content !== 'string') continue;
+    const content = item.content.trim();
+    if (!content) continue;
+    const clipped = content.length > maxChars ? `${content.slice(0, maxChars)}\n…` : content;
+    const last = merged[merged.length - 1];
+    if (last && last.role === item.role) last.content += `\n\n${clipped}`;
+    else merged.push({ role: item.role, content: clipped });
+  }
+  return merged.slice(-maxMessages);
+}
+
+// Truncate long content keeping both the head and the tail — imports, types
+// and entry points usually live at the top, usage sites at the bottom.
+function truncateMiddle(content, maxChars) {
+  if (content.length <= maxChars) return { text: content, omitted: 0 };
+  const marker = (omitted) => `\n// … ${omitted} chars omitted …\n`;
+  const overhead = marker(content.length).length;
+  const body = Math.max(0, maxChars - overhead);
+  const head = Math.floor(body * 0.6);
+  const tail = body - head;
+  const omitted = content.length - head - tail;
+  return {
+    text: `${content.slice(0, head)}${marker(omitted)}${content.slice(content.length - tail)}`,
+    omitted
+  };
+}
+
+function fileBlock({ path, languageId, content, budgetChars }) {
+  const lines = content.split('\n').length;
+  const header = `File: ${path}\nLanguage: ${languageId || 'text'}\nLines: ${lines}\n\n`;
+  const bodyBudget = Math.max(200, budgetChars - header.length);
+  const { text, omitted } = truncateMiddle(content, bodyBudget);
+  return { block: `${header}${text}`, omitted, lines };
+}
+
+function documentContent(document) {
   let content = document.getText();
   if (!content.trim()) content = '(empty file)';
-  const truncated = content.length > maxChars;
-  if (truncated) content = `${content.slice(0, maxChars)}\n// … truncated …`;
-  return `File: ${document.uri.fsPath}\nLanguage: ${document.languageId}\n\n${content}`;
+  return content;
 }
 
-function askMessages(document, request) {
+// ---- System prompts --------------------------------------------------------
+// Small local models follow short, explicit instructions better than long
+// prose. Repository rules go into the system message, not the user tail.
+
+function withRules(base, rules) {
+  return rules ? `${base}\n\nRepository rules (.triplecode/rules.md):\n${rules}` : base;
+}
+
+const SYSTEM_ASK = 'You are TripleCode, a coding assistant inside an IDE. ' +
+  'Answer briefly and concretely using only the provided context. ' +
+  'Mention file paths when referring to code. ' +
+  'If the context is insufficient, say what information is missing instead of guessing.';
+
+const SYSTEM_PLAN = 'You are TripleCode, a coding assistant inside an IDE. ' +
+  'Reply with a short numbered plan, one step per line. Do not write code.';
+
+const SYSTEM_AGENT = 'You are TripleCode, a coding assistant inside an IDE. You rewrite files precisely. ' +
+  'Earlier messages are conversation context; the latest request is authoritative.';
+
+// ---- Message builders ------------------------------------------------------
+// All builders accept an options object:
+//   history  – previous turns [{role, content}] for multi-turn chats
+//   rules    – repository rules text (.triplecode/rules.md)
+//   project  – pre-formatted workspace/project digest
+//   path     – display path override (relative path preferred over absolute)
+//   pathFor  – function mapping a document to its display path (agent mode)
+//   maxChars – character budget for file contents
+//   fileTree – workspace file listing for agent mode
+
+function documentPath(document, fallback) {
+  return fallback || document.uri.fsPath;
+}
+
+function contextBlocks(documents, options, fallbackBudget) {
+  const docs = (Array.isArray(documents) ? documents : [documents])
+    .filter(document => document && !document.isClosed);
+  const budget = options.maxChars ?? fallbackBudget;
+  if (!docs.length) return '';
+  const perFile = Math.max(800, Math.floor(budget / docs.length));
+  return docs.map((document, index) => {
+    const { block } = fileBlock({
+      path: options.pathFor
+        ? options.pathFor(document)
+        : (options.path && index === 0 ? options.path : documentPath(document)),
+      languageId: document.languageId,
+      content: documentContent(document),
+      budgetChars: perFile
+    });
+    return block;
+  }).join('\n\n') + '\n\n';
+}
+
+function askMessages(document, request, options = {}) {
+  const history = clampHistory(options.history);
+  const extra = options.documents || [];
+  const allDocs = [document, ...extra].filter(Boolean);
+  const filePart = contextBlocks(allDocs, options, 20000);
+  const projectPart = options.project ? `${options.project}\n\n` : '';
   return [
-    { role: 'system', content: 'You are a coding assistant inside an IDE. Answer briefly and concretely.' },
-    { role: 'user', content: `${document ? fileContext(document) : ''}\n\nQuestion: ${request}` }
+    { role: 'system', content: withRules(SYSTEM_ASK, options.rules) },
+    ...history,
+    { role: 'user', content: `${projectPart}${filePart}Question: ${request}` }
   ];
 }
 
-function planMessages(document, request) {
+function planMessages(document, request, options = {}) {
+  const history = clampHistory(options.history);
+  const extra = options.documents || [];
+  const allDocs = [document, ...extra].filter(Boolean);
+  const filePart = contextBlocks(allDocs, options, 16000);
+  const projectPart = options.project ? `${options.project}\n\n` : '';
   return [
-    { role: 'system', content: 'You are a coding assistant inside an IDE. Reply with a short numbered plan, one step per line.' },
-    { role: 'user', content: `${document ? fileContext(document) : ''}\n\nTask: ${request}` }
+    { role: 'system', content: withRules(SYSTEM_PLAN, options.rules) },
+    ...history,
+    { role: 'user', content: `${projectPart}${filePart}Task: ${request}` }
   ];
 }
 
-function rewriteMessages(document, request) {
+function rewriteMessages(document, request, options = {}) {
+  const history = clampHistory(options.history, { maxMessages: 6, maxChars: 3000 });
   const exampleBefore = 'function add(a, b) {\n  return a + b;\n}\n';
   const exampleAfter = 'function add(a, b) {\n  return a + b;\n}\n\nfunction subtract(a, b) {\n  return a - b;\n}\n';
+  const budget = options.maxChars ?? 20000;
+  const { block } = fileBlock({
+    path: documentPath(document, options.path),
+    languageId: document.languageId || 'javascript',
+    content: documentContent(document),
+    budgetChars: budget
+  });
   return [
-    { role: 'system', content: 'You are a coding assistant inside an IDE. You rewrite files precisely.' },
+    { role: 'system', content: withRules(SYSTEM_AGENT, options.rules) },
+    ...history,
     {
       role: 'user',
       content: 'File: example.js\nLanguage: javascript\n\n' + exampleBefore +
@@ -100,7 +222,7 @@ function rewriteMessages(document, request) {
     { role: 'assistant', content: '```javascript\n' + exampleAfter + '```' },
     {
       role: 'user',
-      content: `${fileContext(document)}\n\nRequest: ${request}\n\n` +
+      content: `${block}\n\nRequest: ${request}\n\n` +
         'Reply with the COMPLETE updated file content inside a single code fence ' +
         '(``` followed by the language id). Change only what the request needs and ' +
         'keep every other line byte-identical — do not reformat, rename or fix ' +
@@ -109,21 +231,40 @@ function rewriteMessages(document, request) {
   ];
 }
 
-function multiFileMessages(documents, request) {
-  const context = documents.map(document => {
-    let content = document.getText();
-    if (!content.trim()) content = '(empty file)';
-    if (content.length > 6000) content = `${content.slice(0, 6000)}\n// … truncated …`;
-    return `${document.uri.fsPath}\n\n${content}`;
-  }).join('\n\n');
+function multiFileMessages(documents, request, options = {}) {
+  const history = clampHistory(options.history, { maxMessages: 8, maxChars: 3000 });
+  const totalBudget = options.maxChars ?? 24000;
+  const treePart = options.fileTree ? `Workspace files:\n${options.fileTree}\n\n` : '';
+
+  // Split the remaining character budget evenly across the files so the whole
+  // prompt stays inside the model's context window.
+  const docs = documents.filter(document => document && !document.isClosed);
+  const blocks = [];
+  let omittedTotal = 0;
+  if (docs.length) {
+    const perFile = Math.max(800, Math.floor(totalBudget / docs.length));
+    for (const document of docs) {
+      const { block, omitted } = fileBlock({
+        path: options.pathFor ? options.pathFor(document) : documentPath(document),
+        languageId: document.languageId,
+        content: documentContent(document),
+        budgetChars: perFile
+      });
+      omittedTotal += omitted;
+      blocks.push(block);
+    }
+  }
+  const filesPart = blocks.length ? `Files:\n\n${blocks.join('\n\n')}\n\n` : '';
+  const omittedNote = omittedTotal ? `\n(Note: ${omittedTotal} chars of file content were omitted to fit the context window.)\n` : '\n';
   return [
-    { role: 'system', content: 'You are a coding assistant inside an IDE. You rewrite files precisely.' },
+    { role: 'system', content: withRules(SYSTEM_AGENT, options.rules) },
+    ...history,
     {
       role: 'user',
-      content: `Files:\n\n${context}\n\nTask: ${request}\n\n` +
-        'For each file that must change, output a line FILE: followed by its path, ' +
+      content: `${treePart}${filesPart}Task: ${request}${omittedNote}\n` +
+        'For each file that must change, output a line FILE: followed by its path exactly as listed above, ' +
         'then the COMPLETE updated file content inside one code fence. Keep every ' +
-        'untouched line identical. Only edit files listed above.'
+        'untouched line identical. Only edit files listed above. If no change is needed, reply NOCHANGE.'
     }
   ];
 }
@@ -190,4 +331,9 @@ function diffEdit(before, after, eol = '\n') {
   return { offset, deleteLength, insertion };
 }
 
-module.exports = { probe, chat, chatCompletions, listOllamaModels, askMessages, planMessages, rewriteMessages, multiFileMessages, parseRewrite, parseMultiRewrite, diffEdit };
+module.exports = {
+  probe, chat, chatCompletions, listOllamaModels,
+  estimateTokens, clampHistory, truncateMiddle, fileBlock,
+  askMessages, planMessages, rewriteMessages, multiFileMessages,
+  parseRewrite, parseMultiRewrite, diffEdit
+};

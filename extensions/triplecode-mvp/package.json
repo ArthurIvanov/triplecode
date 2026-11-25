@@ -114,6 +114,16 @@
           "default": 120000,
           "description": "Timeout for an entire agent turn in milliseconds, including provider selection and context retrieval. Inline completions use a limit of at most 10 seconds."
         },
+        "triplecode.ai.numCtx": {
+          "type": "number",
+          "default": 16384,
+          "description": "Context window in tokens requested from the Ollama model. Larger windows allow more file content per request but use more memory."
+        },
+        "triplecode.ai.projectContext": {
+          "type": "boolean",
+          "default": true,
+          "description": "Include a compact workspace file tree and project digest (package.json, README) in AI requests so the model can reason about the whole project, not only open files."
+        },
         "triplecode.ai.openrouterEndpoint": {
           "type": "string",
           "default": "https://openrouter.ai/api/v1",
