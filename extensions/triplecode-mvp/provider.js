@@ -280,6 +280,27 @@ function rewriteMessages(document, request, options = {}) {
   ];
 }
 
+const MULTI_REWRITE_INSTRUCTIONS =
+  'For each file that must change, output a line FILE: followed by its path exactly as listed above, ' +
+  'then the COMPLETE updated file content inside one code fence. Keep every ' +
+  'untouched line identical. If the task requires a file that is not shown above, ' +
+  'you may still reference its path from the Workspace files list — its content ' +
+  'will be provided on a follow-up pass. If no change is needed, reply NOCHANGE.';
+
+// Small local models reliably copy an output format only when it is shown once.
+// This compact worked example costs ~100 tokens and prevents NOCHANGE/parse
+// failures on otherwise trivial edit requests.
+const MULTI_REWRITE_EXAMPLE_USER =
+  'Workspace files:\nsrc/calc.js\n\n' +
+  'Files:\n\nFile: src/calc.js\nLanguage: javascript\nLines: 3\n\n' +
+  'function add(a, b) {\n  return a + b;\n}\n\n' +
+  'Task: add a subtract function\n\n' + MULTI_REWRITE_INSTRUCTIONS;
+const MULTI_REWRITE_EXAMPLE_ASSISTANT =
+  'FILE: src/calc.js\n```javascript\n' +
+  'function add(a, b) {\n  return a + b;\n}\n\n' +
+  'function subtract(a, b) {\n  return a - b;\n}\n' +
+  '```';
+
 function multiFileMessages(documents, request, options = {}) {
   const history = clampHistory(options.history, { maxMessages: 8, maxChars: 3000 });
   const totalBudget = options.maxChars ?? 24000;
@@ -308,12 +329,12 @@ function multiFileMessages(documents, request, options = {}) {
   return [
     { role: 'system', content: withRules(SYSTEM_AGENT, options.rules) },
     ...history,
+    { role: 'user', content: MULTI_REWRITE_EXAMPLE_USER },
+    { role: 'assistant', content: MULTI_REWRITE_EXAMPLE_ASSISTANT },
     {
       role: 'user',
       content: `${treePart}${filesPart}Task: ${request}${omittedNote}\n` +
-        'For each file that must change, output a line FILE: followed by its path exactly as listed above, ' +
-        'then the COMPLETE updated file content inside one code fence. Keep every ' +
-        'untouched line identical. Only edit files listed above. If no change is needed, reply NOCHANGE.'
+        MULTI_REWRITE_INSTRUCTIONS
     }
   ];
 }

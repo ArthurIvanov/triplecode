@@ -49,6 +49,7 @@ const DOCS = {
   main: fixture('/eval-fixture/src/main.js', 'javascript', MAIN_JS)
 };
 
+const FILE_TREE = 'src/math.js\nsrc/util.js\nsrc/main.js';
 const PROJECT = 'Project: eval-fixture\nWorkspace files:\nsrc/math.js\nsrc/util.js\nsrc/main.js\n\n';
 const pathFor = doc => doc.uri.fsPath.replace('/eval-fixture/', '');
 
@@ -99,7 +100,7 @@ const SCENARIOS = [
     mode: 'agent',
     documents: [DOCS.math],
     request: 'Add a subtract function to math.js',
-    options: { maxChars: 8000, pathFor },
+    options: { maxChars: 8000, pathFor, fileTree: FILE_TREE },
     expect: { parse: 'multi', files: ['math.js'] }
   },
   {
@@ -107,8 +108,27 @@ const SCENARIOS = [
     mode: 'agent',
     documents: [DOCS.main, DOCS.math, DOCS.util],
     request: 'In math.js rename the add function to plus, and update the import and call in main.js',
-    options: { maxChars: 8000, pathFor },
+    options: { maxChars: 8000, pathFor, fileTree: FILE_TREE },
     expect: { parse: 'multi' }
+  },
+  {
+    id: 'agent-no-change',
+    mode: 'agent',
+    documents: [DOCS.math],
+    request: 'math.js already exports add and multiply correctly — do not change anything',
+    options: { maxChars: 8000, pathFor, fileTree: FILE_TREE },
+    expect: { parse: 'multi', noChange: true }
+  },
+  {
+    id: 'agent-expand-context',
+    // util.js is deliberately NOT in the initial context: the model must
+    // reference it, the runner then adds it (like the extension's second
+    // pass) and the model regenerates with the real content.
+    mode: 'agent-expand',
+    documents: [DOCS.main, DOCS.math],
+    request: 'Add an isInRange(value, lo, hi) export to util.js and use it in main.js run() instead of clamp',
+    options: { maxChars: 8000, pathFor, fileTree: FILE_TREE },
+    expect: { parse: 'multi', files: ['util.js', 'main.js'] }
   }
 ];
 
@@ -131,16 +151,49 @@ function score(scenario, reply) {
     const parsed = provider.parseMultiRewrite(reply);
     if (!parsed) {
       failures.push('parseMultiRewrite failed');
-    } else if (!parsed.noChange && scenario.expect.files?.length) {
-      const paths = parsed.files.map(file => file.path);
-      for (const expected of scenario.expect.files) {
-        if (!paths.some(path => path.includes(expected))) {
-          failures.push(`expected FILE entry for ${expected}, got: ${paths.join(', ') || '(none)'}`);
+    } else {
+      if (scenario.expect.noChange && !parsed.noChange) {
+        failures.push(`expected NOCHANGE, got ${parsed.files?.length ?? 0} file block(s)`);
+      }
+      if (scenario.expect.noChange === false && parsed.noChange) {
+        failures.push('expected file changes, got NOCHANGE');
+      }
+      if (scenario.expect.files?.length && parsed.noChange) {
+        failures.push('expected file changes, got NOCHANGE');
+      }
+      if (!parsed.noChange && scenario.expect.files?.length) {
+        const paths = parsed.files.map(file => file.path);
+        for (const expected of scenario.expect.files) {
+          if (!paths.some(path => path.includes(expected))) {
+            failures.push(`expected FILE entry for ${expected}, got: ${paths.join(', ') || '(none)'}`);
+          }
         }
       }
     }
   }
   return failures;
+}
+
+const ALL_DOCS = Object.values(DOCS);
+
+function docForPath(parsedPath) {
+  return ALL_DOCS.find(doc => {
+    const rel = pathFor(doc);
+    return rel === parsedPath ||
+      rel.endsWith(`/${parsedPath}`) || parsedPath.endsWith(`/${rel}`) ||
+      doc.uri.fsPath.endsWith(parsedPath);
+  });
+}
+
+function chatOnce(messages) {
+  return provider.chat({
+    endpoint: ENDPOINT,
+    model: MODEL,
+    messages,
+    numCtx: NUM_CTX,
+    numPredict: 1024,
+    timeoutMs: 180000
+  });
 }
 
 // ---- Runner ------------------------------------------------------------------
@@ -155,15 +208,27 @@ let failed = 0;
 for (const scenario of SCENARIOS) {
   const started = Date.now();
   try {
-    const messages = buildMessages(scenario);
-    const reply = await provider.chat({
-      endpoint: ENDPOINT,
-      model: MODEL,
-      messages,
-      numCtx: NUM_CTX,
-      numPredict: 1024,
-      timeoutMs: 180000
-    });
+    let reply;
+    if (scenario.mode === 'agent-expand') {
+      // Emulates the extension's context-expansion pass: parse the reply,
+      // add referenced fixture docs missing from the context, ask again.
+      const docs = [...scenario.documents];
+      for (let pass = 0; pass < 2; pass++) {
+        reply = await chatOnce(provider.multiFileMessages(docs, scenario.request, scenario.options));
+        const parsed = provider.parseMultiRewrite(reply);
+        if (!parsed || parsed.noChange) break;
+        const known = new Set(docs.map(doc => doc.uri.fsPath));
+        const missing = [];
+        for (const file of parsed.files) {
+          const doc = docForPath(file.path);
+          if (doc && !known.has(doc.uri.fsPath) && !missing.includes(doc)) missing.push(doc);
+        }
+        if (!missing.length) break;
+        docs.push(...missing);
+      }
+    } else {
+      reply = await chatOnce(buildMessages(scenario));
+    }
     const failures = score(scenario, reply);
     const ms = Date.now() - started;
     if (failures.length) {

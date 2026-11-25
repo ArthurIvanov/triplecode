@@ -1112,6 +1112,19 @@ function activate(context) {
     });
   }
 
+  // Derives a human-readable status from the model's partial agent reply:
+  // which FILE: block is being written right now. Returns null for empty
+  // text so the caller keeps the previous progress label.
+  function agentStreamStatus(text) {
+    if (!text.trim()) return null;
+    const matches = [...text.matchAll(/(?:^|\n)FILE:[ \t]*([^\n]+)/g)];
+    if (!matches.length) return 'Model is drafting a response…';
+    const last = matches[matches.length - 1];
+    const path = last[1].trim().replace(/[`'"]+$/, '');
+    const fences = (text.slice(last.index).match(/```/g) || []).length;
+    return fences >= 2 ? `Finished block for ${path}` : `Writing ${path}…`;
+  }
+
   function recordExchange(chat, request, reply) {
     if (!chat) return;
     chat.history = chat.history || [];
@@ -1208,6 +1221,14 @@ function activate(context) {
     const { numCtx, chars: promptChars } = await promptCharBudget(8192);
     const fileTree = await workspaceFileTree(3000);
     const options = { numPredict: 8192, numCtx, feature: 'agent', chatId: run.chat.id };
+    let lastStreamStatus = '';
+    options.onDelta = delta => {
+      const status = agentStreamStatus(delta);
+      if (status && status !== lastStreamStatus) {
+        lastStreamStatus = status;
+        try { postProgress(run, status); } catch { /* run aborted */ }
+      }
+    };
     const msgOptions = () => ({
       history: run.chat.history,
       rules,
