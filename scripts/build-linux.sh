@@ -64,6 +64,7 @@ python3 "$root/scripts/desktop/apply-workbench-layout.py" "$resources"
 dest="$out/TripleCode-linux-x64"
 rm -rf "$dest"
 cp -R "$app_dir" "$dest"
+bash "$root/scripts/sign-artifact.sh" linux
 (
   cd "$out"
   tar -czf TripleCode-linux-x64.tar.gz TripleCode-linux-x64

@@ -39,6 +39,7 @@ let getSessionAccessToken = () => Promise.resolve(null);
 const { registerInlineAI } = require('./inline');
 const { registerCmdK } = require('./cmdk-host.cjs');
 const { registerDebugDiagnostics } = require('./debug-host.cjs');
+const { registerUpdateCommands } = require('./update-host.cjs');
 const provider = require('./provider');
 
 function showDesignSystem(context) {
@@ -1835,6 +1836,11 @@ function activate(context) {
         mcpPermissionCount: Object.keys(perms).length
       };
     }
+  });
+
+  registerUpdateCommands(vscode, context, {
+    getProductVersion: () => context.extension?.packageJSON?.version || '0.0.1',
+    appendLog: (level, message) => debugLog.appendLog(level, message)
   });
 
   context.subscriptions.push(

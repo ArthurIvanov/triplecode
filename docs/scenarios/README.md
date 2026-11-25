@@ -24,5 +24,6 @@
 | [S15](S15-mcp-host-permissions.md) | MCP host + permissions | beta | C |
 | [S16](S16-debug-diagnostics.md) | Debug / diagnostics collect | beta | C |
 | [S17](S17-packaging-three-os.md) | Packaging macOS/Win/Linux | MVP→beta | B |
+| [S18](S18-signing-update-wave-d.md) | Signing + update check | beta | D |
 
 Индекс роадмапа: [../roadmap.md](../roadmap.md).

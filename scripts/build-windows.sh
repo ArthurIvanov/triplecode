@@ -81,6 +81,7 @@ dest="$out/TripleCode-win32-x64"
 rm -rf "$dest"
 mkdir -p "$out"
 cp -R "$app_dir" "$dest"
+bash "$root/scripts/sign-artifact.sh" windows "$dest"
 
 python3 - "$out" <<'PY'
 """Always emit TripleCode-win32-x64.zip (stdlib zipfile — no zip/rsync required)."""

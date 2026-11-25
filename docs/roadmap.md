@@ -68,9 +68,9 @@
 
 | ID | Outcome | Scenario | Role | Deps | Stage |
 | --- | --- | --- | --- | --- | --- |
-| R-D1 | Signed macOS + Win + Linux | — | Релизы | certs secrets | beta |
-| R-D2 | Auto-update + rollback | — | Релизы | ADR 0005 | beta |
-| R-D3 | Source-fork decision if patch thresholds hit | — | Архитектор | ADR 0002/0004 | beta |
+| R-D1 | Signed macOS + Win + Linux | S18 | Релизы | certs secrets | beta ✓ 25.11 (optional secrets; unsigned OK in CI) |
+| R-D2 | Auto-update + rollback | S18 | Релизы | ADR 0005 | beta ✓ 25.11 (manifest check + open download) |
+| R-D3 | Source-fork decision if patch thresholds hit | ADR 0006 | Архитектор | ADR 0002/0004 | beta ✓ 25.11 (stay repackage; 24/30) |
 
 **Визуал D:** About/Update dialog states (available, downloading, ready to restart, rollback).
 

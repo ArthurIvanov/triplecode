@@ -24,15 +24,16 @@ asset="$VSCODIUM_DARWIN_ARM64_ASSET"
 cache="$root/.triplecode-dev/downloads"
 out="$root/dist"
 app_name=TripleCode
-signing_identity=-
+signing_identity="${TRIPLECODE_SIGNING_IDENTITY:-${APPLE_DEVELOPER_ID:--}}"
 case "${1:-}" in
   --keychain-qa)
     app_name='TripleCode Keychain QA'
-    signing_identity="${TRIPLECODE_QA_SIGNING_IDENTITY:--}"
+    signing_identity="${TRIPLECODE_QA_SIGNING_IDENTITY:-${signing_identity}}"
     ;;
   '') ;;
   *) printf 'Usage: %s [--keychain-qa]\n' "$0" >&2; exit 2 ;;
 esac
+export TRIPLECODE_SIGNING_IDENTITY="$signing_identity"
 destination="$out/$app_name.app"
 archive="$cache/$asset"
 mkdir -p "$cache" "$out"
@@ -146,8 +147,7 @@ codesign --force --sign - "$app/Contents/Resources/keychain-parent"
 cp "$root/resources/logo.icns" "$app/Contents/Resources/TripleCode.icns"
 rm -f "$app/Contents/Resources/VSCodium.icns"
 
-codesign --force --deep --sign "$signing_identity" "$app"
-codesign --verify --deep --strict "$app"
+bash "$root/scripts/sign-artifact.sh" macos "$app"
 
 python3 - "$app" "$app_name" <<'PY'
 import json

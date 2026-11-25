@@ -24,15 +24,23 @@
 - **Rollback:** указать предыдущий `version` в манифесте канала; клиенты с `updateUrl` подтянут прошлые URL/checksums.
 - Пока `TRIPLECODE_UPDATE_URL` пуст — обновление ручное (скачивание с GitHub Releases).
 
-## Подпись
+## Подпись (R-D1)
 
-| ОС | Secret (опционально Stage 1) | Поведение без secret |
+`bash scripts/sign-artifact.sh macos|windows|linux …` вызывается из `build-*.sh`.
+
+| ОС | Secret (опционально) | Поведение без secret |
 | --- | --- | --- |
-| macOS | `APPLE_DEVELOPER_ID` / notary creds | ad-hoc / unsigned artifact note |
-| Windows | `WINDOWS_CERT_PFX` | unsigned zip |
+| macOS | `TRIPLECODE_SIGNING_IDENTITY` / `APPLE_DEVELOPER_ID`; notarization: `APPLE_ID` + `APPLE_TEAM_ID` + `APPLE_APP_SPECIFIC_PASSWORD` | ad-hoc (`codesign -`) |
+| Windows | `WINDOWS_CERT_PFX` (path или base64) + `WINDOWS_CERT_PASSWORD` | unsigned zip + log note |
 | Linux | — | tar.gz as-is |
 
-Не блокируй Stage 1 CI отсутствием сертификатов; блокируй публичную бету (волна D).
+Не блокируй CI отсутствием сертификатов. Публичную бету с магазинами/Gatekeeper — только с secrets.
+
+## Обновления (R-D2)
+
+- Сборка может выставить `product.updateUrl` через `TRIPLECODE_UPDATE_URL`.
+- В IDE: `triplecode.update.manifestUrl` + **Check for Updates** / **About** (см. S18).
+- Откат канала = манифест с меньшим `version` после `verify-release-manifest.sh`.
 
 ## Связь с web
 

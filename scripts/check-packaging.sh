@@ -32,7 +32,8 @@ for hash in "$VSCODIUM_DARWIN_ARM64_SHA256" "$VSCODIUM_WIN32_X64_SHA256" "$VSCOD
 done
 
 for script in build-macos.sh build-windows.sh build-linux.sh embed-extension.py \
-  verify-release-manifest.sh check-layout-pin.sh desktop/apply-workbench-layout.py; do
+  verify-release-manifest.sh check-layout-pin.sh check-fork-threshold.sh sign-artifact.sh \
+  desktop/apply-workbench-layout.py; do
   if [[ ! -e "$root/scripts/$script" ]]; then
     printf 'missing scripts/%s\n' "$script" >&2
     fail=1
@@ -52,9 +53,14 @@ for script in build-macos.sh build-windows.sh build-linux.sh; do
     printf '%s must apply workbench layout\n' "$script" >&2
     fail=1
   fi
+  if ! grep -q 'sign-artifact.sh' "$root/scripts/$script"; then
+    printf '%s must call sign-artifact.sh\n' "$script" >&2
+    fail=1
+  fi
 done
 
 bash "$root/scripts/check-layout-pin.sh"
+bash "$root/scripts/check-fork-threshold.sh"
 
 python3 - <<'PY'
 import json, pathlib, subprocess

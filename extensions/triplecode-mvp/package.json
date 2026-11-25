@@ -98,6 +98,14 @@
       {
         "command": "triplecode.showOutput",
         "title": "TripleCode: Show Output"
+      },
+      {
+        "command": "triplecode.checkUpdates",
+        "title": "TripleCode: Check for Updates"
+      },
+      {
+        "command": "triplecode.about",
+        "title": "TripleCode: About"
       }
     ],
     "configuration": {
@@ -192,6 +200,17 @@
           "type": "boolean",
           "default": true,
           "description": "Enable Cmd-K / Ctrl+K selection edit when the editor has a non-empty selection."
+        },
+        "triplecode.update.manifestUrl": {
+          "type": "string",
+          "default": "",
+          "description": "HTTPS URL of release-manifest.json (ADR 0005). Empty = manual updates."
+        },
+        "triplecode.update.channel": {
+          "type": "string",
+          "enum": ["stable", "preview"],
+          "default": "stable",
+          "description": "Preferred update channel when checking the release manifest."
         }
       }
     },
