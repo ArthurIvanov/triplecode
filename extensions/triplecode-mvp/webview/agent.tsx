@@ -453,6 +453,9 @@ export function Agent({ initial }: { initial: Initial }) {
   const [indexInfo, setIndexInfo] = useState<{ state: string; count: number } | null>(null);
   const attachQueryRef = useRef('');
   const [queueOpen, setQueueOpen] = useState(false);
+  const [railOpen, setRailOpen] = useState(() => {
+    try { return localStorage.getItem('tc-session-rail') === '1'; } catch { return false; }
+  });
   const prompt = useRef<HTMLTextAreaElement>(null);
   const reviewButton = useRef<HTMLButtonElement>(null);
   const selectedRef = useRef(state.selected);
@@ -578,6 +581,10 @@ export function Agent({ initial }: { initial: Initial }) {
   }, [state.focusRequest]);
 
   useEffect(() => {
+    try { localStorage.setItem('tc-session-rail', railOpen ? '1' : '0'); } catch { /* storage unavailable */ }
+  }, [railOpen]);
+
+  useEffect(() => {
     setAtMention(null);
     setAttachPool([]);
     setAttachReady(false);
@@ -665,12 +672,14 @@ export function Agent({ initial }: { initial: Initial }) {
         onClick={() => send({ type: 'new-chat' })} />
       <ActionButton text={null} start={<ActionButtonIcon href={assets.actions} />} aria-label="Agent actions" data-action="chat-actions"
         onClick={() => send({ type: 'chat-actions' })} />
+      <ActionButton text="Sessions" aria-label="Toggle sessions panel" aria-pressed={railOpen}
+        onClick={() => setRailOpen(open => !open)} />
       <ActionButton text={null} start={<ActionButtonIcon href={assets.listTodo} dimension={14} />} aria-label="Request history"
         aria-pressed={navOpen} disabled={!!patch || navTurns.length === 0}
         onClick={() => setNavOpen(open => !open)} />
     </header>
-    <div className="conversation-wrap has-session-rail">
-      <aside className="session-rail" aria-label="Sessions">
+    <div className={railOpen ? 'conversation-wrap has-session-rail' : 'conversation-wrap'}>
+      {railOpen && <aside className="session-rail" aria-label="Sessions">
         <div className="session-rail__head">
           <span className="session-rail__title">Sessions</span>
           <ActionButton size="base" rounding="full" text="New" disabled={!!patch}
@@ -693,7 +702,7 @@ export function Agent({ initial }: { initial: Initial }) {
             );
           })}
         </div>
-      </aside>
+      </aside>}
       <div className="conversation-main">
     <section id="conversation" className={conversationEmpty ? 'conversation is-empty' : 'conversation'} aria-label="Agent output" onScroll={trackScroll}>
       {conversationEmpty ? (
