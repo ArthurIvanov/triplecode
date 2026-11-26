@@ -24,9 +24,10 @@ const LANGUAGES = [
 const DEBOUNCE_MS = 300;
 const MAX_IN_FLIGHT = 2;
 
-function registerInlineAI(context) {
+function registerInlineAI(context, { onEvent = null } = {}) {
   let inFlight = 0;
   let ollamaProbe = { endpoint: '', ok: false, ts: 0 };
+  let pendingAccept = null;
   const status = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 50);
   status.name = 'TripleCode Inline';
   status.command = 'triplecode.toggleInline';
@@ -73,16 +74,23 @@ function registerInlineAI(context) {
     status.show();
   }
 
+  function emitAccept(outcome, meta = {}) {
+    if (!onEvent) { pendingAccept = null; return; }
+    try { onEvent(outcome, meta); } catch { /* telemetry is best-effort */ }
+    pendingAccept = null;
+  }
+
   async function aiChat(messages) {
     const config = vscode.workspace.getConfiguration('triplecode');
     const kind = config.get('ai.inlineProvider', 'ollama');
+    const meta = { provider: kind === 'openai' ? 'openai' : 'ollama', model: config.get('ai.inlineModel', '') };
     const timeoutMs = Math.min(Number(config.get('ai.timeoutMs', 120000)) || 120000, 10000);
     try {
       if (kind === 'openai') {
         const model = config.get('ai.inlineModel', '');
-        if (!model) return null;
+        if (!model) return { text: null, meta };
         const apiKey = await context.secrets.get('triplecode.inlineApiKey') || '';
-        return await provider.chatCompletions({
+        const text = await provider.chatCompletions({
           baseUrl: config.get('ai.inlineEndpoint', 'http://localhost:8000/v1'),
           apiKey,
           model,
@@ -90,10 +98,11 @@ function registerInlineAI(context) {
           timeoutMs,
           maxTokens: 256
         });
+        return { text, meta };
       }
       const endpoint = config.get('ai.inlineEndpoint', 'http://localhost:11434');
-      if (!(await probeOllama(endpoint))) return null;
-      return await provider.chat({
+      if (!(await probeOllama(endpoint))) return { text: null, meta };
+      const text = await provider.chat({
         endpoint,
         model: config.get('ai.inlineModel', 'qwen2.5-coder:1.5b'),
         messages,
@@ -101,8 +110,9 @@ function registerInlineAI(context) {
         numPredict: 256,
         numCtx: 8192
       });
+      return { text, meta };
     } catch {
-      return null;
+      return { text: null, meta };
     }
   }
 
@@ -129,9 +139,10 @@ function registerInlineAI(context) {
           const before = text.slice(Math.max(0, offset - 6000), offset);
           const after = text.slice(offset, offset + 2000);
           const fileName = document.fileName.split('/').pop() || 'file';
-          const reply = await aiChat(completionMessages(fileName, document.languageId, before, after));
+          const { text: reply, meta } = await aiChat(completionMessages(fileName, document.languageId, before, after));
           if (token.isCancellationRequested) return { items: [] };
           const suggestion = parseSuggestion(reply, after);
+          if (pendingAccept) emitAccept('dismissed', { ...pendingAccept.meta, durationMs: Date.now() - pendingAccept.at });
           if (!suggestion) {
             if (Date.now() - started >= 2500) {
               status.text = '$(warning) Inline slow';
@@ -141,6 +152,10 @@ function registerInlineAI(context) {
             return { items: [] };
           }
           const range = new vscode.Range(position, position);
+          pendingAccept = {
+            uri: document.uri.toString(), offset, text: suggestion,
+            meta: { ...meta, durationMs: Date.now() - started }, at: Date.now()
+          };
           return { items: [new vscode.InlineCompletionItem(suggestion, range)] };
         } finally {
           clearTimeout(latencyTimer);
@@ -168,6 +183,13 @@ function registerInlineAI(context) {
   context.subscriptions.push(
     registration,
     vscode.commands.registerCommand('triplecode.toggleInline', toggleInline),
+    vscode.workspace.onDidChangeTextDocument(event => {
+      const pending = pendingAccept;
+      if (!pending || event.document.uri.toString() !== pending.uri) return;
+      const accepted = event.contentChanges.some(change =>
+        change.rangeOffset === pending.offset && change.text === pending.text);
+      emitAccept(accepted ? 'accepted' : 'dismissed', pending.meta);
+    }),
     vscode.workspace.onDidChangeConfiguration(event => {
       if (event.affectsConfiguration('triplecode.ai.inline')) void refreshStatusIdle();
     })

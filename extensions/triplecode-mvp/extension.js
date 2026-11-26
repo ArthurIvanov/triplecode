@@ -78,7 +78,12 @@ function showDesignSystem(context) {
 }
 
 function activate(context) {
-  registerInlineAI(context);
+  registerInlineAI(context, {
+    onEvent: (outcome, meta = {}) => reportUsage({
+      feature: 'inline', provider: meta.provider || null, model: meta.model || null,
+      durationMs: meta.durationMs || 0, outcome
+    })
+  });
   const cmdkContent = new Map();
   let debugLog = { appendLog() {} };
   let sessionHost;
