@@ -287,9 +287,9 @@ body[data-screen="agent"] { height: 100vh; overflow: hidden; }
   z-index: 6;
   display: flex;
   flex-direction: column;
-  justify-content: space-evenly;
+  justify-content: center;
   align-items: flex-end;
-  gap: 2px;
+  gap: 8px;
   padding: 4px 2px;
   pointer-events: none;
 }
