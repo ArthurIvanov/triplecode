@@ -199,8 +199,7 @@
         },
         "triplecode.ai.inlineEnabled": {
           "type": "boolean",
-          "default": false,
-          "description": "Show inline AI completions (ghost text) in supported editors. Uses the dedicated inline model settings below."
+          "description": "Show inline AI completions (ghost text) in supported editors. Uses the dedicated inline model settings below. Leave unset for auto: enabled when the configured backend probe succeeds, off otherwise."
         },
         "triplecode.ai.inlineProvider": {
           "type": "string",

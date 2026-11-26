@@ -39,6 +39,11 @@ function completionMessages(fileName, languageId, before, after) {
   ];
 }
 
+function resolveInlineEnabled(setting, { auto = false } = {}) {
+  if (setting === true || setting === false) return setting;
+  return Boolean(auto);
+}
+
 function latencyStatusLabel(elapsedMs, { slowMs = 2500 } = {}) {
   if (elapsedMs >= slowMs) return 'Inline slow…';
   return 'Inline…';
@@ -50,5 +55,6 @@ module.exports = {
   shouldYieldToSuggest,
   parseSuggestion,
   completionMessages,
+  resolveInlineEnabled,
   latencyStatusLabel
 };

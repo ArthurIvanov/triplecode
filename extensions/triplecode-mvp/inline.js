@@ -7,6 +7,7 @@ const {
   shouldYieldToSuggest,
   parseSuggestion,
   completionMessages,
+  resolveInlineEnabled,
   latencyStatusLabel
 } = require('./inline-logic.cjs');
 
@@ -31,8 +32,36 @@ function registerInlineAI(context) {
   status.command = 'triplecode.toggleInline';
   context.subscriptions.push(status);
 
-  function refreshStatusIdle() {
-    const enabled = vscode.workspace.getConfiguration('triplecode').get('ai.inlineEnabled', false);
+  async function probeOllama(endpoint) {
+    if (ollamaProbe.endpoint === endpoint && Date.now() - ollamaProbe.ts < 30000) {
+      return ollamaProbe.ok;
+    }
+    const ok = await provider.probe(endpoint).catch(() => false);
+    ollamaProbe = { endpoint, ok, ts: Date.now() };
+    return ok;
+  }
+
+  async function autoBackendReady() {
+    const config = vscode.workspace.getConfiguration('triplecode');
+    if (config.get('ai.inlineProvider', 'ollama') === 'openai') {
+      const apiKey = await context.secrets.get('triplecode.inlineApiKey').catch(() => '');
+      return Boolean(apiKey && config.get('ai.inlineModel', ''));
+    }
+    return probeOllama(config.get('ai.inlineEndpoint', 'http://localhost:11434'));
+  }
+
+  async function effectiveEnabled() {
+    const config = vscode.workspace.getConfiguration('triplecode');
+    // VS Code reports defaultValue:false for boolean keys without an explicit
+    // default, so inspect() is the only reliable way to see a user-set value.
+    const inspected = config.inspect('ai.inlineEnabled');
+    const setting = inspected?.globalValue ?? inspected?.workspaceValue;
+    if (setting === true || setting === false) return setting;
+    return resolveInlineEnabled(setting, { auto: await autoBackendReady() });
+  }
+
+  async function refreshStatusIdle() {
+    const enabled = await effectiveEnabled().catch(() => false);
     if (!enabled) {
       status.text = '$(circle-slash) Inline off';
       status.tooltip = 'TripleCode inline completions are off. Click to enable (BYOK / local model).';
@@ -42,15 +71,6 @@ function registerInlineAI(context) {
     status.text = '$(sparkle) Inline';
     status.tooltip = 'TripleCode inline completions on. Click to disable.';
     status.show();
-  }
-
-  async function probeOllama(endpoint) {
-    if (ollamaProbe.endpoint === endpoint && Date.now() - ollamaProbe.ts < 30000) {
-      return ollamaProbe.ok;
-    }
-    const ok = await provider.probe(endpoint).catch(() => false);
-    ollamaProbe = { endpoint, ok, ts: Date.now() };
-    return ok;
   }
 
   async function aiChat(messages) {
@@ -91,7 +111,7 @@ function registerInlineAI(context) {
     {
       async provideInlineCompletionItems(document, position, contextInline, token) {
         const config = vscode.workspace.getConfiguration('triplecode');
-        if (!config.get('ai.inlineEnabled', false)) return { items: [] };
+        if (!(await effectiveEnabled())) return { items: [] };
         if (shouldYieldToSuggest(contextInline)) return { items: [] };
         if (token.isCancellationRequested || inFlight >= MAX_IN_FLIGHT) return { items: [] };
         await new Promise(resolve => setTimeout(resolve, DEBOUNCE_MS));
@@ -132,27 +152,27 @@ function registerInlineAI(context) {
   );
 
   async function toggleInline() {
-    const config = vscode.workspace.getConfiguration('triplecode');
-    const next = !config.get('ai.inlineEnabled', false);
-    await config.update('ai.inlineEnabled', next, vscode.ConfigurationTarget.Global);
+    const next = !(await effectiveEnabled().catch(() => false));
+    await vscode.workspace.getConfiguration('triplecode')
+      .update('ai.inlineEnabled', next, vscode.ConfigurationTarget.Global);
     if (next) {
-      const kind = config.get('ai.inlineProvider', 'ollama');
+      const kind = vscode.workspace.getConfiguration('triplecode').get('ai.inlineProvider', 'ollama');
       const tip = kind === 'openai'
         ? 'Inline on. Use TripleCode: Set Inline API Key for BYOK OpenAI-compatible completions.'
         : 'Inline on. Uses local Ollama model from triplecode.ai.inlineModel.';
       void vscode.window.showInformationMessage(tip);
     }
-    refreshStatusIdle();
+    void refreshStatusIdle();
   }
 
   context.subscriptions.push(
     registration,
     vscode.commands.registerCommand('triplecode.toggleInline', toggleInline),
     vscode.workspace.onDidChangeConfiguration(event => {
-      if (event.affectsConfiguration('triplecode.ai.inlineEnabled')) refreshStatusIdle();
+      if (event.affectsConfiguration('triplecode.ai.inline')) void refreshStatusIdle();
     })
   );
-  refreshStatusIdle();
+  void refreshStatusIdle();
 }
 
 module.exports = { registerInlineAI };

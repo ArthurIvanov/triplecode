@@ -6,6 +6,7 @@ const {
   shouldYieldToSuggest,
   parseSuggestion,
   completionMessages,
+  resolveInlineEnabled,
   latencyStatusLabel
 } = require('../inline-logic.cjs');
 const {
@@ -36,6 +37,14 @@ describe('S10 / R-C5 inline', () => {
     assert.match(messages[1].content, /<CURSOR>/);
     assert.equal(latencyStatusLabel(3000), 'Inline slow…');
     assert.equal(latencyStatusLabel(500), 'Inline…');
+  });
+
+  it('S20: explicit setting wins; unset falls back to backend probe', () => {
+    assert.equal(resolveInlineEnabled(true, { auto: false }), true);
+    assert.equal(resolveInlineEnabled(false, { auto: true }), false);
+    assert.equal(resolveInlineEnabled(undefined, { auto: true }), true);
+    assert.equal(resolveInlineEnabled(undefined, { auto: false }), false);
+    assert.equal(resolveInlineEnabled(null, { auto: true }), true);
   });
 });
 
