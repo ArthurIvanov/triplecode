@@ -441,7 +441,6 @@ export function Agent({ initial }: { initial: Initial }) {
   });
   const [filesOpen, setFilesOpen] = useState(true);
   const [expandedPlanId, setExpandedPlanId] = useState<string>();
-  const [navOpen, setNavOpen] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [expandedTimelines, setExpandedTimelines] = useState<ReadonlySet<number>>(new Set());
   const [activeTurn, setActiveTurn] = useState<number>();
@@ -674,9 +673,6 @@ export function Agent({ initial }: { initial: Initial }) {
         onClick={() => send({ type: 'chat-actions' })} />
       <ActionButton text="Sessions" aria-label="Toggle sessions panel" aria-pressed={railOpen}
         onClick={() => setRailOpen(open => !open)} />
-      <ActionButton text={null} start={<ActionButtonIcon href={assets.listTodo} dimension={14} />} aria-label="Request history"
-        aria-pressed={navOpen} disabled={!!patch || navTurns.length === 0}
-        onClick={() => setNavOpen(open => !open)} />
     </header>
     <div className={railOpen ? 'conversation-wrap has-session-rail' : 'conversation-wrap'}>
       {railOpen && <aside className="session-rail" aria-label="Sessions">
@@ -846,22 +842,17 @@ export function Agent({ initial }: { initial: Initial }) {
         </div>
       </>}
     </section>
-    {navOpen && navTurns.length > 0 && (
-      <aside className="agent-nav" aria-label="Request history">
-        <div className="agent-nav__title">Requests</div>
+    {navTurns.length > 1 && (
+      <div className="turn-rail" role="navigation" aria-label="Request markers">
         {navTurns.map((turn, position) => (
           <button type="button" key={turn.index}
-            className={activeTurn === turn.index ? 'agent-nav__item is-active' : 'agent-nav__item'}
-            title={turn.text} aria-current={activeTurn === turn.index || undefined}
-            onClick={() => jumpToTurn(turn.index)}>
-            <span className="agent-nav__num">{position + 1}</span>
-            <span className="agent-nav__text">
-              {turn.text.length > 80 ? `${turn.text.slice(0, 80)}…` : turn.text}
-              {turn.steps > 0 && <span className="agent-nav__steps"> · {turn.steps} step{turn.steps === 1 ? '' : 's'}</span>}
-            </span>
-          </button>
+            className={activeTurn === turn.index ? 'turn-rail__mark is-active' : 'turn-rail__mark'}
+            aria-label={`Go to request ${position + 1}: ${turn.text.slice(0, 60)}`}
+            aria-current={activeTurn === turn.index || undefined}
+            title={`${position + 1}. ${turn.text}${turn.steps ? ` — ${turn.steps} steps` : ''}`}
+            onClick={() => jumpToTurn(turn.index)} />
         ))}
-      </aside>
+      </div>
     )}
       </div>
     </div>
