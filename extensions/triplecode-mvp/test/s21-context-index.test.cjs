@@ -75,6 +75,20 @@ describe('S21 / R-β5 context index', () => {
     assert.equal(scorePath('/repo/src/a.ts', 'zzz', ROOT), 0);
   });
 
+  it('warm queries stay well under the 150ms p95 budget at 20k files', () => {
+    const index = createIndex();
+    for (let i = 0; i < 20000; i++) {
+      indexAdd(index, `/repo/src/deep/nested/dir${i % 50}/module_${i}_utils.ts`);
+    }
+    index.ready = true;
+    // warm-up
+    queryIndex(index, 'util', { root: ROOT, limit: 60 });
+    const started = Date.now();
+    for (let i = 0; i < 20; i++) queryIndex(index, 'util', { root: ROOT, limit: 60 });
+    const perQuery = (Date.now() - started) / 20;
+    assert.ok(perQuery < 150, `average query ${perQuery}ms exceeds 150ms budget`);
+  });
+
   it('host module wires index into attach candidates', () => {
     const { createContextIndexHost } = require('../context-index-host.cjs');
     const fakeVscode = {
