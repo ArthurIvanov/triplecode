@@ -1857,8 +1857,21 @@ function activate(context) {
       return;
     }
     currentChat.attachments = result.attachments;
+    if (attachment.kind === 'file' && attachment.path) touchRecentFile(attachment.path);
     persistChats();
     agent?.postMessage({ type: 'chats', ...chatState() });
+  }
+
+  const RECENT_FILES_KEY = 'triplecode.recentFiles';
+  const RECENT_FILES_LIMIT = 20;
+  function recentFiles() {
+    const list = context.globalState.get(RECENT_FILES_KEY, []);
+    return Array.isArray(list) ? list.filter(p => typeof p === 'string') : [];
+  }
+  function touchRecentFile(path) {
+    const list = [path, ...recentFiles().filter(item => item !== path)].slice(0, RECENT_FILES_LIMIT);
+    void context.globalState.update(RECENT_FILES_KEY, list);
+    contextIndexHost?.setBoost?.(list);
   }
 
   function updateChats(id, close) {
@@ -1969,6 +1982,7 @@ function activate(context) {
   contextIndexHost = createContextIndexHost(vscode, {
     onStatus: info => agent?.postMessage({ type: 'index-status', ...info })
   });
+  contextIndexHost.setBoost(recentFiles());
   context.subscriptions.push({ dispose: () => contextIndexHost.stop() });
   void contextIndexHost.start().catch(() => {});
 

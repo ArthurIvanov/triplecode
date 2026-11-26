@@ -70,7 +70,8 @@ function scorePath(path, query, root = '') {
 function queryIndex(index, query, {
   root = '',
   limit = DEFAULT_QUERY_LIMIT,
-  sensitive = isSensitivePath
+  sensitive = isSensitivePath,
+  boost = null
 } = {}) {
   const files = index?.files;
   if (!files || !files.size) return [];
@@ -78,7 +79,8 @@ function queryIndex(index, query, {
   const out = [];
   for (const path of files.keys()) {
     if (sensitive(path)) continue;
-    const score = scorePath(path, q, root);
+    let score = scorePath(path, q, root);
+    if (boost && boost.has(path)) score += 120;
     if (!q || score > 0) {
       const rel = root && path.startsWith(root) ? path.slice(root.length + 1) : path;
       out.push({ path, score, rel });

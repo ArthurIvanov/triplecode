@@ -29,6 +29,7 @@ function createContextIndexHost(vscode, {
   let building = null;
   let root = '';
   let disposed = false;
+  let boostPaths = new Set();
 
   function status() {
     return { state: index.ready ? 'ready' : 'indexing', count: index.count, root };
@@ -95,8 +96,12 @@ function createContextIndexHost(vscode, {
     indexClear(index);
   }
 
+  function setBoost(paths) {
+    boostPaths = new Set(Array.isArray(paths) ? paths.filter(Boolean) : []);
+  }
+
   function query(queryText = '') {
-    return queryIndex(index, queryText, { root, limit: queryLimit });
+    return queryIndex(index, queryText, { root, limit: queryLimit, boost: boostPaths });
   }
 
   /** Ranked attach-picker items: active file + selection first, then index hits. */
@@ -113,7 +118,7 @@ function createContextIndexHost(vscode, {
     return items;
   }
 
-  return { start, stop, query, candidates, candidatesForQuery, status, isReady: () => index.ready };
+  return { start, stop, query, candidates, candidatesForQuery, status, isReady: () => index.ready, setBoost };
 }
 
 module.exports = { createContextIndexHost, INDEX_EXCLUDE };

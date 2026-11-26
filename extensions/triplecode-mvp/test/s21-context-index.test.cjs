@@ -89,6 +89,12 @@ describe('S21 / R-β5 context index', () => {
     assert.ok(perQuery < 150, `average query ${perQuery}ms exceeds 150ms budget`);
   });
 
+  it('boosted (recently used) paths rank ahead of equal matches', () => {
+    const index = seed();
+    const boosted = queryIndex(index, 'ts', { root: ROOT, limit: 60, boost: new Set(['/repo/src/routes/users.ts']) });
+    assert.equal(boosted[0].path, '/repo/src/routes/users.ts');
+  });
+
   it('host module wires index into attach candidates', () => {
     const { createContextIndexHost } = require('../context-index-host.cjs');
     const fakeVscode = {

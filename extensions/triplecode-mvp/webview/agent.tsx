@@ -1064,7 +1064,10 @@ export function Agent({ initial }: { initial: Initial }) {
                 aria-selected={index === atHighlight}
                 onMouseEnter={() => setAtHighlight(index)}
                 onClick={() => pickAttach(item)}>
-                <span className="at-picker__label">{item.label}</span>
+                <span className="at-picker__label">
+                  {item.path && <span className="at-picker__ext">{(item.path.split('.').pop() || '').slice(0, 5).toUpperCase()}</span>}
+                  {item.label}
+                </span>
                 {item.description && <span className="at-picker__desc">{item.description}</span>}
               </button>
             ))}
