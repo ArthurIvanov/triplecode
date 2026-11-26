@@ -41,6 +41,7 @@ const { registerCmdK } = require('./cmdk-host.cjs');
 const { registerDebugDiagnostics } = require('./debug-host.cjs');
 const { registerUpdateCommands } = require('./update-host.cjs');
 const { registerSessionHost } = require('./session-host.cjs');
+const { createContextIndexHost } = require('./context-index-host.cjs');
 const { PILOT_STEPS, isPilotStep, sanitizePilotTaskId, pilotEventPayload } = require('./pilot-logic.cjs');
 const provider = require('./provider');
 
@@ -81,6 +82,7 @@ function activate(context) {
   const cmdkContent = new Map();
   let debugLog = { appendLog() {} };
   let sessionHost;
+  let contextIndexHost;
   const account = registerDesktopAccount(context);
   if (account?.sessionAccessToken) getSessionAccessToken = account.sessionAccessToken;
   const patches = new Map();
@@ -427,7 +429,9 @@ function activate(context) {
             agent?.postMessage({
               type: 'attach-candidates',
               id: currentChat.id,
-              items: await listAttachCandidates()
+              query: typeof message.query === 'string' ? message.query : '',
+              index: contextIndexHost?.status() || null,
+              items: await listAttachCandidates(typeof message.query === 'string' ? message.query : '')
             });
             break;
           case 'attach-pick':
@@ -1782,17 +1786,8 @@ function activate(context) {
     }
   }
 
-  async function listAttachCandidates() {
+  async function listAttachCandidates(query = '') {
     const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || '';
-    let workspaceFiles = [];
-    try {
-      const files = await vscode.workspace.findFiles(
-        '**/*.{ts,tsx,js,jsx,mjs,cjs,py,go,rs,java,md,json}',
-        ['**/node_modules/**', '**/.git/**', '**/dist/**', '**/out/**', '**/media/**'],
-        50
-      );
-      workspaceFiles = files.map(file => file.fsPath);
-    } catch { /* workspace search unavailable */ }
     const editor = vscode.window.activeTextEditor;
     const selection = editor && !editor.selection.isEmpty
       ? {
@@ -1804,6 +1799,18 @@ function activate(context) {
     const activeFile = activeDocument && !activeDocument.isClosed && activeDocument.uri.scheme === 'file'
       ? { path: activeDocument.uri.fsPath, name: fileName(activeDocument) }
       : null;
+    if (contextIndexHost?.isReady()) {
+      return contextIndexHost.candidatesForQuery(query, { activeFile, selection });
+    }
+    let workspaceFiles = [];
+    try {
+      const files = await vscode.workspace.findFiles(
+        '**/*.{ts,tsx,js,jsx,mjs,cjs,py,go,rs,java,md,json}',
+        ['**/node_modules/**', '**/.git/**', '**/dist/**', '**/out/**', '**/media/**'],
+        50
+      );
+      workspaceFiles = files.map(file => file.fsPath);
+    } catch { /* workspace search unavailable */ }
     return buildAttachCandidates({ root, activeFile, selection, workspaceFiles });
   }
 
@@ -1953,6 +1960,12 @@ function activate(context) {
       };
     }
   });
+
+  contextIndexHost = createContextIndexHost(vscode, {
+    onStatus: info => agent?.postMessage({ type: 'index-status', ...info })
+  });
+  context.subscriptions.push({ dispose: () => contextIndexHost.stop() });
+  void contextIndexHost.start().catch(() => {});
 
   const updateHost = registerUpdateCommands(vscode, context, {
     getProductVersion: () => context.extension?.packageJSON?.version || '0.0.1',

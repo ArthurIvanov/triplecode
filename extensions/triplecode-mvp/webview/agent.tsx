@@ -88,10 +88,12 @@ type HostMessage =
   | ({ type: 'chats'; focusPrompt?: boolean } & ChatState)
   | { type: 'timeline-step'; chat: number; item: TimelineItemProps }
   | { type: 'stream-delta'; chat: number; text: string }
-  | { type: 'attach-candidates'; id: number; items: AttachCandidate[]; open?: boolean }
+  | { type: 'attach-candidates'; id: number; items: AttachCandidate[]; open?: boolean;
+      query?: string; index?: { state: string; count: number } | null }
+  | { type: 'index-status'; state: string; count: number; root?: string; message?: string }
   | { type: 'mcp-permission'; id: string; chat: number; server: string; tool: string; argsPreview: string };
 type ViewMessage =
-  | { type: 'select-chat' | 'close-chat' | 'stop' | 'attach-menu' | 'clear-queue' | 'attach-query'; id: number }
+  | { type: 'select-chat' | 'close-chat' | 'stop' | 'attach-menu' | 'clear-queue' | 'attach-query'; id: number; query?: string }
   | { type: 'cancel-queue-item' | 'edit-queue-item'; id: number; index: number }
   | { type: 'mcp-permission-response'; id: string; decision: 'once' | 'always' | 'deny' }
   | { type: 'draft'; id: number; value: string }
@@ -448,6 +450,8 @@ export function Agent({ initial }: { initial: Initial }) {
   const [attachLoading, setAttachLoading] = useState(false);
   const [atMention, setAtMention] = useState<AtMention | null>(null);
   const [atHighlight, setAtHighlight] = useState(0);
+  const [indexInfo, setIndexInfo] = useState<{ state: string; count: number } | null>(null);
+  const attachQueryRef = useRef('');
   const [queueOpen, setQueueOpen] = useState(false);
   const prompt = useRef<HTMLTextAreaElement>(null);
   const reviewButton = useRef<HTMLButtonElement>(null);
@@ -522,8 +526,14 @@ export function Agent({ initial }: { initial: Initial }) {
   useLayoutEffect(() => {
     function receive(event: MessageEvent<HostMessage>) {
       const data = event.data;
+      if (data.type === 'index-status') {
+        setIndexInfo({ state: data.state, count: data.count });
+        return;
+      }
       if (data.type === 'attach-candidates') {
         if (data.id !== selectedRef.current) return;
+        if (typeof data.query === 'string' && data.query !== attachQueryRef.current) return;
+        if (data.index !== undefined) setIndexInfo(data.index);
         setAttachPool(Array.isArray(data.items) ? data.items : []);
         setAttachReady(true);
         setAttachLoading(false);
@@ -579,15 +589,20 @@ export function Agent({ initial }: { initial: Initial }) {
     const mention = parseAtQuery(value, cursor);
     setAtMention(mention);
     setAtHighlight(0);
-    if (!mention) {
-      setAttachLoading(false);
-      return;
-    }
-    if (!attachReady) {
-      setAttachLoading(true);
-      send({ type: 'attach-query', id: selected });
-    }
+    if (!mention) setAttachLoading(false);
   }
+
+  const atQuery = atMention?.query;
+  const atMentionOpen = Boolean(atMention);
+  useEffect(() => {
+    if (!atMentionOpen || atQuery === undefined) return;
+    attachQueryRef.current = atQuery;
+    setAttachLoading(true);
+    const timer = setTimeout(() => {
+      send({ type: 'attach-query', id: selected, query: attachQueryRef.current });
+    }, 120);
+    return () => clearTimeout(timer);
+  }, [atQuery, atMentionOpen, selected]);
 
   function atPickerStatus(): 'loading' | 'empty-sources' | 'no-matches' | 'ready' {
     if (attachLoading && !attachReady) return 'loading';
@@ -1053,6 +1068,12 @@ export function Agent({ initial }: { initial: Initial }) {
                 {item.description && <span className="at-picker__desc">{item.description}</span>}
               </button>
             ))}
+          {indexInfo?.state === 'indexing' && (
+            <div className="at-picker__status">Indexing workspace… {indexInfo.count} files</div>
+          )}
+          {indexInfo?.state === 'ready' && atPickerStatus() === 'ready' && (
+            <div className="at-picker__status">{indexInfo.count} files indexed</div>
+          )}
         </div>}
         <label className="sr-only" htmlFor="prompt">Agent task</label>
         <textarea id="prompt" ref={prompt} maxLength={500}
